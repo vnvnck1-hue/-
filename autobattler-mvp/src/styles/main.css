@@ -1,0 +1,759 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: #050608;
+  color: #f0f0f0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Segoe UI", system-ui,
+    sans-serif;
+  overflow: hidden;
+  touch-action: none;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-frame {
+  position: relative;
+  /* 세로 모바일 비율 9:16 */
+  width: min(100vw, calc(100vh * 9 / 16));
+  height: min(100vh, calc(100vw * 16 / 9));
+  background: #0c0e14;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+#game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+}
+
+#ui-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#ui-overlay > * {
+  pointer-events: auto;
+}
+
+/* ===== 상단 HUD ===== */
+.hud-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0));
+  z-index: 5;
+}
+
+.hud-gold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #ffd84a;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.hud-gold::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff2a0, #ffb800 60%, #8a5a00);
+  box-shadow: 0 0 8px rgba(255, 200, 50, 0.6);
+}
+
+.hud-stage {
+  text-align: center;
+  flex: 1;
+}
+
+.hud-stage-label {
+  font-size: 11px;
+  color: #b0b8c8;
+  letter-spacing: 1px;
+}
+
+.hud-stage-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.hud-wave-bar {
+  position: absolute;
+  top: 50px;
+  left: 14px;
+  right: 14px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+  z-index: 4;
+}
+
+.hud-wave-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff5050, #ffb14a);
+  width: 0%;
+  transition: width 0.25s ease;
+}
+
+/* ===== 특성 프리뷰 (우상단) ===== */
+.trait-preview-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 6;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e8ecff;
+  background: linear-gradient(180deg, rgba(40, 48, 72, 0.95), rgba(22, 26, 38, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.trait-preview-btn:hover,
+.trait-preview-btn:active {
+  border-color: rgba(255, 216, 74, 0.55);
+  color: #ffd84a;
+}
+
+.trait-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 25;
+  animation: fade-in 0.2s ease;
+}
+
+.trait-preview-panel {
+  width: 100%;
+  max-width: 360px;
+  max-height: min(78vh, 520px);
+  overflow: auto;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1c2230, #12161e);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.trait-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.trait-preview-head h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffd84a;
+  margin: 0;
+}
+
+.trait-preview-close {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c8d0e0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.trait-preview-close:hover {
+  color: #fff;
+  border-color: rgba(255, 216, 74, 0.45);
+}
+
+.trait-preview-section {
+  padding: 12px 16px 14px;
+}
+
+.trait-preview-section--summary {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.trait-preview-section h3 {
+  font-size: 13px;
+  font-weight: 800;
+  color: #b8c4dc;
+  margin: 0 0 8px;
+  letter-spacing: 0.02em;
+}
+
+.trait-preview-empty {
+  font-size: 13px;
+  color: #8892a8;
+  line-height: 1.4;
+}
+
+.trait-preview-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trait-preview-list li::marker {
+  color: #ffd84a;
+}
+
+.trait-preview-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.trait-preview-desc {
+  font-size: 12px;
+  color: #9aa6bc;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.trait-preview-sub {
+  font-size: 11px;
+  color: #7a8498;
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.trait-preview-summary {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #d0d8e8;
+  line-height: 1.55;
+}
+
+.hud-wave-text {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  color: #d4d8e0;
+  z-index: 4;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* ===== 하단 패널 ===== */
+.bottom-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 10px 14px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.4));
+  z-index: 5;
+}
+
+.hero-cards {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.hero-card {
+  flex: 1;
+  background: rgba(20, 24, 36, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-card.dead {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.hero-card-name {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hero-card-name .lvl {
+  font-size: 10px;
+  color: #aab;
+}
+
+.bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+
+.bar > .fill {
+  height: 100%;
+  transition: width 0.18s ease;
+}
+
+.bar.hp .fill {
+  background: linear-gradient(90deg, #ff3a3a, #ff8a4a);
+}
+
+.bar.mp .fill {
+  background: linear-gradient(90deg, #4aa6ff, #66d4ff);
+}
+
+.equip-slots {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.equip-slot {
+  flex: 1;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  position: relative;
+  cursor: pointer;
+}
+
+.equip-slot.has-item {
+  border-style: solid;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.equip-slot .icon {
+  position: absolute;
+  inset: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+
+.ult-btn {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2a2f3d, #15181f);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+  font-size: 12px;
+  margin-top: 6px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.08s;
+}
+
+.ult-btn.ready {
+  background: linear-gradient(180deg, #ffaa3a, #ff5a2a);
+  box-shadow: 0 0 12px rgba(255, 170, 60, 0.6);
+  animation: ult-pulse 1.2s ease-in-out infinite;
+}
+
+.ult-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ult-btn:active {
+  transform: scale(0.95);
+}
+
+@keyframes ult-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(255, 170, 60, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(255, 200, 60, 1);
+  }
+}
+
+/* ===== 인게임 재시작 ===== */
+.game-restart-btn {
+  position: absolute;
+  left: 12px;
+  top: 78px;
+  z-index: 7;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #e8e8f0;
+  background: linear-gradient(180deg, rgba(90, 36, 36, 0.95), rgba(40, 18, 18, 0.98));
+  border: 1px solid rgba(255, 120, 100, 0.45);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.game-restart-btn:hover,
+.game-restart-btn:active {
+  color: #ffd0c8;
+  border-color: rgba(255, 180, 140, 0.75);
+}
+
+/* ===== 아이템 인벤토리 (그리드) ===== */
+.inventory-section {
+  margin-bottom: 8px;
+}
+
+.inventory-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #9aa4b8;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+
+.inventory-grid {
+  --inv-cols: 6;
+  display: grid;
+  grid-template-columns: repeat(var(--inv-cols), minmax(0, 1fr));
+  gap: 5px;
+  max-height: 132px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.inv-slot-empty {
+  aspect-ratio: 1;
+  min-height: 0;
+  border-radius: 5px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  box-sizing: border-box;
+}
+
+.inv-item {
+  aspect-ratio: 1;
+  min-height: 0;
+  border-radius: 5px;
+  border: 2px solid #555;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  position: relative;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.9);
+  box-sizing: border-box;
+}
+
+.inv-item--selected {
+  outline: 2px solid #ffd84a;
+  outline-offset: 1px;
+  box-shadow: 0 0 10px rgba(255, 216, 74, 0.45);
+}
+
+.inv-item.rarity-common {
+  border-color: #888;
+  background: linear-gradient(180deg, #4a4a4a, #2a2a2a);
+}
+.inv-item.rarity-rare {
+  border-color: #4aa6ff;
+  background: linear-gradient(180deg, #2a5aa0, #15356a);
+  box-shadow: 0 0 6px rgba(74, 166, 255, 0.5);
+}
+.inv-item.rarity-epic {
+  border-color: #c66aff;
+  background: linear-gradient(180deg, #6a2aa0, #3a155a);
+  box-shadow: 0 0 8px rgba(198, 106, 255, 0.6);
+}
+.inv-item.rarity-legendary {
+  border-color: #ffc83a;
+  background: linear-gradient(180deg, #c9882a, #6a4515);
+  box-shadow: 0 0 12px rgba(255, 200, 60, 0.7);
+  animation: legend-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes legend-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(255, 200, 60, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 220, 80, 0.95);
+  }
+}
+
+/* ===== 특성 선택 오버레이 ===== */
+.perk-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 20;
+  animation: fade-in 0.25s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.perk-overlay h2 {
+  font-size: 22px;
+  margin-bottom: 6px;
+  color: #ffd84a;
+  text-shadow: 0 0 12px rgba(255, 200, 60, 0.6);
+}
+
+.perk-overlay .sub {
+  font-size: 12px;
+  color: #c0c4cc;
+  margin-bottom: 20px;
+}
+
+.perk-cards {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  align-items: stretch;
+}
+
+.perk-card {
+  flex: 1;
+  padding: 12px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1a2030, #0e1118);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 210px;
+  text-align: center;
+}
+
+.perk-card:hover,
+.perk-card:active {
+  border-color: #ffd84a;
+  background: linear-gradient(180deg, #2a3550, #15192a);
+  transform: translateY(-2px);
+}
+
+.perk-name {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  color: #fff;
+}
+
+.perk-desc {
+  font-size: 12px;
+  color: #b0b8c8;
+  line-height: 1.35;
+}
+
+.perk-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-top: 6px;
+}
+
+.perk-icon-svg {
+  width: 26px;
+  height: 26px;
+  color: #ffd84a;
+  filter: drop-shadow(0 2px 6px rgba(255, 200, 60, 0.35));
+}
+
+.perk-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* 좁은 화면에서도 3개가 가로로 들어가게 살짝 타이트하게 */
+@media (max-width: 380px) {
+  .perk-card {
+    padding: 10px 8px;
+    gap: 8px;
+    min-height: 190px;
+  }
+  .perk-name {
+    font-size: 14px;
+  }
+  .perk-desc {
+    font-size: 11px;
+  }
+  .perk-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+  .perk-icon-svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* ===== 게임 오버 ===== */
+.game-over {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  animation: fade-in 0.4s ease;
+}
+
+.game-over h1 {
+  font-size: 40px;
+  color: #ff4848;
+  text-shadow: 0 0 18px rgba(255, 60, 60, 0.7);
+  margin-bottom: 8px;
+}
+
+.game-over .stats {
+  font-size: 14px;
+  color: #ddd;
+  margin-bottom: 24px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.game-over button {
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffaa3a, #ff5a2a);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+/* ===== 시작 화면 ===== */
+.start-screen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0e1118 0%, #1a2030 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 25;
+  padding: 24px;
+}
+
+.start-screen h1 {
+  font-size: 28px;
+  color: #fff;
+  text-align: center;
+  margin-bottom: 4px;
+  text-shadow: 0 0 12px rgba(255, 200, 60, 0.4);
+}
+
+.start-screen .tagline {
+  font-size: 13px;
+  color: #aab;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.start-screen button {
+  padding: 14px 40px;
+  font-size: 16px;
+  font-weight: 800;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffaa3a, #ff5a2a);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(255, 170, 60, 0.5);
+}
+
+.start-screen .hint {
+  margin-top: 18px;
+  font-size: 11px;
+  color: #889;
+  text-align: center;
+  line-height: 1.6;
+}

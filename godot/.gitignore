@@ -1,0 +1,12 @@
+# Godot
+.godot/
+*.import.bak
+
+# Build outputs / large binaries
+build/
+*.exe
+*.pck
+*.zip
+video/
+*.avi
+*.mp4

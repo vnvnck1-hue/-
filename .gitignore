@@ -1,0 +1,20 @@
+# Dependencies / build outputs
+node_modules/
+dist/
+
+# Godot
+.godot/
+godot/build/
+*.exe
+*.pck
+
+# Regenerable synth outputs (game copies live in godot/audio)
+tools/bgm_synth/out/
+
+# Separate repo (has its own remote: my-game-project)
+_보관_게임과무관/오토배틀러_클로드/
+
+# OS / misc
+Thumbs.db
+.DS_Store
+*.log

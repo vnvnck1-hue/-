@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "trio-chess-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "godot-web-build",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8060", "--directory", "godot/build/web"],
+      "port": 8060
+    }
+  ]
+}
