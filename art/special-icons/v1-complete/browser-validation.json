@@ -1,0 +1,13 @@
+{
+  "created": "2026-10-11",
+  "url": "http://127.0.0.1:8765/catalog/index.html",
+  "galleryIcons": 99,
+  "uniqueImagePaths": 99,
+  "newUniqueImagePaths": 28,
+  "imageElements": 198,
+  "loadedImages": 198,
+  "failedImages": 0,
+  "pngCount": 99,
+  "pending": 0,
+  "screenshot": "../../catalog/completed-preview.png"
+}

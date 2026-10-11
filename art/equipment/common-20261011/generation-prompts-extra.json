@@ -1,0 +1,41 @@
+{
+  "generator": "Built-in image_gen",
+  "transparent_background": true,
+  "references": [
+    "Original user reference sheet",
+    "iron-sword.png",
+    "wooden-shield.png"
+  ],
+  "assets": [
+    {
+      "key": "axe1",
+      "filename": "axe1-hand-axe.png",
+      "name": "손도끼",
+      "prompt": "Use case: stylized-concept. Asset type: one common-tier fantasy equipment inventory icon for the game. The supplied images are STYLE REFERENCES ONLY. Match the previously generated iron sword and wooden shield precisely in visual language: bold smooth BLACK rounded outline, chunky cute silhouette, simple flat muted material colors, one broad highlight and one flat shadow shape, minimal internal lines, casual hand-drawn cartoon 2D game icon. Reference weapon sheet also establishes the simple compact shape language. Ordinary starter-quality equipment. Exactly ONE item, centered on a square canvas, occupying about 70-75% of the canvas with comfortable transparent margin. Actual transparent background; preserve alpha. Readable at 64/48/32 pixels. No words, no labels, no numbers, no UI border or card, no checkerboard painted into image, no ground or cast shadow, no glow, no magic, no gemstones, no ornate decoration, no realistic textures, no complex gradients. Subject: a small hand axe, diagonal from lower-left brown wooden handle to upper-right dull iron axe head. A single compact broad gray axe blade protrudes from one side of the top of the handle, with a gently curved pale silver cutting edge and a simple short back. Rounded wooden handle end, one modest leather wrap near the head. Clear practical hatchet silhouette and friendly compact proportions."
+    },
+    {
+      "key": "bow1",
+      "filename": "bow1-short-bow.png",
+      "name": "단궁",
+      "prompt": "Use case: stylized-concept. Asset type: one common-tier fantasy equipment inventory icon for the game. The supplied images are STYLE REFERENCES ONLY. Match the previously generated iron sword and wooden shield precisely in visual language: bold smooth BLACK rounded outline, chunky cute silhouette, simple flat muted material colors, one broad highlight and one flat shadow shape, minimal internal lines, casual hand-drawn cartoon 2D game icon. Reference weapon sheet also establishes the simple compact shape language. Ordinary starter-quality equipment. Exactly ONE item, centered on a square canvas, occupying about 70-75% of the canvas with comfortable transparent margin. Actual transparent background; preserve alpha. Readable at 64/48/32 pixels. No words, no labels, no numbers, no UI border or card, no checkerboard painted into image, no ground or cast shadow, no glow, no magic, no gemstones, no ornate decoration, no realistic textures, no complex gradients. Subject: a small plain short bow made of warm brown bent wood, tilted slightly diagonally, a single continuous C-shaped wooden limb with a narrow taut tan bowstring clearly joining its two tips. One small darker brown grip at the midpoint. The bowstring is thin but visibly outlined, enclosed interior is transparent. No arrow, no quiver. Chunky clean readable starter bow silhouette."
+    },
+    {
+      "key": "staff1",
+      "filename": "staff1-wooden-staff.png",
+      "name": "나무 지팡이",
+      "prompt": "Use case: stylized-concept. Asset type: one common-tier fantasy equipment inventory icon for the game. The supplied images are STYLE REFERENCES ONLY. Match the previously generated iron sword and wooden shield precisely in visual language: bold smooth BLACK rounded outline, chunky cute silhouette, simple flat muted material colors, one broad highlight and one flat shadow shape, minimal internal lines, casual hand-drawn cartoon 2D game icon. Reference weapon sheet also establishes the simple compact shape language. Ordinary starter-quality equipment. Exactly ONE item, centered on a square canvas, occupying about 70-75% of the canvas with comfortable transparent margin. Actual transparent background; preserve alpha. Readable at 64/48/32 pixels. No words, no labels, no numbers, no UI border or card, no checkerboard painted into image, no ground or cast shadow, no glow, no magic, no gemstones, no ornate decoration, no realistic textures, no complex gradients. Subject: a simple wooden staff diagonal from bottom-left to upper-right, short chunky icon proportions. Warm medium-brown wood with a slightly crooked organic shaft, a rounded natural knobbly end at the top, a small broad tan highlight, and one dark-brown shadow shape. It is a plain walking-stick-like novice staff made only of wood. No orb, no crystal, no leaf, no elaborate spiral."
+    },
+    {
+      "key": "ring1",
+      "filename": "ring1-copper-ring.png",
+      "name": "구리 반지",
+      "prompt": "Use case: stylized-concept. Asset type: one common-tier fantasy equipment inventory icon for the game. The supplied images are STYLE REFERENCES ONLY. Match the previously generated iron sword and wooden shield precisely in visual language: bold smooth BLACK rounded outline, chunky cute silhouette, simple flat muted material colors, one broad highlight and one flat shadow shape, minimal internal lines, casual hand-drawn cartoon 2D game icon. Reference weapon sheet also establishes the simple compact shape language. Ordinary starter-quality equipment. Exactly ONE item, centered on a square canvas, occupying about 70-75% of the canvas with comfortable transparent margin. Actual transparent background; preserve alpha. Readable at 64/48/32 pixels. No words, no labels, no numbers, no UI border or card, no checkerboard painted into image, no ground or cast shadow, no glow, no magic, no gemstones, no ornate decoration, no realistic textures, no complex gradients. Subject: one plain copper finger ring, thick smooth copper band in a slight three-quarter view, a clearly visible oval hole with fully transparent empty center. Muted reddish-brown copper and a small warm orange highlight, dark brown underside, bold black perimeter outlines around outer and inner contour. Plain unadorned band, no stone, no setting, no engraving. Clearly a finger ring rather than a coin or disk."
+    },
+    {
+      "key": "amulet1",
+      "filename": "amulet1-wooden-necklace.png",
+      "name": "나무 목걸이",
+      "prompt": "Use case: stylized-concept. Asset type: one common-tier fantasy equipment inventory icon for the game. The supplied images are STYLE REFERENCES ONLY. Match the previously generated iron sword and wooden shield precisely in visual language: bold smooth BLACK rounded outline, chunky cute silhouette, simple flat muted material colors, one broad highlight and one flat shadow shape, minimal internal lines, casual hand-drawn cartoon 2D game icon. Reference weapon sheet also establishes the simple compact shape language. Ordinary starter-quality equipment. Exactly ONE item, centered on a square canvas, occupying about 70-75% of the canvas with comfortable transparent margin. Actual transparent background; preserve alpha. Readable at 64/48/32 pixels. No words, no labels, no numbers, no UI border or card, no checkerboard painted into image, no ground or cast shadow, no glow, no magic, no gemstones, no ornate decoration, no realistic textures, no complex gradients. Subject: one basic wooden necklace, consisting of a simple closed loop of dark-brown leather cord and ONE small oval rounded wooden pendant hanging at the bottom through a drilled hole. Show the entire necklace loop, and the small warm-brown wooden charm with only one flat tan highlight. Cord is bold enough to read at small icon size, transparent empty inside loop. No symbols, no metal chain, no gemstone, no extra beads. Compact simple starter necklace silhouette."
+    }
+  ]
+}

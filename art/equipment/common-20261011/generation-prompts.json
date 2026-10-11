@@ -1,0 +1,19 @@
+{
+  "generator": "Built-in image_gen",
+  "reference": "codex-clipboard-e43fd798-bd01-4952-b612-84908fe94b01.png",
+  "transparent_background": true,
+  "assets": [
+    {
+      "key": "iron_sword",
+      "prompt": "Use case: stylized-concept. Asset type: a single common-tier fantasy equipment inventory icon for a game. Input image 1 is ONLY a STYLE REFERENCE, not an edit target. Match its playful compact hand-drawn cartoon game icon language: very bold clean black rounded outline, simple chunky silhouette, flat limited colors, one broad highlight and one simple shadow area, minimal internal detail, slightly irregular organic shapes. Keep the same level of simplicity as the tiny icons in the reference, legible at 64 pixels. Truly transparent background. Exactly ONE item centered in a square image with generous empty margin, item occupies about 75% of canvas. No lettering, labels, borders, UI card, background pattern, checkerboard, cast shadow, magic effects, gems, ornate embellishments, or photorealistic rendering. Ordinary starter equipment, no rarity decoration. Subject: a short basic iron sword angled from lower-left handle to upper-right tip, thick short pale cool-gray blade with a pale highlight strip, slightly rounded pointed tip, small dark gray crossguard, brown leather handle and rounded dark pommel. Compact friendly proportions. Plain common-quality iron and leather."
+    },
+    {
+      "key": "wooden_shield",
+      "prompt": "Use case: stylized-concept. Asset type: a single common-tier fantasy equipment inventory icon for a game. Input image 1 is ONLY a STYLE REFERENCE, not an edit target. Match its playful compact hand-drawn cartoon game icon language: very bold clean black rounded outline, simple chunky silhouette, flat limited colors, one broad highlight and one simple shadow area, minimal internal detail, slightly irregular organic shapes. Keep the same level of simplicity as the tiny icons in the reference, legible at 64 pixels. Truly transparent background. Exactly ONE item centered in a square image with generous empty margin, item occupies about 75% of canvas. No lettering, labels, borders, UI card, background pattern, checkerboard, cast shadow, magic effects, gems, ornate embellishments, or photorealistic rendering. Ordinary starter equipment, no rarity decoration. Subject: a small basic wooden round shield shown slightly in three-quarter view, warm medium-brown wooden face with only two plank seam lines, simple dull dark gray iron rim, a small dull gray central circular boss. Chunky friendly proportions, muted earthy colors. Plain common-quality wood and iron."
+    },
+    {
+      "key": "leather_helmet",
+      "prompt": "Use case: stylized-concept. Asset type: a single common-tier fantasy equipment inventory icon for a game. Input image 1 is ONLY a STYLE REFERENCE, not an edit target. Match its playful compact hand-drawn cartoon game icon language: very bold clean black rounded outline, simple chunky silhouette, flat limited colors, one broad highlight and one simple shadow area, minimal internal detail, slightly irregular organic shapes. Keep the same level of simplicity as the tiny icons in the reference, legible at 64 pixels. Truly transparent background. Exactly ONE item centered in a square image with generous empty margin, item occupies about 75% of canvas. No lettering, labels, borders, UI card, background pattern, checkerboard, cast shadow, magic effects, gems, ornate embellishments, or photorealistic rendering. Ordinary starter equipment, no rarity decoration. Subject: a simple brown leather adventurer helmet/cap shown slightly in three-quarter view, rounded dome, short cheek flaps, dark open face area, one simple curved seam and subtle broad tan highlight. Compact friendly proportions, muted earthy brown palette. Plain common-quality leather, no horns, no crest, no metal ornament."
+    }
+  ]
+}

@@ -18,3 +18,6 @@ _보관_게임과무관/오토배틀러_클로드/
 Thumbs.db
 .DS_Store
 *.log
+
+# Claude Code worktrees
+.claude/worktrees/

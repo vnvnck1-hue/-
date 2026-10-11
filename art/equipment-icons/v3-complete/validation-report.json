@@ -1,0 +1,15 @@
+{
+  "basicEquipment": 64,
+  "connectedBasicPNG": 64,
+  "newGeneratedPNG": 53,
+  "uniqueBasicPNG": 64,
+  "allCatalogPNG": 71,
+  "pendingBasicEquipment": 0,
+  "pendingOtherItems": 28,
+  "embeddedCatalogMatches": true,
+  "sourceCopiesMatch": true,
+  "missingFiles": 0,
+  "transparentPNGsDecoded": 64,
+  "maximumCornerAlpha": 1,
+  "alphaReport": "alpha-validation.json"
+}

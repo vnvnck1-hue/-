@@ -1,0 +1,812 @@
+{
+  "created": "2026-10-11",
+  "catalogTotal": 99,
+  "pngCount": 99,
+  "pending": 0,
+  "groupCounts": {
+    "family": 64,
+    "unique": 11,
+    "ascended": 11,
+    "relic": 7,
+    "consumable": 5,
+    "book": 1
+  },
+  "embeddedDataMatches": true,
+  "uniquePngHashes": 99,
+  "newAssets": 28,
+  "sourceCopiesVerified": 28,
+  "files": [
+    {
+      "id": "sword1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\iron-sword.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 349397,
+      "sha256": "1270cafbafcb7bcf1e6942aaba297b78aab5e16dacee113884c15b4e7549030d"
+    },
+    {
+      "id": "sword2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v2-casual\\sword2-steel-sword.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 521900,
+      "sha256": "36940960f72733e76a711caa0c4bef9843111d3e0b37382ccb5169bf89b6c2ea"
+    },
+    {
+      "id": "sword3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\sword3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 545945,
+      "sha256": "82997220a03fb5227793a8ea47fc7e85b49e3f8ed93ec0a06b8a803ac157f934"
+    },
+    {
+      "id": "sword4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\sword4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 661572,
+      "sha256": "3e5e11b6c033fa2ae623b8116b9bdb327d5d6b1217f624f6768898b6efe67c8a"
+    },
+    {
+      "id": "sword5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\sword5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 749423,
+      "sha256": "427d54d9ae99492859cc4648ed5bff1d6cc89d8295192aa37e89007253dfbe29"
+    },
+    {
+      "id": "sword6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\sword6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 603801,
+      "sha256": "6e84870d0029a4ca431da4bcc1e9db65e11a6e532ebe21f959723a8d03140ddd"
+    },
+    {
+      "id": "sword7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\sword7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 668252,
+      "sha256": "eefebe5e69a2fc6627c3dbe707cb89ea2141dc493468a191b5fc29140ea38516"
+    },
+    {
+      "id": "sword8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\sword8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 690284,
+      "sha256": "4b45cfcf5d42d5a497b1bf76e454211a86ddeb685dfcfa7f50b1c296f7d8cfb6"
+    },
+    {
+      "id": "axe1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\axe1-hand-axe.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 413079,
+      "sha256": "e2c5fe467f81874f83c803c7f0f8eddd401dea660e091b12862c2f8375be3988"
+    },
+    {
+      "id": "axe2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v2-casual\\axe2-battle-axe.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 582292,
+      "sha256": "952b248fc5a61cb7033ad2eab1ed0e6265dae7d146decf89e35868a2bb73244e"
+    },
+    {
+      "id": "axe3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\axe3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 672330,
+      "sha256": "620842308465873e23891305a5210a92581c9a8b80b5a7f3dfe0af4640ca075b"
+    },
+    {
+      "id": "axe4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\axe4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 857101,
+      "sha256": "2ca2f0d7fb475f0f385bf2ba4cdeb8972e882ccaad865a9518a2b6b03d4968f1"
+    },
+    {
+      "id": "axe5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\axe5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 691739,
+      "sha256": "7deb6dc3256421656b44e995fdd1794f7848780b22aceca0f1ae1f4f20815693"
+    },
+    {
+      "id": "axe6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\axe6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 773614,
+      "sha256": "98db869025dd1760266cd09fd6d405eda32efaa1604809af02e327d7f31c4f67"
+    },
+    {
+      "id": "axe7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\axe7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 835105,
+      "sha256": "a4094c91211038a8f7e2a4655fb1a3dd86b161f65bc941355adefe42839df0be"
+    },
+    {
+      "id": "axe8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\axe8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 821062,
+      "sha256": "47715b7e1ae03c2c9ee12cc6766fe55ea93163c3885bc7f413a973598ef19a1c"
+    },
+    {
+      "id": "bow1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\bow1-short-bow.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 383766,
+      "sha256": "01d541fa497a2a7e1011637ff1b7048d9bc21df59edd7087e434b2daac956a65"
+    },
+    {
+      "id": "bow2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\bow2.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 432067,
+      "sha256": "52cd4c676657b7daa25193a951e3829bdecff896ae943f2c2f980aaa8faddbbc"
+    },
+    {
+      "id": "bow3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\bow3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 750097,
+      "sha256": "d74b85d5bb18e2c1e73cf5699842ba50473435a362afe28c76eb1bbe1996ffab"
+    },
+    {
+      "id": "bow4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\bow4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 544792,
+      "sha256": "ee5612d9abc086f3206e89fb93d69e0bdafbd6b46603e1b26afaa05758b7109a"
+    },
+    {
+      "id": "bow5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\bow5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 515757,
+      "sha256": "71167f4cb62200d51309dd310b941cb85d63e1aa481d84a76e9b4333a0e9825b"
+    },
+    {
+      "id": "bow6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\bow6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 576542,
+      "sha256": "7eb068b9e5090fc73580bdbbaf2f354e65ad9edad1acb38091d26a9b5cf4eefa"
+    },
+    {
+      "id": "bow7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\bow7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 599581,
+      "sha256": "014298b7fa706b0de0cd3e8a003f54f867af5212e729bfe2a1ec2e850a1b7e3a"
+    },
+    {
+      "id": "bow8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\bow8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 617369,
+      "sha256": "a844cf457d04dc2ee4fcc39fd4a85543f0730759a598a7214bcc6e93b59e7014"
+    },
+    {
+      "id": "staff1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\staff1-wooden-staff.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 276153,
+      "sha256": "66e1c163fa0a6f26b9528053fa41fc4232882d8bb99468d95b720379006a331a"
+    },
+    {
+      "id": "staff2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\staff2.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 457252,
+      "sha256": "70d83bc786c0b540d4e08eef6db29210b079d24f7345b4ab971a484c60a157b7"
+    },
+    {
+      "id": "staff3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\staff3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 572973,
+      "sha256": "ccab1298d9f267ca639101f4a89b98a989c416c43bfcada2ecb522bea8e5e215"
+    },
+    {
+      "id": "staff4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\staff4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 525807,
+      "sha256": "51beeb816b69acb98e203d8c0b13f2e1bcb45702b40691dc69f70a5c2affd92d"
+    },
+    {
+      "id": "staff5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\staff5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 580333,
+      "sha256": "694d4fd47badb23884dfc22d42b436e4b29cd58c7e5c89322cdf1572cf3ca3a5"
+    },
+    {
+      "id": "staff6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\staff6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 545630,
+      "sha256": "60ab34918896f188622fb5c9cb5d455b33f15d998bec3d75570870a1d04da623"
+    },
+    {
+      "id": "staff7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\staff7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 536876,
+      "sha256": "0b037a6525e7928fa1fc275e23143c9e193377a94ba87ac0fec5ad3c2e3f76fc"
+    },
+    {
+      "id": "staff8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\staff8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 515288,
+      "sha256": "156379db5902980f4e6a9983312958d7ed2b6961da0d3770564b2e4ce16cfb1c"
+    },
+    {
+      "id": "shield1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\wooden-shield.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 675109,
+      "sha256": "0bd83620036dbe72204faef21df2311e42b7c3648ea99c594ac8c4a9b3f3b95c"
+    },
+    {
+      "id": "shield2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v2-casual\\shield2-iron-shield.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 853349,
+      "sha256": "5b70f013b90b6bdc21d3d394d8f098406ab3ceff2a56ab91fe13472e4632ad3d"
+    },
+    {
+      "id": "shield3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\shield3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 909790,
+      "sha256": "71062d7fa219c37708869ff3e91f62f4c573f88c18d82cc5a94bb9628330cd59"
+    },
+    {
+      "id": "shield4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\shield4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1040896,
+      "sha256": "11528ea1b0b488e608800ae188553ac0f2fab0b809b9c4d9f38fbd02f2659090"
+    },
+    {
+      "id": "shield5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\shield5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 968164,
+      "sha256": "2fb2f356e1e16d3d778fc472ba3b029fb1fe21d41da1d22645c8f3ed3041e73f"
+    },
+    {
+      "id": "shield6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\shield6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1130533,
+      "sha256": "caf75b3510a316fdd9b5c25010353805bcd6bbc44441f3d0efe1f24d4a8fe087"
+    },
+    {
+      "id": "shield7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\shield7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1176553,
+      "sha256": "72587a46d256c6e5b9a56145c5dfeb9a2978abdb42ecd6f9d6d9d25a96ee4a3a"
+    },
+    {
+      "id": "shield8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\shield8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1040248,
+      "sha256": "a400bc3555368ca30fd3ab7cd43b718bf7bbc872c5e2795f11075e8e3e8184e1"
+    },
+    {
+      "id": "helmet1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\leather-helmet.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 606532,
+      "sha256": "114aeff23fbd39a8fc7b83715cd7f13358581fe422ec09dfc7b827cd3486d457"
+    },
+    {
+      "id": "helmet2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\helmet2.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 859218,
+      "sha256": "27814f87895c753360000aa5fa61b2b269bbdaa5ae60f3d79467736164fdf59c"
+    },
+    {
+      "id": "helmet3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\helmet3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 952352,
+      "sha256": "69890081059facfa1a49b67277cb96812e581688aade1715603a41ab152ca3aa"
+    },
+    {
+      "id": "helmet4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\helmet4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 872600,
+      "sha256": "34cc8b89907a2852f849dcf3b56c4c4b77593188a35898a992679357e542bc8c"
+    },
+    {
+      "id": "helmet5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\helmet5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1040651,
+      "sha256": "3e2ed042edffaeae3946950a93bebe779e9e021253dce6cb4110b94021c5f192"
+    },
+    {
+      "id": "helmet6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\helmet6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 894670,
+      "sha256": "b8a033effe7d3f430574ab37fcb6c54253b1ffb888c7ac1851505832794da3e0"
+    },
+    {
+      "id": "helmet7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\helmet7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1038448,
+      "sha256": "4c744b194aead1dcfbd54c2434528cd06409ca3e16349269da2533083327f656"
+    },
+    {
+      "id": "helmet8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\helmet8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 882095,
+      "sha256": "ba237db4a796f15d58a16044630aa24bc2f9f16b7058a4dda26d392e53d4e379"
+    },
+    {
+      "id": "ring1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\ring1-copper-ring.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 477648,
+      "sha256": "c1c12f111ac95e2a3e8fe890c437aaff4981592ae2c685b4e1ddee5735273c3c"
+    },
+    {
+      "id": "ring2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\ring2.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 729497,
+      "sha256": "3d3d2d047de3e2e2b4bd00393041f343c05da5d24761d4819c946774a141d9f6"
+    },
+    {
+      "id": "ring3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\ring3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 717081,
+      "sha256": "80c6bb281012f729138ba47d9b73b41fd59f163b29484cad4660e6fad00fe68a"
+    },
+    {
+      "id": "ring4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\ring4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 873196,
+      "sha256": "b62dc349fa66b79f093430145ff21283a6e8b854ff54a862389415f523c472a9"
+    },
+    {
+      "id": "ring5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\ring5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 832639,
+      "sha256": "7f10a2c63e6faa233a7facf832457725029177a2375b3d9628f2d4d265732943"
+    },
+    {
+      "id": "ring6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\ring6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 935839,
+      "sha256": "6165c6fc3c0cc86575bc365e7d26193401f61fad562ed0692afd63f39a1f291f"
+    },
+    {
+      "id": "ring7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\ring7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1059891,
+      "sha256": "c9a34939759b9b0fddf1cbb0bb219b6e91818000f8d7cd1d78e7303d564d2e45"
+    },
+    {
+      "id": "ring8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\ring8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 988506,
+      "sha256": "dfbc69969fea81447eb8689ef9991760fdd2f36b7d584c7688ac7c31bafc83a1"
+    },
+    {
+      "id": "amulet1",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment\\common-20261011\\amulet1-wooden-necklace.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 337561,
+      "sha256": "316d71390a496717f35ac9697fb946a200aa4027fa2f029e7b191e0d0f6f5b2e"
+    },
+    {
+      "id": "amulet2",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\amulet2.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 690795,
+      "sha256": "4c047f6ec130148d20db7922a649ab66d2d853886c44ec63f688c90a6484f0d0"
+    },
+    {
+      "id": "amulet3",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\amulet3.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 585935,
+      "sha256": "62d5248ca04337546eaf0e0a668a994377f115a484fcc8c95fa9b95c86bfb931"
+    },
+    {
+      "id": "amulet4",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\amulet4.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 624485,
+      "sha256": "b951884c1100921a4bdf88619430ee5eefda86f85bd545ebc556f8c7fb160bfe"
+    },
+    {
+      "id": "amulet5",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\amulet5.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 691666,
+      "sha256": "23589c4e7f367706308c971832f5fd6b772c82df13cd0d0f5a0961c0249d24e0"
+    },
+    {
+      "id": "amulet6",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\amulet6.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 685343,
+      "sha256": "42b96d0d6743d6ce071f9389f72c27849af9604e9640697892484af5cba5c1bb"
+    },
+    {
+      "id": "amulet7",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\amulet7.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 627748,
+      "sha256": "f0ffa4ba6b18daa1e4ce823e54f3f882f76bb36faa670c1b4c642c05f3f4a9ef"
+    },
+    {
+      "id": "amulet8",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\equipment-icons\\v3-complete\\amulet8.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 599858,
+      "sha256": "babbeb3823aa23ba7660c445c988488a4d71c62e4b200660402acb27fa3633a6"
+    },
+    {
+      "id": "resonanceOrb",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\resonanceOrb.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1033023,
+      "sha256": "f1187ab0fab050d16b1c3bd50aeb7f83ac38971ca7ba19073b648093f90ae029"
+    },
+    {
+      "id": "soulReaper",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\soulReaper.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 526378,
+      "sha256": "da5e671968f67fd23f3ec1162c6058f97a8693fccd47a1d2541252288e08c036"
+    },
+    {
+      "id": "stormFist",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\stormFist.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1041301,
+      "sha256": "2e7471bf9eaad78661c97450b7a549cc423647aa0ed7e00cf84bad1b5d391a5b"
+    },
+    {
+      "id": "dimensionMirror",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\dimensionMirror.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 775148,
+      "sha256": "3dbf04f640e54bc562c74d955a1e7b329db1a80127e1f6cbc27f706ded570924"
+    },
+    {
+      "id": "thunderHeart",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\thunderHeart.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 890855,
+      "sha256": "57cf7633b0b9d1c54e660d4520ef9dfd2c248e1a04f80be21d02458442881127"
+    },
+    {
+      "id": "eclipseBlade",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\eclipseBlade.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 623780,
+      "sha256": "292753c907cf9da86ef775e71d4bfde4e660e219ee5fa51a3fff9191fcb94b86"
+    },
+    {
+      "id": "worldTreeSeed",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\worldTreeSeed.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 860355,
+      "sha256": "27de8856f9872618a3c856c945214d9ebc41990ad673bc29b412bf0d45916072"
+    },
+    {
+      "id": "voidAnchor",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\voidAnchor.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 837607,
+      "sha256": "0197a596b0e1e481fe044e8cc8dcfe3cd277f6bf3086916754e887c49de9e600"
+    },
+    {
+      "id": "chronosHourglass",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\chronosHourglass.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 900424,
+      "sha256": "2633ac8f7bfdc6c483209f8e3553309de6eb6ec0c0c765adcc49a5dee5cad3b7"
+    },
+    {
+      "id": "royalDecree",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\royalDecree.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 821111,
+      "sha256": "e8925a83ad26c2084a74d8a306d0117640501d3b4bf47137f549323e92d60848"
+    },
+    {
+      "id": "crown",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\crown.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 841898,
+      "sha256": "64f1a55238822ae618613fd41a34443fa1dde228c007b3ceacf522d91bb1445e"
+    },
+    {
+      "id": "ascendedResonanceOrb",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedResonanceOrb.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1297433,
+      "sha256": "07cf6546c36eab83e690ca458f46a5b67de4b362172b506d89d71d7d175153df"
+    },
+    {
+      "id": "ascendedSoulReaper",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedSoulReaper.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 687948,
+      "sha256": "fbb4a596b2c0de60b7e2f32801161ddbdc7f8afc2d9a7da2d9417831ab2ff128"
+    },
+    {
+      "id": "ascendedStormFist",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedStormFist.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1363588,
+      "sha256": "b9fa5386fd86b63b8c1b23ddc6b1133a76bf52ed887d8277624eb6fad5682b42"
+    },
+    {
+      "id": "ascendedDimensionMirror",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedDimensionMirror.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 895210,
+      "sha256": "410caf59f92328423a0cce3c207ccf1fb1eb568b20ee42edf1df45374dbc334b"
+    },
+    {
+      "id": "ascendedThunderHeart",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedThunderHeart.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1042676,
+      "sha256": "9ceb0d2d16aebf525f3a81f95f0f7000c48a6a9916a1fe933b0ad3f7dbbf2034"
+    },
+    {
+      "id": "ascendedCrown",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedCrown.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1166592,
+      "sha256": "a8cf89a0d45b6c2706edfb98e7709583c246c034007059b6bf1ffb4d4bbd45d1"
+    },
+    {
+      "id": "ascendedEclipseBlade",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedEclipseBlade.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 759001,
+      "sha256": "566df1b67981c9b7947e3695eaf3af074288a6ceb86572732f9773fd23275ff0"
+    },
+    {
+      "id": "ascendedWorldTreeSeed",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedWorldTreeSeed.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1099803,
+      "sha256": "9e3171cddafb48582f05c28cf2ac8d83be055ced1d561bb2d28e6fc6be56eb52"
+    },
+    {
+      "id": "ascendedVoidAnchor",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedVoidAnchor.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1011016,
+      "sha256": "7dc3f54afad1ad1b848bf4fdc822654774f53797b0b3c1d50b0729acac8a15d0"
+    },
+    {
+      "id": "ascendedChronosHourglass",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedChronosHourglass.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1140349,
+      "sha256": "83542dfb9465af39180abc45c7f9efc32e75ddc3e654fac1cc7deabccc3d1175"
+    },
+    {
+      "id": "ascendedRoyalDecree",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\ascendedRoyalDecree.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 989106,
+      "sha256": "5d24e6718611e6a966b2637001df951ee7b454d3dc5076ab16317efa77fe412e"
+    },
+    {
+      "id": "vampireChalice",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\relic-icons\\v1-casual\\vampireChalice.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 845808,
+      "sha256": "1780f7e9ee187d94938a0890171c263cff22bc87100774814b3cca30c46dabdb"
+    },
+    {
+      "id": "crescendoGear",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\relic-icons\\v1-casual\\crescendoGear.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 850744,
+      "sha256": "00e0531605e6b13818c8ef1ce9e1e4065573c598f66d7212d0fba069d9d30bfa"
+    },
+    {
+      "id": "windPilgrimBoots",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\relic-icons\\v1-casual\\windPilgrimBoots.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 689245,
+      "sha256": "894b6e167d0894fac7f3db3732c97756f1192594b70ee805bc45985261db983c"
+    },
+    {
+      "id": "echoCrystal",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\relic-icons\\v1-casual\\echoCrystal.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 796103,
+      "sha256": "2dc496350169d4c288fb7ca62b6b57678abd95b765a66b7e9135913b24b2b1d7"
+    },
+    {
+      "id": "moonlitPendant",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\relic-icons\\v1-casual\\moonlitPendant.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 700421,
+      "sha256": "bd2ff34e00cff09e469129b2e502ce323e3e3839a284c5a7dce11e6faeaf010f"
+    },
+    {
+      "id": "guardianIdol",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\relic-icons\\v1-casual\\guardianIdol.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 844068,
+      "sha256": "ec679d7459a865649362f405b8abd70820bc56bf6fafd707d5ddd3f1dfe0abda"
+    },
+    {
+      "id": "luckyCompass",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\relic-icons\\v1-casual\\luckyCompass.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 867798,
+      "sha256": "19bdf2f40063085ec572ef9152a850cc2127340c88aa2a569420023360e8ea52"
+    },
+    {
+      "id": "revive",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\revive.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 695160,
+      "sha256": "a7908ad7995215ac191544f08dda211134a9ee65581547e8605b82ffef7ca548"
+    },
+    {
+      "id": "fullHeal",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\fullHeal.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 872496,
+      "sha256": "8b896355941afd3ab3c1007e3f086182d0e7e113ece071e62d5bccb3fa2ce634"
+    },
+    {
+      "id": "skillPoint",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\skillPoint.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1099227,
+      "sha256": "e018eea39312ac0a0ec48b8a60c0f6382f379b3b211ed1171f91f4ec001adc62"
+    },
+    {
+      "id": "massKill",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\massKill.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 624031,
+      "sha256": "152304842948e97dc1d54aa064e026a54f03614b7ea5f41b13172f9e3952158a"
+    },
+    {
+      "id": "inventoryExpand",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\inventoryExpand.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 946859,
+      "sha256": "26e5c51f6ea24f4770d3609ce3095f23d0117acfb63f93a97fd2dbc075a479c8"
+    },
+    {
+      "id": "skillbook",
+      "path": "D:\\2020_이전승찬파일\\작업,내파일\\2026\\프로토타입 게임\\세명이 오리라\\art\\special-icons\\v1-complete\\skillbook.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1113300,
+      "sha256": "54fdde548630225796ecfc209d0a323d7d650e771965bb97ee4615c4579b5aec"
+    }
+  ]
+}

@@ -1,0 +1,426 @@
+{
+  "created": "2026-10-11",
+  "mode": "built-in image_gen",
+  "transparentBackground": true,
+  "sharedPrompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.",
+  "styleReferences": [
+    "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+    "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+  ],
+  "assets": [
+    {
+      "id": "resonanceOrb",
+      "name": "공명의 오브",
+      "group": "unique",
+      "subject": "A Resonance Orb: a large round luminous turquoise-blue crystal orb held in a short chunky gold cradle, with two broad interlocking golden rings embracing it. A simple three-lobed pale cyan symbol inside evokes allied mana sharing. Compact magical accessory.",
+      "filename": "resonanceOrb.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-3106b410-613b-4f35-9123-d36e1742527b.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Resonance Orb: a large round luminous turquoise-blue crystal orb held in a short chunky gold cradle, with two broad interlocking golden rings embracing it. A simple three-lobed pale cyan symbol inside evokes allied mana sharing. Compact magical accessory.\nItem identity: 공명의 오브 (resonanceOrb). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "soulReaper",
+      "name": "영혼 착취자",
+      "group": "unique",
+      "subject": "A Soul Reaper weapon: a short chunky fantasy scythe, dark charcoal handle, violet curved blade with a pale lilac edge, a single bright cyan soul crystal at the blade joint. Friendly stylized fantasy, no gore. Strong hooked scythe silhouette.",
+      "filename": "soulReaper.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-b1b25a38-81d2-459d-b04a-d430ea92c76e.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Soul Reaper weapon: a short chunky fantasy scythe, dark charcoal handle, violet curved blade with a pale lilac edge, a single bright cyan soul crystal at the blade joint. Friendly stylized fantasy, no gore. Strong hooked scythe silhouette.\nItem identity: 영혼 착취자 (soulReaper). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "stormFist",
+      "name": "폭풍의 주먹",
+      "group": "unique",
+      "subject": "A Storm Fist weapon: one clenched armored gauntlet, navy steel with bright turquoise knuckle plates, short silver cuff, one broad sweeping cyan wind curl hugging its side. Show a compact readable fist with four simplified knuckles, no arm or wearer.",
+      "filename": "stormFist.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-eaa9dd6d-8a21-4dc4-a7f0-7c66bb722702.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Storm Fist weapon: one clenched armored gauntlet, navy steel with bright turquoise knuckle plates, short silver cuff, one broad sweeping cyan wind curl hugging its side. Show a compact readable fist with four simplified knuckles, no arm or wearer.\nItem identity: 폭풍의 주먹 (stormFist). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "dimensionMirror",
+      "name": "차원의 거울",
+      "group": "unique",
+      "subject": "A Dimension Mirror accessory: small upright oval hand mirror, chunky violet and silver frame, short violet handle, glossy cyan glass containing one clean purple spiral portal. Two broad triangular frame ornaments, no reflected person.",
+      "filename": "dimensionMirror.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-ce217e3f-a722-47b8-a532-d9cb75796fc2.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Dimension Mirror accessory: small upright oval hand mirror, chunky violet and silver frame, short violet handle, glossy cyan glass containing one clean purple spiral portal. Two broad triangular frame ornaments, no reflected person.\nItem identity: 차원의 거울 (dimensionMirror). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "thunderHeart",
+      "name": "천둥의 심장",
+      "group": "unique",
+      "subject": "A Thunder Heart accessory: large ruby-red faceted heart-shaped gem with a chunky gold rim, a bold yellow lightning bolt set diagonally across the heart. Tiny top loop allows use as a pendant, no long chain. Strong red heart silhouette.",
+      "filename": "thunderHeart.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-9b8e7b5b-0a6c-432f-bfe1-e0670219a935.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Thunder Heart accessory: large ruby-red faceted heart-shaped gem with a chunky gold rim, a bold yellow lightning bolt set diagonally across the heart. Tiny top loop allows use as a pendant, no long chain. Strong red heart silhouette.\nItem identity: 천둥의 심장 (thunderHeart). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "eclipseBlade",
+      "name": "일식검",
+      "group": "unique",
+      "subject": "An Eclipse Blade weapon: short broad obsidian sword angled diagonally, blade deep navy-black with red-orange edge, a round black sun disk guard encircled by a thick orange crescent, burgundy grip, gold pommel. One simple red-orange blade inset. Majestic but compact.",
+      "filename": "eclipseBlade.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-b8fc169e-0586-4d4b-90b4-64713c45b52f.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: An Eclipse Blade weapon: short broad obsidian sword angled diagonally, blade deep navy-black with red-orange edge, a round black sun disk guard encircled by a thick orange crescent, burgundy grip, gold pommel. One simple red-orange blade inset. Majestic but compact.\nItem identity: 일식검 (eclipseBlade). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "worldTreeSeed",
+      "name": "세계수의 씨앗",
+      "group": "unique",
+      "subject": "A World Tree Seed accessory: a large golden-brown acorn-like sacred seed, emerald cap, two fresh bright green leaves sprouting from its top, three chunky golden root shapes curling around its base. One turquoise oval jewel in the seed. Cute readable seed silhouette.",
+      "filename": "worldTreeSeed.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-883b3de3-05ab-4705-a891-e104b704d73e.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A World Tree Seed accessory: a large golden-brown acorn-like sacred seed, emerald cap, two fresh bright green leaves sprouting from its top, three chunky golden root shapes curling around its base. One turquoise oval jewel in the seed. Cute readable seed silhouette.\nItem identity: 세계수의 씨앗 (worldTreeSeed). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "voidAnchor",
+      "name": "공허의 닻",
+      "group": "unique",
+      "subject": "A Void Anchor armor artifact: one stout blackened-metal anchor with thick curved flukes, violet beveled edges, round top ring and a large bright purple diamond crystal in its center. A small thick silver crossbar; compact symmetrical anchor silhouette, no ship or chain.",
+      "filename": "voidAnchor.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-548b7510-af91-4699-a6ae-3c36406fce5e.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Void Anchor armor artifact: one stout blackened-metal anchor with thick curved flukes, violet beveled edges, round top ring and a large bright purple diamond crystal in its center. A small thick silver crossbar; compact symmetrical anchor silhouette, no ship or chain.\nItem identity: 공허의 닻 (voidAnchor). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "chronosHourglass",
+      "name": "크로노스의 모래시계",
+      "group": "unique",
+      "subject": "Chronos Hourglass accessory: a small upright chunky hourglass with broad gold top and bottom caps, two navy side pillars, cyan glass bulbs and bright golden sand falling between them. One turquoise jewel at the top. Clear hourglass silhouette, no numerals.",
+      "filename": "chronosHourglass.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-24d1dd46-8317-4648-bcd7-f92741780214.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: Chronos Hourglass accessory: a small upright chunky hourglass with broad gold top and bottom caps, two navy side pillars, cyan glass bulbs and bright golden sand falling between them. One turquoise jewel at the top. Clear hourglass silhouette, no numerals.\nItem identity: 크로노스의 모래시계 (chronosHourglass). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "royalDecree",
+      "name": "왕의 칙령",
+      "group": "unique",
+      "subject": "A Royal Decree accessory: a cream parchment scroll with chunky curled upper and lower ends, deep crimson ribbon around the center, round gold wax seal bearing a simple crown silhouette. Two broad gold trim marks, no writing, no letters. Compact diagonal scroll.",
+      "filename": "royalDecree.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-a35a3cc6-8082-49b9-b9ea-23fe390af26a.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Royal Decree accessory: a cream parchment scroll with chunky curled upper and lower ends, deep crimson ribbon around the center, round gold wax seal bearing a simple crown silhouette. Two broad gold trim marks, no writing, no letters. Compact diagonal scroll.\nItem identity: 왕의 칙령 (royalDecree). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "crown",
+      "name": "전설의 왕관",
+      "group": "unique",
+      "subject": "A Legendary Crown accessory: a short rounded golden crown with three broad points, ruby-red center gem and two smaller turquoise side gems, deep red inner band. Simple regal shape, chunky curved gold rim and cream highlight, no head.",
+      "filename": "crown.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-0310a7b3-f78e-429c-b727-4a9d32794d0f.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Legendary Crown accessory: a short rounded golden crown with three broad points, ruby-red center gem and two smaller turquoise side gems, deep red inner band. Simple regal shape, chunky curved gold rim and cream highlight, no head.\nItem identity: 전설의 왕관 (crown). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "revive",
+      "name": "부활의 깃털",
+      "group": "consumable",
+      "subject": "A Resurrection Feather consumable: one large ivory-white feather tilted diagonally upward, pale cyan shaded vanes, gold quill and a small golden loop bound near the base. A few large clean feather notches; warm life-restoring magical look. No wings or bird.",
+      "filename": "revive.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-c5495f87-b529-477c-b666-262e68fa2c74.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: A Resurrection Feather consumable: one large ivory-white feather tilted diagonally upward, pale cyan shaded vanes, gold quill and a small golden loop bound near the base. A few large clean feather notches; warm life-restoring magical look. No wings or bird.\nItem identity: 부활의 깃털 (revive). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "fullHeal",
+      "name": "여신의 축복",
+      "group": "consumable",
+      "subject": "Goddess Blessing healing consumable: a squat round mint-green glass potion bottle containing rosy pink healing liquid, gold stopper, two tiny ivory wing ornaments attached to the bottle shoulders, a prominent simple pale pink heart emblem. One compact bottle, no person.",
+      "filename": "fullHeal.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-98828ead-7de5-4b86-84f9-d7fdaae70aeb.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: Goddess Blessing healing consumable: a squat round mint-green glass potion bottle containing rosy pink healing liquid, gold stopper, two tiny ivory wing ornaments attached to the bottle shoulders, a prominent simple pale pink heart emblem. One compact bottle, no person.\nItem identity: 여신의 축복 (fullHeal). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "skillPoint",
+      "name": "지혜의 서",
+      "group": "consumable",
+      "subject": "Tome of Wisdom consumable: a chunky slightly open book with royal blue cover, gold corners and broad cream pages, a large gold tree-shaped emblem on the front. A short green bookmark. Readable scholarly magical book, no writing, no lock. Clearly different from a sealed purple skillbook.",
+      "filename": "skillPoint.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-1f7c59e9-c1cc-44a4-9293-700851533747.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: Tome of Wisdom consumable: a chunky slightly open book with royal blue cover, gold corners and broad cream pages, a large gold tree-shaped emblem on the front. A short green bookmark. Readable scholarly magical book, no writing, no lock. Clearly different from a sealed purple skillbook.\nItem identity: 지혜의 서 (skillPoint). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "massKill",
+      "name": "심판의 번개",
+      "group": "consumable",
+      "subject": "Judgment Lightning consumable: one thick bright golden zigzag lightning-bolt talisman, beveled orange shade, set through a small violet oval gem backing and a broad short silver grip-like bottom. Dominant striking bolt silhouette with three clean zigzag segments. No scene or enemies.",
+      "filename": "massKill.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-63f1c9d7-fbd4-4594-aecf-e9cb2246d1ce.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: Judgment Lightning consumable: one thick bright golden zigzag lightning-bolt talisman, beveled orange shade, set through a small violet oval gem backing and a broad short silver grip-like bottom. Dominant striking bolt silhouette with three clean zigzag segments. No scene or enemies.\nItem identity: 심판의 번개 (massKill). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "inventoryExpand",
+      "name": "공간 확장 키트",
+      "group": "consumable",
+      "subject": "Space Expansion Kit consumable: a compact brown leather utility pouch with chunky gold buckle, turquoise square panels and three small teal block-shaped tiles tucked visibly into the open top. Simple folded fabric edge, no numbers, no text. Reads as a magical inventory expansion pouch.",
+      "filename": "inventoryExpand.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-d6c579cb-05e1-4964-a5ae-e33f8707dc89.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: Space Expansion Kit consumable: a compact brown leather utility pouch with chunky gold buckle, turquoise square panels and three small teal block-shaped tiles tucked visibly into the open top. Simple folded fabric edge, no numbers, no text. Reads as a magical inventory expansion pouch.\nItem identity: 공간 확장 키트 (inventoryExpand). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "skillbook",
+      "name": "봉인된 스킬북",
+      "group": "book",
+      "subject": "Sealed Skillbook common template: a closed chunky purple magic book in three-quarter view, cream page block, two broad dark violet leather straps and a large central gold padlock with a simple keyhole. Small cyan corner gem. Clear locked-book silhouette, no text or skill symbols.",
+      "filename": "skillbook.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-ecbf5885-a808-4e4d-a7d3-743e974c9260.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nSubject: Sealed Skillbook common template: a closed chunky purple magic book in three-quarter view, cream page block, two broad dark violet leather straps and a large central gold padlock with a simple keyhole. Small cyan corner gem. Clear locked-book silhouette, no text or skill symbols.\nItem identity: 봉인된 스킬북 (skillbook). Do not draw any written item name.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedResonanceOrb",
+      "name": "초월한 공명의 오브",
+      "group": "ascended",
+      "from": "resonanceOrb",
+      "subject": "Keep the base orb, gold intertwined rings and turquoise identity. Upgrade with white-gold ring tips, a brighter cyan core and two bold yellow lightning accents hugging the sphere.",
+      "filename": "ascendedResonanceOrb.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-76bc334b-a38b-480f-868b-6b1f7a4f862b.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the base orb, gold intertwined rings and turquoise identity. Upgrade with white-gold ring tips, a brighter cyan core and two bold yellow lightning accents hugging the sphere.\nItem identity: 초월한 공명의 오브 (ascendedResonanceOrb). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/resonanceOrb.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedSoulReaper",
+      "name": "초월한 영혼 착취자",
+      "group": "ascended",
+      "from": "soulReaper",
+      "subject": "Keep the base scythe hooked silhouette, handle and violet identity. Enlarge the lilac blade edge, add gold joint armor and a bright cyan crystal, one clean yellow bolt inset in the blade.",
+      "filename": "ascendedSoulReaper.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-efc96556-e102-46f7-88dc-16317b790b3f.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the base scythe hooked silhouette, handle and violet identity. Enlarge the lilac blade edge, add gold joint armor and a bright cyan crystal, one clean yellow bolt inset in the blade.\nItem identity: 초월한 영혼 착취자 (ascendedSoulReaper). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/soulReaper.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedStormFist",
+      "name": "초월한 폭풍의 주먹",
+      "group": "ascended",
+      "from": "stormFist",
+      "subject": "Keep the clenched navy/turquoise gauntlet identity and wind curl. Upgrade to larger white-gold knuckle armor and cuff, a cyan central gem, and one bold yellow lightning stripe.",
+      "filename": "ascendedStormFist.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-d3d87075-c839-4128-a125-fd946e53f2f1.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the clenched navy/turquoise gauntlet identity and wind curl. Upgrade to larger white-gold knuckle armor and cuff, a cyan central gem, and one bold yellow lightning stripe.\nItem identity: 초월한 폭풍의 주먹 (ascendedStormFist). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/stormFist.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedDimensionMirror",
+      "name": "초월한 차원의 거울",
+      "group": "ascended",
+      "from": "dimensionMirror",
+      "subject": "Keep the oval hand mirror, violet frame and cyan portal glass. Upgrade with broad gold wing-like frame ornaments and double interlocking cyan/purple portal curls. No person reflected.",
+      "filename": "ascendedDimensionMirror.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-945bfda0-eade-48ae-a6f3-37f66bf2a077.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the oval hand mirror, violet frame and cyan portal glass. Upgrade with broad gold wing-like frame ornaments and double interlocking cyan/purple portal curls. No person reflected.\nItem identity: 초월한 차원의 거울 (ascendedDimensionMirror). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/dimensionMirror.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedThunderHeart",
+      "name": "초월한 천둥의 심장",
+      "group": "ascended",
+      "from": "thunderHeart",
+      "subject": "Keep the red heart gem and diagonal gold lightning identity. Upgrade with thicker white-gold edging, two short outward gold bolt tips and a brighter cyan small inset gem, compact solid shapes.",
+      "filename": "ascendedThunderHeart.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-5fea4af6-832e-4441-aa07-f466bbfea5fc.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the red heart gem and diagonal gold lightning identity. Upgrade with thicker white-gold edging, two short outward gold bolt tips and a brighter cyan small inset gem, compact solid shapes.\nItem identity: 초월한 천둥의 심장 (ascendedThunderHeart). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/thunderHeart.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedCrown",
+      "name": "초월한 왕관",
+      "group": "ascended",
+      "from": "crown",
+      "subject": "Keep the crown's gold shape, ruby center and turquoise side gems. Upgrade with taller sweeping three-point silhouette, white-gold outer edging and a simple cyan halo ring closely attached behind its crest. No head.",
+      "filename": "ascendedCrown.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-40a9aa0a-4ebe-4ca9-9cea-79e982fc62bc.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the crown's gold shape, ruby center and turquoise side gems. Upgrade with taller sweeping three-point silhouette, white-gold outer edging and a simple cyan halo ring closely attached behind its crest. No head.\nItem identity: 초월한 왕관 (ascendedCrown). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/crown.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedEclipseBlade",
+      "name": "초월한 일식검",
+      "group": "ascended",
+      "from": "eclipseBlade",
+      "subject": "Keep the obsidian blade, orange-red eclipse disk guard and burgundy grip. Upgrade with a larger white-gold sun corona around the guard and a bold red-orange zigzag inset running up the black blade, sharper but chunky silhouette.",
+      "filename": "ascendedEclipseBlade.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-69b0a131-5954-418b-932b-360cd5322d66.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the obsidian blade, orange-red eclipse disk guard and burgundy grip. Upgrade with a larger white-gold sun corona around the guard and a bold red-orange zigzag inset running up the black blade, sharper but chunky silhouette.\nItem identity: 초월한 일식검 (ascendedEclipseBlade). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/eclipseBlade.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedWorldTreeSeed",
+      "name": "초월한 세계수의 씨앗",
+      "group": "ascended",
+      "from": "worldTreeSeed",
+      "subject": "Keep the sacred acorn seed with emerald cap, fresh leaves and golden roots. Upgrade with three larger turquoise-green leaves, white-gold root armor and a prominent bright cyan central jewel, one small gold lightning vein.",
+      "filename": "ascendedWorldTreeSeed.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-e35761fd-a4cb-4bde-bc0c-1b1dcb7610b2.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the sacred acorn seed with emerald cap, fresh leaves and golden roots. Upgrade with three larger turquoise-green leaves, white-gold root armor and a prominent bright cyan central jewel, one small gold lightning vein.\nItem identity: 초월한 세계수의 씨앗 (ascendedWorldTreeSeed). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/worldTreeSeed.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedVoidAnchor",
+      "name": "초월한 공허의 닻",
+      "group": "ascended",
+      "from": "voidAnchor",
+      "subject": "Keep the chunky dark anchor silhouette, violet bevels and purple diamond core. Upgrade with broad white-gold fluke tips, a bigger magenta-purple gem and two solid cyan interlocking ring segments near the crossbar. No chain.",
+      "filename": "ascendedVoidAnchor.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-7ddc1a59-615e-4ead-9c3a-4ad22e0bd60d.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the chunky dark anchor silhouette, violet bevels and purple diamond core. Upgrade with broad white-gold fluke tips, a bigger magenta-purple gem and two solid cyan interlocking ring segments near the crossbar. No chain.\nItem identity: 초월한 공허의 닻 (ascendedVoidAnchor). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/voidAnchor.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedChronosHourglass",
+      "name": "초월한 크로노스의 모래시계",
+      "group": "ascended",
+      "from": "chronosHourglass",
+      "subject": "Keep the hourglass identity, gold caps, navy pillars, cyan glass and golden sand. Upgrade with white-gold flared caps and a thick cyan orbit ring around its waist, one bold yellow bolt ornament at the top. No clock numerals.",
+      "filename": "ascendedChronosHourglass.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-fcfc4ef0-f627-49b9-9e6a-a96920c3d93d.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the hourglass identity, gold caps, navy pillars, cyan glass and golden sand. Upgrade with white-gold flared caps and a thick cyan orbit ring around its waist, one bold yellow bolt ornament at the top. No clock numerals.\nItem identity: 초월한 크로노스의 모래시계 (ascendedChronosHourglass). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/chronosHourglass.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    },
+    {
+      "id": "ascendedRoyalDecree",
+      "name": "초월한 왕의 칙령",
+      "group": "ascended",
+      "from": "royalDecree",
+      "subject": "Keep the cream curled scroll, crimson ribbon and gold crown seal. Upgrade to broad white-gold scroll caps, larger seal with cyan gemstone and two small bold gold wing-shaped seal ornaments. No written text.",
+      "filename": "ascendedRoyalDecree.png",
+      "generated": true,
+      "source": "C:\\Users\\vnvnc\\.codex\\generated_images\\01a129ef-decc-7c30-aecd-0ba62e485970\\exec-220d2a13-1945-4f1c-8c2c-f11f3bd003df.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE item, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view when suitable; weapons diagonal lower-left to upper-right. Distinctive clear silhouette.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only, except for an explicitly identified base-item reference in an ascended variant. Produce the requested subject, never another sword/shield unless the subject requires one.\nPrimary request: Generate a NEW ascended variant of the first input image. Image 1 is the matching BASE ITEM reference; images 2 and 3 are the game's outline and rendering STYLE references. Keep the base item's recognizable main silhouette, material identity, pose and palette, and enhance the specific features below. Exactly one item; no comparison, no text.\nSubject: Keep the cream curled scroll, crimson ribbon and gold crown seal. Upgrade to broad white-gold scroll caps, larger seal with cyan gemstone and two small bold gold wing-shaped seal ornaments. No written text.\nItem identity: 초월한 왕의 칙령 (ascendedRoyalDecree). Ascended rarity: visually stronger and more elaborate than the base, still simple enough for a tiny inventory icon.",
+      "references": [
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/special-icons/v1-complete/royalDecree.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "D:/2020_이전승찬파일/작업,내파일/2026/프로토타입 게임/세명이 오리라/art/equipment-icons/v2-casual/shield2-iron-shield.png"
+      ]
+    }
+  ]
+}
