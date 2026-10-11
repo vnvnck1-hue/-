@@ -32,9 +32,7 @@ var body_r := RADIUS
 # hero progression
 var level := 1
 var exp := 0
-var sp := 0
-var skills := [0, 0, 0]
-var skillbooks := {}
+var learned: Array = []   # skills from skill books this run: [{"id", "level"}] (max Defs.SKILL_SLOTS)
 var equipment := {"weapon": null, "armor": null, "accessory": null}
 var mana := 0.0
 var ult_ready_at := 0.0

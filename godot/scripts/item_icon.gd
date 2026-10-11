@@ -36,7 +36,7 @@ static func icon_id(e: Dictionary) -> String:
 		"relic", "special":
 			return e["key"]
 		"skillbook":
-			return "skillbook"
+			return ""   # drawn: the cover takes the book's grade colour (the catalog art is a locked book)
 	return ""
 
 static func texture_for(e: Dictionary) -> Texture2D:
@@ -56,6 +56,8 @@ func _shape() -> String:
 			return "relic"
 		"skillbook":
 			return "book"
+		"stone":
+			return "stone"
 		"equip":
 			var k: String = entry["key"]
 			var fam := Gear.family_of(k)
@@ -103,9 +105,6 @@ func _draw() -> void:
 	if tex != null:
 		var pad := s * 0.06
 		draw_texture_rect(tex, Rect2(o + Vector2(pad, pad * 0.4), Vector2(s - pad * 2.0, s - pad * 2.0)), false)
-		# the book art is drawn locked; an appraised book gets a gold star badge
-		if entry.get("kind", "") == "skillbook" and entry.get("revealed", false):
-			_star(o + Vector2(s * 0.8, s * 0.8), s * 0.15)
 	match "" if tex != null else _shape():
 		"sword":
 			_line(P.call(0.25, 0.75), P.call(0.72, 0.28), METAL, w * 1.3)
@@ -154,13 +153,12 @@ func _draw() -> void:
 			_poly(PackedVector2Array([P.call(0.5, 0.15), P.call(0.8, 0.42), P.call(0.5, 0.86), P.call(0.2, 0.42)]), tint)
 			draw_colored_polygon(PackedVector2Array([P.call(0.5, 0.15), P.call(0.8, 0.42), P.call(0.5, 0.45)]), tint.lightened(0.4))
 		"book":
-			_poly(PackedVector2Array([P.call(0.22, 0.2), P.call(0.78, 0.2), P.call(0.78, 0.82), P.call(0.22, 0.82)]), Color("8a3ac8"))
-			_line(P.call(0.3, 0.2), P.call(0.3, 0.82), Color("5a2a88"), w * 0.5)
-			if entry.get("revealed", false):
-				_circ(P.call(0.55, 0.5), s * 0.1, GOLD)
-			else:
-				_circ(P.call(0.55, 0.52), s * 0.11, METAL)
-				draw_arc(P.call(0.55, 0.42), s * 0.07, PI, TAU, 10, METAL, 4.0, true)
+			var cover := tint.darkened(0.15)
+			_poly(PackedVector2Array([P.call(0.26, 0.24), P.call(0.8, 0.2), P.call(0.8, 0.84), P.call(0.26, 0.86)]), Color("f4ecd8"))   # pages
+			_poly(PackedVector2Array([P.call(0.2, 0.18), P.call(0.74, 0.16), P.call(0.74, 0.8), P.call(0.2, 0.82)]), cover)
+			_line(P.call(0.27, 0.18), P.call(0.27, 0.82), cover.darkened(0.35), w * 0.55)
+			_circ(P.call(0.5, 0.48), s * 0.12, GOLD)
+			_star(P.call(0.5, 0.48), s * 0.07)
 		"revive":
 			_poly(PackedVector2Array([P.call(0.3, 0.82), P.call(0.42, 0.45), P.call(0.68, 0.15), P.call(0.66, 0.42), P.call(0.45, 0.72)]), Color("fff4e0"))
 			_line(P.call(0.3, 0.84), P.call(0.6, 0.3), Color("e8b860"), 3.0)
@@ -169,10 +167,8 @@ func _draw() -> void:
 			_line(P.call(0.5, 0.36), P.call(0.5, 0.2), Color("cfe8ff"), w)
 			_line(P.call(0.5, 0.5), P.call(0.5, 0.7), Color.WHITE, w * 0.6)
 			_line(P.call(0.4, 0.6), P.call(0.6, 0.6), Color.WHITE, w * 0.6)
-		"skillPoint":
-			_poly(PackedVector2Array([P.call(0.22, 0.25), P.call(0.78, 0.25), P.call(0.78, 0.78), P.call(0.22, 0.78)]), Color("3fa9f5"))
-			_line(P.call(0.34, 0.42), P.call(0.66, 0.42), Color.WHITE, 3.0)
-			_line(P.call(0.34, 0.58), P.call(0.6, 0.58), Color.WHITE, 3.0)
+		"stone":
+			draw_stone(self, o + Vector2(s, s) * 0.5, s * 0.36)
 		"massKill":
 			_poly(PackedVector2Array([P.call(0.58, 0.12), P.call(0.28, 0.55), P.call(0.48, 0.55), P.call(0.4, 0.88), P.call(0.74, 0.42), P.call(0.54, 0.42)]), GOLD)
 		"inventoryExpand":
@@ -180,6 +176,17 @@ func _draw() -> void:
 			draw_arc(P.call(0.5, 0.38), s * 0.14, PI, TAU, 10, INK, 6.0, true)
 			_line(P.call(0.5, 0.52), P.call(0.5, 0.72), Color.WHITE, 3.5)
 			_line(P.call(0.4, 0.62), P.call(0.6, 0.62), Color.WHITE, 3.5)
+	if entry.get("kind", "") == "skillbook":
+		# whose book it is (class gem, top-left) and its grade (pips along the bottom)
+		var bd := Defs.book(entry.get("skill", ""))
+		if not bd.is_empty():
+			_circ(o + Vector2(s * 0.2, s * 0.2), s * 0.11, CLASS_GEM.get(bd["cls"], GOLD))
+			if show_tier:
+				var gn: int = bd["grade"]
+				for i in gn:
+					var gc := o + Vector2(s * 0.5 + (i - (gn - 1) * 0.5) * s * 0.13, s * 0.95)
+					draw_circle(gc, s * 0.055, INK)
+					draw_circle(gc, s * 0.035, tint.lightened(0.2))
 	if show_tier and entry.get("kind", "") == "equip":
 		var tier := Inventory.tier_of(entry)
 		if Gear.is_family(entry["key"]) and tier > Gear.STAR_FROM:
@@ -194,6 +201,25 @@ func _draw() -> void:
 				var c := o + Vector2(s * 0.5 + (i - (n - 1) * 0.5) * s * step, s * 0.95)
 				draw_circle(c, s * 0.055, INK)
 				draw_circle(c, s * 0.035, tint.lightened(0.2))
+
+const CLASS_GEM := {"warrior": Color("ff7a5a"), "ranger": Color("5fcf5a"), "mage": Color("a77aff")}
+
+## 강화석: a faceted blue gem (also drawn by HUD counters). (c = centre, r = radius)
+static func draw_stone(ci: CanvasItem, c: Vector2, r: float) -> void:
+	var ink: Color = UiTheme.ink()
+	var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.86, -r * 0.35), c + Vector2(r * 0.62, r * 0.78),
+		c + Vector2(-r * 0.62, r * 0.78), c + Vector2(-r * 0.86, -r * 0.35)])
+	var big := PackedVector2Array()
+	for p in pts:
+		big.append(c + (p - c) * (1.0 + 4.0 / maxf(r, 1.0)))
+	ci.draw_colored_polygon(big, ink)
+	ci.draw_colored_polygon(pts, STONE_COL)
+	ci.draw_colored_polygon(PackedVector2Array([pts[0], pts[1], c + Vector2(0, -r * 0.1)]), STONE_COL.lightened(0.45))
+	ci.draw_colored_polygon(PackedVector2Array([pts[0], c + Vector2(0, -r * 0.1), pts[4]]), STONE_COL.lightened(0.2))
+	ci.draw_colored_polygon(PackedVector2Array([pts[2], pts[3], c + Vector2(0, -r * 0.1)]), STONE_COL.darkened(0.25))
+	ci.draw_circle(c + Vector2(-r * 0.3, -r * 0.45), r * 0.1, Color(1, 1, 1, 0.85))
+
+const STONE_COL := Color("4fb6ff")
 
 func _star(c: Vector2, r: float) -> void:
 	var pts := PackedVector2Array()

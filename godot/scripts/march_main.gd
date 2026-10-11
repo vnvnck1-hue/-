@@ -15,8 +15,11 @@ extends "res://scripts/main.gd"
 ##     opens when he is tapped (his stock stays the same for that visit).
 ##   - now and then a treasure chest lies on the road between camps (ChestLoot.FIELD_CHANCE); the trio grabs it on the
 ##     way past and it flies onto the bag's chest badge; every mid-boss drops one that starts at 희귀 (ChestGacha).
-##   - a team wipe-out costs every run perk, and the march resumes from the first group of the region it reached
-##     (levels, gear, gold and the bag are kept).
+##   - two ways to play it (lobby): an expedition chapter (Meta.expedition) is one region — groups c*10+1 ..
+##     c*10+10 — started at a fitting hero level (CHAPTER_LEVEL) and won by beating its mid-boss; the endless
+##     march starts at group 1 and goes on until the team is wiped out.
+##   - either way the run ends in a settlement (Main.end_run): gear is permanent, gold and 강화석 are banked,
+##     learned skills and perks are gone. [다시 도전] / [다음 챕터] reloads the scene.
 
 const MARCH_SPEED := 4.3
 const ACCEL := 5.0
@@ -51,6 +54,26 @@ var _lost_perks := 0
 func mode_id() -> String:
 	return "march"
 
+## Endless march keeps its best-group record; expedition chapters don't.
+func record_id() -> String:
+	return "" if expedition else "march"
+
+var expedition := false
+var chapter := 0
+var _cleared := false
+## Hero level an expedition chapter starts at (index = chapter; later laps keep climbing).
+const CHAPTER_LEVEL := [1, 5, 7, 9, 11, 13]   # ≈ the levels the old endless march reached by then
+
+func start_level() -> int:
+	if not expedition:
+		return 1
+	if chapter < CHAPTER_LEVEL.size():
+		return CHAPTER_LEVEL[chapter]
+	return CHAPTER_LEVEL[-1] + 2 * (chapter - CHAPTER_LEVEL.size() + 1)
+
+func last_group() -> int:
+	return Meta.chapter_first_group(chapter) + Regions.PER_REGION - 1
+
 func music_track() -> String:
 	return "field"
 
@@ -60,6 +83,19 @@ func _make_world() -> World:
 	return mw
 
 func _ready() -> void:
+	var args := Array(OS.get_cmdline_user_args())
+	var dev_wave := args.any(func(a): return a.begins_with("--wave="))
+	var dev := args.any(func(a): return a == "--autoplay" or a.begins_with("--test="))
+	var forced := args.filter(func(a): return a.begins_with("--chapter="))   # dev: play expedition chapter N (1-based)
+	expedition = not forced.is_empty() or (Meta.expedition and not dev_wave and not dev)
+	if expedition:
+		if not forced.is_empty() or dev:
+			Meta.path = "user://trio_save_test.json"
+		Meta.load_save()
+		chapter = clampi(Meta.chapter, 0, Meta.cleared)
+		if not forced.is_empty():
+			chapter = maxi(0, int(forced[0].substr(10)) - 1)
+		wave = Meta.chapter_first_group(chapter)
 	super._ready()
 	hud.wave_title.text = "무리"
 	hud.talent_btn.visible = false
@@ -75,11 +111,22 @@ func _ready() -> void:
 	hud.add_child(atlas)
 	atlas.build()
 	Actor.clamp_fn = func(p: Vector3, m: float) -> Vector3: return mw.clamp_local(p, m)
-	if wave > 1:   # dev: --wave=N starts on the approach to group N
-		dist = mw.arena_s(wave - 1)
+	if wave > 1:   # expedition chapter (or dev --wave=N): start on the approach to group N
+		var r := Regions.of_group(wave)
+		dist = mw.region_start(r) + 0.1 if expedition and r > 0 else mw.arena_s(wave - 1)
 		mw.set_dist(dist)
+		_set_bounds()
+	if expedition:
+		var info: Dictionary = Regions.info(chapter)
+		if UiTheme.tt():
+			hud.ribbon_banner(Meta.chapter_name(chapter), "중간 보스를 쓰러뜨리면 원정 성공!", MapHud.ACCENT[info["theme"]], 1.2, -300)
+		else:
+			hud.banner(Meta.chapter_name(chapter), Color.WHITE, 1.0, 64, -200)
 
 func gameover_text() -> String:
+	if expedition:
+		var n := clampi(wave - Meta.chapter_first_group(chapter) + (1 if _cleared else 0), 0, Regions.PER_REGION)
+		return "%s · 무리 %d/%d" % [Meta.chapter_name(chapter), n, Regions.PER_REGION]
 	return "%d번째 무리 · %dm 행군" % [wave, int(dist)]
 
 # The march replaces the classic tutorial and the fight button.
@@ -235,6 +282,8 @@ func _process(delta: float) -> void:
 	if not get_tree().paused:
 		_idle_t += delta
 		_camp_tick(delta)
+	if autoplay and int(_clock * 2.0) % 2 == 0:
+		auto_books()
 	_update_camera(delta)
 	_merchant_tick()
 	_chest_tick(delta)
@@ -414,7 +463,7 @@ func _make_group(k: int) -> void:
 	var fs := ak - fire.z
 	var node := MarchProps.campfire(mw.track, Vector3(mw.center_x(fs) + fire.x, 0.0, -fs), mw.camp_stone(fs))
 	_fires.append({"node": node, "s": fs})
-	if is_merchant(k):
+	if _merchant_at(k):
 		_spawn_merchant(k)
 	elif not MarchWorld.is_boss(k) and k > 1 and randf() < ChestLoot.FIELD_CHANCE:
 		_spawn_field_chest(mw.arena_s(k) - CHEST_AHEAD)
@@ -661,6 +710,9 @@ func finish_wave() -> void:
 				e.queue_free())
 	wave = cleared + 1
 	_shot_later(0.3, "group_clear")
+	if boss and expedition and cleared >= last_group():
+		_chapter_clear()
+		return
 	if boss:
 		phase = P.TRANSITION
 		_returning = true
@@ -672,9 +724,40 @@ func finish_wave() -> void:
 			return
 	enter_placement()
 
+## The chapter's mid-boss is down: victory hop, the boss chest lands, first-clear bonus, settlement.
+func _chapter_clear() -> void:
+	_cleared = true
+	phase = P.TRANSITION
+	_returning = true
+	for h in alive_heroes():
+		_victory_hop(h)
+	if UiTheme.tt():
+		hud.ribbon_banner("원정 성공!", Meta.chapter_name(chapter), UiTheme.ORANGE, 1.1)
+	else:
+		hud.banner("원정 성공!", Defs.COL_GOLD, 1.0, 100)
+	Sfx.play("chime", -2.0, 1.0)
+	await get_tree().create_timer(1.6).timeout   # the boss chest flies onto the badge first
+	if phase != P.TRANSITION:
+		return
+	if Meta.on_chapter_cleared(chapter):
+		var bonus_g := 150 * (chapter + 1)
+		var bonus_s := 8 * (chapter + 1)
+		gold += bonus_g
+		stones += bonus_s
+		hud.toast("첫 클리어 보상! 골드 +%d · 강화석 +%d" % [bonus_g, bonus_s], Defs.COL_GOLD)
+	phase = P.GAMEOVER
+	_returning = false
+	Music.duck(-8.0, 0.6, 2.0)
+	hud.show_settlement(end_run(true))
+	_shot_later(0.9, "chapter_clear")
+
 # ---------------------------------------------------------------- wandering merchant
 static func is_merchant(k: int) -> bool:
 	return k > 0 and k % MERCHANT_EVERY == 0
+
+## Expedition chapters are only 10 groups long: the merchant waits once per chapter, at its 6th group.
+func _merchant_at(k: int) -> bool:
+	return (k - 1) % Regions.PER_REGION == 5 if expedition else is_merchant(k)
 
 ## The stall lives on the track next to group k's camp, on the grass just off the field edge (on the side that
 ## keeps it on screen), so it is there all through that group's approach and fight, then scrolls away behind.
@@ -902,11 +985,23 @@ func gameover_note() -> String:
 	return "특성 %d개가 모두 사라졌어요" % _lost_perks if _lost_perks > 0 else "특성은 전멸하면 모두 사라져요"
 
 func retry_label() -> String:
-	return "%s 처음부터" % Regions.info(Regions.of_group(wave))["name"]
+	if expedition:
+		return "다음 챕터 ▶" if _cleared else "다시 도전"
+	return "다시 행군"
 
-## Resume from the first group of the region that was reached: same road, heroes back on their feet
-## with their levels, gear, gold and bag — only the run perks are gone.
+## A new run: the scene starts over (an expedition picks up Meta.chapter — the next one after a clear).
 func retry() -> void:
+	if expedition and _cleared:
+		Meta.chapter = mini(chapter + 1, Meta.cleared)
+		Meta.save()
+	Engine.time_scale = 1.0
+	get_tree().paused = false
+	Skills.cancel(self)
+	Cinematic.reset(self)
+	get_tree().reload_current_scene()
+
+## Dev only (--test=shop): resume from the first group of the region that was reached.
+func resume_region() -> void:
 	var r := Regions.of_group(wave)
 	var first := r * Regions.PER_REGION + 1
 	print("[March] retry region=", r, " from group ", first, " (died at ", wave, ")")
@@ -971,6 +1066,9 @@ func retry() -> void:
 # ---------------------------------------------------------------- dev checks
 ## --test=camp: stop short of the first camps and capture their idle life (and a mid-boss camp).
 func _run_test() -> void:
+	if test_mode == "panel" or test_mode == "books":
+		await _test_books()
+		return
 	if test_mode == "ui":
 		await _test_ui()
 		return
@@ -1021,6 +1119,60 @@ func _run_test() -> void:
 			_camp_tick(0.05)
 		_shot_later(0.0, "camp_b")
 		await get_tree().create_timer(0.3).timeout
+	Music.quit()
+
+## --test=books: skill books of every grade in the bag -> learn / level up / full slots choice -> hero card,
+## a slot-levelled loadout, the chest screen with book + 강화석 cards, then the settlement.
+func _test_books() -> void:
+	var rt := func(t: float) -> Signal: return get_tree().create_timer(t, true, false, true).timeout
+	await rt.call(0.6)
+	var w := hero("warrior")
+	for id in ["ironWall", "vitality", "slamMastery", "earthFury", "ironWall", "ironWall"]:
+		var b := Inventory.make_skillbook(1, "warrior")
+		b["skill"] = id
+		inventory.append(b)
+		use_book(b)
+	for g in [1, 2, 3, 4]:
+		inventory.append(Inventory.make_skillbook(g))
+	inventory.append(Inventory.make_skillbook(2, "warrior"))
+	hud.refresh_inventory()
+	print("[Books] warrior learned=", w.learned, " max_hp=", w.max_hp, " badge=", books_for("warrior"))
+	_select(w)
+	await rt.call(0.5)
+	print("[Books] hero card=", hud.panels.hero_card != null and is_instance_valid(hud.panels.hero_card), " selected=", selected)
+	_shot_later(0.0, "books_hero_panel")
+	await rt.call(0.5)
+	_select(null)
+	var extra: Dictionary = inventory.filter(func(x): return x["kind"] == "skillbook" and Inventory.skillbook_def(x)["cls"] == "warrior" and learned_index(w, x["skill"]) < 0)[0]
+	use_book(extra)
+	_shot_later(0.4, "books_full_choice")
+	await rt.call(0.9)
+	hud.close_overlays()
+	hud.show_tip(inventory.filter(func(x): return x["kind"] == "skillbook")[0])
+	_shot_later(0.3, "books_tip")
+	await rt.call(0.7)
+	hud.close_tip()
+	add_stones(7)
+	give_chest(3, hud.root.size * 0.5)
+	await rt.call(1.0)
+	open_chests()
+	var g: ChestGacha = hud.overlay
+	await rt.call(1.0)
+	for i in 4:
+		g.tap()
+		while g.state != "tap" and g.state != "open":
+			await get_tree().process_frame
+	g.tap()
+	_shot_later(3.2, "books_chest_cards")
+	await rt.call(4.0)
+	hud.close_overlays()
+	await rt.call(0.5)
+	give_chest(1)
+	phase = P.GAMEOVER
+	hud.show_settlement(end_run(false))
+	_shot_later(0.9, "books_settlement")
+	await rt.call(1.4)
+	print("[Books] meta gold=", Meta.gold, " stones=", Meta.stones, " storage=", Meta.storage.size())
 	Music.quit()
 
 ## --test=shop (use --wave=13): roadside merchant appears, tap opens the shop (same stock on a second tap),
@@ -1081,7 +1233,8 @@ func _test_shop() -> void:
 	print("[Wipe] phase=", phase, " perks=", perks.size(), " lost=", _lost_perks, " max_hp=", heroes.map(func(x): return x.max_hp))
 	_shot_later(0.0, "wipe_gameover")
 	await rt.call(0.3)
-	retry()
+	run_over = false
+	resume_region()
 	await rt.call(1.4)
 	print("[Retry] wave=", wave, " dist=", int(dist), " region=", mw.region_at(dist), " alive=", alive_heroes().size(), " hp=", heroes.map(func(x): return x.hp), " phase=", phase)
 	_shot_later(0.0, "retry")

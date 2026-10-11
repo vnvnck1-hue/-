@@ -16,19 +16,13 @@ static func _add(out: Dictionary, fx: Dictionary, mul := 1.0) -> void:
 	for k in fx:
 		out[k] = out.get(k, 0.0) + float(fx[k]) * mul
 
-## Passive skills; a skill book in a slot replaces that slot's base skill.
+## Skills learned from skill books this run (fx per level x level).
 static func skill_fx(h: Actor) -> Dictionary:
 	var out := {}
-	if h.cls == "":
-		return out
-	for i in 3:
-		if h.skillbooks.has(i):
-			var b: Dictionary = h.skillbooks[i]
-			for s in Defs.SKILLBOOK_SKILLS[h.cls]:
-				if s["id"] == b["id"]:
-					_add(out, s["fx"], b["level"])
-		elif h.skills[i] > 0:
-			_add(out, Defs.SKILLS[h.cls][i]["fx"], h.skills[i])
+	for s in h.learned:
+		var bd := Defs.book(s["id"])
+		if not bd.is_empty():
+			_add(out, bd["fx"], s["level"])
 	return out
 
 static func entry_stats(e: Dictionary) -> Dictionary:
@@ -44,12 +38,25 @@ static func entry_stats(e: Dictionary) -> Dictionary:
 		_add(out, e["bonus"])
 	return out
 
+## What a worn item gives in a hero's slot: its own stats + the permanent slot level bonus (Gear.slot_bonus;
+## the level that counts is capped by the item's grade).
+static func equip_stats(h: Actor, slot: String, e) -> Dictionary:
+	if e == null:
+		return {}
+	var out := entry_stats(e)
+	if h.is_hero():
+		_add(out, Gear.slot_bonus(slot, slot_level(h, slot, e)))
+	return out
+
+static func slot_level(h: Actor, slot: String, e) -> int:
+	return mini(Meta.slot_level(h.cls, slot), Gear.slot_cap(e))
+
 static func item_fx(h: Actor) -> Dictionary:
 	var out := {}
 	for slot in h.equipment:
 		var e = h.equipment[slot]
 		if e:
-			_add(out, entry_stats(e))
+			_add(out, equip_stats(h, slot, e))
 	return out
 
 static func has_effect(h: Actor, eff: String) -> bool:
@@ -127,10 +134,10 @@ static func counter_chance(h: Actor) -> float:
 	return g(skill_fx(h), "counterChance") + g(item_fx(h), "counterChance") + g(talent_fx(h), "counterChance")
 
 static func mana_gain_mult(game: Node, h: Actor) -> float:
-	return g(perk_fx(game), "manaGainMult") + g(talent_fx(h), "manaGainMult")
+	return g(perk_fx(game), "manaGainMult") + g(talent_fx(h), "manaGainMult") + g(skill_fx(h), "manaGainMult")
 
 static func ult_cooldown(game: Node, h: Actor) -> float:
-	var red := minf(CAP_ULT_CD, g(perk_fx(game), "ultCooldownReduce") + g(talent_fx(h), "ultCooldownReduce"))
+	var red := minf(CAP_ULT_CD, g(perk_fx(game), "ultCooldownReduce") + g(talent_fx(h), "ultCooldownReduce") + g(skill_fx(h), "ultCooldownReduce"))
 	return floorf(Defs.ULTIMATES[h.cls]["cooldown"] * (1.0 - red)) / 1000.0
 
 static func damage_reduce(game: Node, h: Actor) -> float:
@@ -142,3 +149,7 @@ static func damage_reduce(game: Node, h: Actor) -> float:
 	if h.cls == "warrior" and Meta.has_flag("warLastStand") and h.hp / h.max_hp <= 0.3:
 		r += 0.15
 	return minf(CAP_REDUCE, r)
+
+## Ultimate damage bonus from talents + 전설 skill books.
+static func ult_damage_bonus(h: Actor) -> float:
+	return g(talent_fx(h), "ultDamageBonus") + g(skill_fx(h), "ultDamageBonus")

@@ -1,6 +1,8 @@
 extends Node3D
-## Lobby: a slowly turning toy diorama (the trio + a teaser of both March themes)
-## and the Endless March card (the classic 6x8 board mode was retired from the lobby).
+## Lobby: a slowly turning toy diorama (the trio + a teaser of both March themes), the banked currencies,
+## the expedition card (pick a chapter: one region of the march, beat its mid-boss to open the next),
+## the endless march card, and the [장비] screen (GearScreen: permanent gear, storage merges, slot levels).
+## (The classic 6x8 board mode was retired from the lobby.)
 ## Dev: --mode=march jumps straight in; --autoplay / --test=... default to march.
 
 var INK: Color = UiTheme.ink()
@@ -14,6 +16,9 @@ var _trio: Array = []
 var _t := 0.0
 var _leaving := false
 var _settings: Control      # 설정 창(열려 있을 때만)
+var _gear: GearScreen       # 장비 창(열려 있을 때만)
+var _chapter_l: Label
+var _chapter_s: Label
 var _preview_ms := 0        # 효과음 미리듣기 간격 제한
 
 func _ready() -> void:
@@ -51,6 +56,19 @@ func _ready() -> void:
 		await get_tree().create_timer(1.6).timeout
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png(shots + "/lobby.png")
+		if Array(OS.get_cmdline_user_args()).has("--open=gear"):   # dev: the gear screen too
+			for i in 6:
+				Meta.storage.append(Inventory.make("equip", ["sword1", "axe1", "shield1", "ring1", "helmet2", "bow2"][i]))
+			Meta.stones += 20
+			Meta.gold += 500
+			_open_gear()
+			await get_tree().create_timer(0.6).timeout
+			_gear.picked = Meta.storage[0]
+			_gear._rebuild()
+			await get_tree().create_timer(0.3).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(shots + "/gear.png")
+		Music.quit()
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -59,6 +77,8 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
+		if _gear:
+			return
 		if _settings:
 			_close_settings()
 		else:
@@ -66,9 +86,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 	elif ev is InputEventKey and ev.pressed and ev.keycode == KEY_F2:
 		_toggle_preset()
 
-func _go(mode: String) -> void:
-	if _leaving:
+func _go(mode: String, expedition := false) -> void:
+	if _leaving or _gear:
 		return
+	Meta.expedition = expedition
 	_leaving = true
 	Sfx.play("chime", -6.0, 1.2)
 	var fade := ColorRect.new()
@@ -153,17 +174,27 @@ func _build_ui() -> void:
 	_pop(title, 0.0)
 	_pop(sub, 0.1)
 
-	var pill := _panel(Color(0.1, 0.08, 0.2, 0.5), Vector2(200, 54), 27, 0)
-	if UiTheme.tt():
-		pill.add_theme_stylebox_override("panel", UiTheme.capsule(27))
-	root.add_child(_place(pill, Vector2(1, 0), Vector2(-216, 16), Vector2(200, 54)))
-	var gem := _label("◆ %d" % Meta.crystals, 32, Defs.COL_CRYSTAL, 8)
-	gem.size = Vector2(200, 54)
-	pill.add_child(gem)
+	# banked currencies: gold, 강화석, time crystals
+	var cur := [[Hud.CoinIcon.new(), Meta.gold, Defs.COL_GOLD], [Hud.StoneIcon.new(), Meta.stones, ItemIcon.STONE_COL], [Hud.GemIcon.new(), Meta.crystals, Defs.COL_CRYSTAL]]
+	for i in cur.size():
+		var pill := _panel(Color(0.1, 0.08, 0.2, 0.5), Vector2(206, 58), 29, 0)
+		pill.add_theme_stylebox_override("panel", UiTheme.capsule(29))
+		root.add_child(_place(pill, Vector2(0.5, 0), Vector2(-327 + i * 224, 246), Vector2(206, 58)))
+		var ic: Control = cur[i][0]
+		ic.position = Vector2(8, 6)
+		ic.size = Vector2(46, 46)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pill.add_child(ic)
+		var v := _label(str(cur[i][1]), 32, cur[i][2], 8)
+		v.position = Vector2(56, 0)
+		v.size = Vector2(142, 58)
+		pill.add_child(v)
 
-	_mode_card("march", "끝없는 행군", "구불구불한 길을 따라 끝없이 전진!\n10무리마다 중간 보스가 기다립니다", Color("4cb860"), -330, false)
+	_gear_button()
+	_expedition_card()
+	_mode_card("march", "끝없는 행군", "1무리부터 끝없이 전진! 최고 기록에 도전", Color("4cb860"), -246, false)
 	var hint := _label("Esc: 종료", 22, Color(1, 1, 1, 0.8), 6)
-	root.add_child(_place(hint, Vector2(0.5, 1), Vector2(-200, -70), Vector2(400, 40)))
+	root.add_child(_place(hint, Vector2(0.5, 1), Vector2(-200, -40), Vector2(400, 36)))
 	_preset_button()
 	_settings_button()
 
@@ -361,7 +392,7 @@ func _toggle_preset() -> void:
 	get_tree().reload_current_scene.call_deferred()
 
 func _mode_card(mode: String, title: String, desc: String, col: Color, y: float, is_new: bool) -> void:
-	var sz := Vector2(640, 206)
+	var sz := Vector2(640, 190)
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	var tt := UiTheme.tt()
@@ -417,8 +448,138 @@ func _mode_card(mode: String, title: String, desc: String, col: Color, y: float,
 		Sfx.play("click", -6.0))
 	b.button_up.connect(func():
 		b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
-	b.pressed.connect(func(): _go(mode))
+	b.pressed.connect(func(): _go(mode, false))
 	_pop(b, 0.2)
+
+## Expedition: one chapter per region of the march (◀ ▶ picks an opened chapter). Beat its mid-boss to open
+## the next; the run then settles (gear is permanent, gold / 강화석 banked).
+func _expedition_card() -> void:
+	var tt := UiTheme.tt()
+	var sz := Vector2(640, 250)
+	var col := Color("e0843a")
+	var card := Panel.new()
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	card.add_theme_stylebox_override("panel", _ttukka_card(col) if tt else _box(col, 30, 6))
+	root.add_child(_place(card, Vector2(0.5, 1), Vector2(-sz.x * 0.5, -520), sz))
+	var t := _label("원정", 52, Color.WHITE, 14)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	t.position = Vector2(36, 16)
+	t.size = Vector2(300, 64)
+	card.add_child(t)
+	var d := _label("중간 보스를 쓰러뜨리면 다음 챕터가 열려요", 22, UiTheme.TXT_DIM if tt else Color("fff8e8"), 0 if tt else 8)
+	d.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	d.position = Vector2(38, 78)
+	d.size = Vector2(560, 34)
+	card.add_child(d)
+	var prev := _small_button("◀", Rect2(32, 124, 74, 74))
+	var next := _small_button("▶", Rect2(330, 124, 74, 74))
+	card.add_child(prev)
+	card.add_child(next)
+	_chapter_l = _label("", 30, Color.WHITE, 10)
+	_chapter_l.position = Vector2(106, 118)
+	_chapter_l.size = Vector2(224, 52)
+	card.add_child(_chapter_l)
+	_chapter_s = _label("", 20, UiTheme.TXT_VALUE if tt else Color("fff2b0"), 7)
+	_chapter_s.position = Vector2(106, 164)
+	_chapter_s.size = Vector2(224, 34)
+	card.add_child(_chapter_s)
+	prev.pressed.connect(func(): _pick_chapter(-1))
+	next.pressed.connect(func(): _pick_chapter(1))
+	var go := Button.new()
+	go.focus_mode = Control.FOCUS_NONE
+	go.text = "출발 ▶"
+	go.add_theme_font_override("font", font)
+	go.add_theme_font_size_override("font_size", 36)
+	for st in ["normal", "hover", "pressed"]:
+		if tt:
+			go.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.YELLOW.lightened(0.08 if st == "hover" else 0.0), 20, st == "pressed"))
+		else:
+			go.add_theme_stylebox_override(st, _box(Color("ff9f1c").lightened(0.1 if st == "hover" else 0.0), 24, 5))
+	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
+		go.add_theme_color_override(k, Color("3a2400") if tt else Color.WHITE)
+	if not tt:
+		go.add_theme_color_override("font_outline_color", INK)
+		go.add_theme_constant_override("outline_size", 8)
+	go.position = Vector2(424, 118)
+	go.size = Vector2(190, 86)
+	card.add_child(go)
+	go.pressed.connect(func():
+		Sfx.play("click", -6.0)
+		_go("march", true))
+	_pick_chapter(0)
+	_pop(card, 0.15)
+
+func _small_button(text: String, r: Rect2) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.text = text
+	b.position = r.position
+	b.size = r.size
+	b.add_theme_font_override("font", font)
+	b.add_theme_font_size_override("font_size", 30)
+	for st in ["normal", "hover", "pressed"]:
+		if UiTheme.tt():
+			b.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.NAVY.lightened(0.08 if st == "hover" else 0.0), 18, st == "pressed"))
+		else:
+			b.add_theme_stylebox_override(st, _box(Color("6f6cf0").lightened(0.1 if st == "hover" else 0.0), 20, 5))
+	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
+		b.add_theme_color_override(k, Color.WHITE)
+	return b
+
+func _pick_chapter(step: int) -> void:
+	var c := clampi(Meta.chapter + step, 0, Meta.cleared)
+	if step != 0 and c != Meta.chapter:
+		Sfx.play("click", -6.0, 1.2)
+	Meta.chapter = c
+	if step != 0:
+		Meta.save()
+	_chapter_l.text = Meta.chapter_name(c)
+	_chapter_s.text = "클리어 ✓" if c < Meta.cleared else "도전 중 · 무리 10"
+
+## [장비]: permanent gear, storage merges and slot upgrades (GearScreen).
+func _gear_button() -> void:
+	var tt := UiTheme.tt()
+	var sz := Vector2(300, 86)
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.text = "장비"
+	b.add_theme_font_override("font", font)
+	b.add_theme_font_size_override("font_size", 40)
+	for st in ["normal", "hover", "pressed"]:
+		if tt:
+			b.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.GREEN.lightened(0.08 if st == "hover" else 0.0), 22, st == "pressed"))
+		else:
+			b.add_theme_stylebox_override(st, _box(Color("27c6b0").lightened(0.1 if st == "hover" else 0.0), 26, 5))
+	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
+		b.add_theme_color_override(k, Color.WHITE)
+	b.add_theme_color_override("font_outline_color", INK)
+	b.add_theme_constant_override("outline_size", 9)
+	root.add_child(_place(b, Vector2(0.5, 1), Vector2(-sz.x * 0.5, -630), sz))
+	if Meta.merge_ready() > 0:
+		var badge := _panel(UiTheme.RED, Vector2(150, 40), 20, 3)
+		badge.position = Vector2(sz.x - 110, -16)
+		badge.rotation = 0.08
+		b.add_child(badge)
+		var bl := _label("합성 가능!", 22, Color.WHITE, 6)
+		bl.size = Vector2(150, 40)
+		badge.add_child(bl)
+	b.pressed.connect(_open_gear)
+	_pop(b, 0.1)
+
+func _open_gear() -> void:
+	if _leaving or _gear or _settings:
+		return
+	Sfx.play("click", -6.0)
+	var layer := CanvasLayer.new()
+	layer.layer = 6
+	add_child(layer)
+	_gear = GearScreen.new()
+	layer.add_child(_gear)
+	_gear.open(font)
+	_gear.closed.connect(func():
+		_gear = null
+		layer.queue_free()
+		get_tree().reload_current_scene.call_deferred())   # currencies / badges refresh
 
 ## 뚜까펫 스테이지 카드: 검정 턱 → 모드 색 테두리 → 청록 선 → 남보라 본문.
 func _ttukka_card(c: Color) -> StyleBox:

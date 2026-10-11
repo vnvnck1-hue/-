@@ -20,6 +20,8 @@ var gold_label: Label
 var gold_pill: Control
 var crystal_label: Label
 var crystal_pill: Control
+var stone_label: Label
+var stone_pill: Control
 var enemy_label: Label
 var mult_label: Label
 var gimmick_title: Label
@@ -241,6 +243,8 @@ func _build_top() -> void:
 	gold_pill = gold_label.get_parent()
 	crystal_label = pill(GemIcon.new(), Vector2(1, 0), Vector2(-206, 80), Vector2(190, 56))
 	crystal_pill = crystal_label.get_parent()
+	stone_label = pill(StoneIcon.new(), Vector2(1, 0), Vector2(-356, 80), Vector2(140, 56), 30)   # this run's 강화석
+	stone_pill = stone_label.get_parent()
 	enemy_label = pill(SkullIcon.new(), Vector2(0.5, 0), Vector2(-170, 22), Vector2(160, 52), 32)
 	mult_label = pill(null, Vector2(0.5, 0), Vector2(6, 22), Vector2(150, 52), 30)
 	mult_label.label_settings.font_color = Color("ffb0c0")
@@ -408,6 +412,12 @@ func set_gold(v: int, animate := true) -> void:
 		if animate:
 			bump(gold_label, 1.3)
 
+func set_stones(v: int, animate := true) -> void:
+	if stone_label.text != str(v):
+		stone_label.text = str(v)
+		if animate:
+			bump(stone_label, 1.35)
+
 func set_crystals(v: int, animate := true) -> void:
 	if crystal_label.text != str(v):
 		crystal_label.text = str(v)
@@ -522,13 +532,14 @@ func _process(delta: float) -> void:
 			m.modulate = Color(1.6, 1.6, 1.6) if u.mana >= 99.0 else Color.WHITE
 			(b["lv"] as Label).text = str(u.level)
 			var sp := (b["sp"] as Panel)
-			var show_sp: bool = u.sp > 0 and game.can_edit()
+			var books: int = game.books_for(u.cls)   # skill books in the bag this hero can use
+			var show_sp: bool = books > 0
 			if show_sp != sp.visible:
 				sp.visible = show_sp
 				if show_sp:
 					pop_in(sp)
 			if show_sp:
-				(sp.get_child(0) as Label).text = "+%d" % u.sp
+				(sp.get_child(0) as Label).text = "+%d" % books
 			var ult := (b["ult"] as Panel)
 			ult.visible = game.in_battle() and u.ult_ready_at <= game.now
 			if ult.visible:
@@ -1239,6 +1250,10 @@ func close_overlays() -> void:
 func show_gameover(w: int) -> void:
 	panels.gameover(w)
 
+## Run results (expedition cleared / team wiped / endless march over): what is banked, then next step.
+func show_settlement(r: Dictionary) -> void:
+	panels.settlement(r)
+
 func open_perks() -> bool:
 	return panels.perks()
 
@@ -1333,7 +1348,7 @@ func _tutorial_pulse(t: float) -> void:
 		var glow := false
 		match tut_step:
 			1: glow = not game.tut_moved.has(h.cls)
-			3: glow = h.sp > 0
+			3: glow = game.books_for(h.cls) > 0
 			4: glow = h.cls == "mage" and game.in_battle()
 		h.ring_mat.albedo_color = (Defs.COL_GOLD * (1.0 + 0.6 * sin(t * 7.0))) if glow else (Defs.COL_GOLD * 1.15 if h == game.selected else h.color() * 1.15)
 
@@ -1366,6 +1381,11 @@ func hide_aim() -> void:
 	_aim_count = null
 
 # ---------------------------------------------------------------- custom drawn icons
+## 강화석 counter icon (same gem the item icon draws).
+class StoneIcon extends Control:
+	func _draw() -> void:
+		ItemIcon.draw_stone(self, size * 0.5, minf(size.x, size.y) * 0.4)
+
 class CoinIcon extends Control:
 	func _draw() -> void:
 		var c := size * 0.5

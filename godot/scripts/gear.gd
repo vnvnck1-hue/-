@@ -40,7 +40,6 @@ const WINDOW := {-2: [0.10, 0.06], -1: [0.50, 0.30], 0: [0.36, 0.48], 1: [0.04, 
 const BOSS_SHIFT := 1
 ## Chance that an equipment drop is the third copy of a pair the player already holds (merge assist).
 const ASSIST := 0.22
-const ASSIST_FULL := 0.25      # + this much more as the bag fills up (a full bag wants merges, not more lone pieces)
 const ASSIST_MERCHANT := 1.0   # the merchant always brings one "third copy" if a pair exists
 ## Each region's featured families drop this many times more often (Regions.LIST "gear").
 const FEATURED_W := 3.5
@@ -195,13 +194,14 @@ static func roll_family(k: int, slot := "") -> String:
 			return f
 	return pool[0]
 
-## Item keys that would be the third piece of a merge group the player holds exactly two of
-## in the bag (equipped gear never merges), within the current window's reach. The family is rolled within the group's slot.
+## Item keys that would be the third piece of a merge group the player holds exactly two of (unequipped:
+## the permanent storage plus this run's bag), within the current window's reach. The family is rolled
+## within the group's slot. Merging itself happens in the lobby storage.
 static func pair_keys(game: Node, k: int) -> Array:
 	if game == null:
 		return []
 	var counts := {}
-	for e in game.inventory:
+	for e in game.inventory + Meta.storage_entries():
 		if e.get("kind", "") == "equip" and is_family(e["key"]):
 			var gk := group_of(e["key"])
 			counts[gk] = counts.get(gk, 0) + 1
@@ -215,13 +215,34 @@ static func pair_keys(game: Node, k: int) -> Array:
 
 ## One family-gear drop for group k: merge assist first, else window grade + region-weighted family.
 static func roll_key(game: Node, k: int, boss := false, assist := ASSIST) -> String:
-	if game != null and assist > 0.0:
-		assist += ASSIST_FULL * clampf(float(game.inventory.size()) / float(maxi(1, game.inv_cap)), 0.0, 1.0)
 	if randf() < assist:
 		var pairs := pair_keys(game, k)
 		if not pairs.is_empty():
 			return pairs[randi() % pairs.size()]
 	return key(roll_family(k), roll_grade(k, boss))
+
+# ---------------------------------------------------------------- permanent slot levels (lobby 강화)
+## Each hero's weapon / armor / accessory slot has a level (Meta.slot_lv) bought with gold + 강화석. The level
+## belongs to the slot, not the item: whatever is worn there (permanent or picked up this run) gets the bonus.
+## The level that counts is capped by the worn item's grade (grade x SLOT_CAP_PER_GRADE).
+const SLOT_CAP_PER_GRADE := 10
+const SLOT_BONUS := {"weapon": {"atk": 3.0}, "armor": {"hp": 22.0}, "accessory": {"atk": 1.5, "hp": 10.0}}
+
+static func slot_cap(e) -> int:
+	if e == null:
+		return 0
+	return mini(int(Defs.item(e["key"]).get("tier", 1)), STAR_FROM) * SLOT_CAP_PER_GRADE
+
+static func slot_bonus(slot: String, lv: int) -> Dictionary:
+	var out := {}
+	var per: Dictionary = SLOT_BONUS.get(slot, {})
+	for k in per:
+		out[k] = floorf(per[k] * lv)
+	return out
+
+## Cost of raising a slot from level lv to lv + 1: {"gold", "stones"}.
+static func upgrade_cost(lv: int) -> Dictionary:
+	return {"gold": 40 + 25 * lv + int(pow(lv, 1.6)), "stones": 2 + int(lv * 0.8)}
 
 ## Additive per-kill gear drop bonus for group k (early regions only).
 static func drop_bonus(k: int) -> float:

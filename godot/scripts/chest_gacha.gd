@@ -687,10 +687,18 @@ func _card(e: Dictionary, lucky: bool) -> Control:
 func _grade_text(e: Dictionary) -> String:
 	if e["kind"] == "equip" and Gear.is_family(e["key"]):
 		return "%s 등급" % Gear.grade_name(Inventory.tier_of(e))
+	if e["kind"] == "skillbook":
+		return "%s 스킬북" % Defs.book_grade_name(int(Inventory.skillbook_def(e).get("grade", 1)))
+	if e["kind"] == "stone":
+		return "강화 재료"
 	return HudPanels.RARITY_NAME.get(Inventory.rarity_of(e), "")
 
-## The best pulls: above the stage window's base grade, or a unique.
+## The best pulls: permanent gear above the stage window's base grade or a unique, 영웅+ skill books.
 func _is_jackpot(e: Dictionary) -> bool:
+	if e["kind"] == "skillbook":
+		return int(Inventory.skillbook_def(e).get("grade", 1)) >= 3
+	if e["kind"] == "stone":
+		return false
 	if e["kind"] != "equip":
 		return true
 	if not Gear.is_family(e["key"]):

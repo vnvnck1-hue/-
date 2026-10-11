@@ -27,6 +27,8 @@ var sub_wave := 0
 var sub_waves := 1
 var gimmick := ""
 var gold := 0
+var stones := 0               # 강화석 picked up this run (banked when the run ends)
+var run_over := false         # the run's rewards were banked (settlement shown / left for the lobby)
 var now := 0.0
 var perks: Array = []
 var inventory: Array = []
@@ -130,6 +132,10 @@ const CAM_LOOK := Vector3(0, 0, 0.55)
 func mode_id() -> String:
 	return "classic"
 
+## Meta.best key for this run's record ("" = no record, e.g. an expedition chapter).
+func record_id() -> String:
+	return mode_id()
+
 ## BGM for this mode (Music.TRACKS key).
 func music_track() -> String:
 	return "battle"
@@ -216,6 +222,8 @@ func can_equip() -> bool:
 
 ## Leave the run and go back to the mode select lobby.
 func go_lobby() -> void:
+	if not run_over:   # leaving mid-run: everything picked up so far is kept
+		end_run(false, true)
 	Actor.clamp_fn = Callable()
 	Skills.cancel(self)
 	Cinematic.reset(self)
@@ -305,8 +313,7 @@ func _run_test() -> void:
 			await get_tree().create_timer(0.6).timeout
 			_shot_later(0.0, "tut3")
 			await get_tree().create_timer(0.3).timeout
-			_select(hero("warrior"))
-			upgrade_skill(hero("warrior"), 0)
+			use_book(inventory.filter(func(x): return x["kind"] == "skillbook")[0])
 			_shot_later(0.4, "tut4")
 			await get_tree().create_timer(0.8).timeout
 			start_battle()
@@ -405,9 +412,12 @@ func _run_test() -> void:
 			_shot_later(0.5, "test_gear_merchant")
 		"panel":
 			var h := hero("warrior")
-			h.sp = 3
 			grant_exp(h, 60)
-			upgrade_skill(h, 0)
+			for id in ["ironWall", "vitality", "slamMastery", "earthFury", "ironWall"]:
+				var b := Inventory.make_skillbook(1, "warrior")
+				b["skill"] = id
+				inventory.append(b)
+				use_book(b)
 			_select(h)
 			_shot_later(0.4, "test_panel")
 		"aim":
@@ -470,6 +480,8 @@ func start_run(first := false) -> void:
 	perks = []
 	inventory = []
 	chests = []
+	stones = 0
+	run_over = false
 	inv_cap = Defs.MAX_INVENTORY
 	relic_tempo = 0
 	revive_used = {}
@@ -478,14 +490,16 @@ func start_run(first := false) -> void:
 	for k in Meta.relics:
 		inventory.append(Inventory.make("relic", k))
 	if Meta.has_flag("emergencySupply"):
-		inventory.append(Inventory.make("equip", Defs.FAMILIES[randi() % Defs.FAMILIES.size()] + "1"))
+		inventory.append(Inventory.make_skillbook(1))
 	var i := 0
 	for cls in Defs.HERO_ORDER:
 		var h := _spawn(Defs.TEAM_HERO, cls, Defs.HERO_START[cls])
 		h.home = Defs.HERO_START[cls]
 		h.drop_in(1.6, 0.12 * i)
+		_start_kit(h)
 		i += 1
 	hud.set_gold(gold, false)
+	hud.set_stones(stones, false)
 	hud.set_crystals(Meta.crystals, false)
 	hud.refresh_inventory()
 	hud.panels.refresh_chests()
@@ -494,6 +508,21 @@ func start_run(first := false) -> void:
 	tut_pending5 = false
 	enter_placement()
 	_tutorial_set(1 if first and not Meta.tutorial_done and not autoplay and test_mode == "" else 0)
+
+## A fresh hero for this run: the level the run starts at (mode hook) and its permanent loadout worn.
+func _start_kit(h: Actor) -> void:
+	for l in start_level() - 1:
+		_level_up(h)
+	for slot in Meta.SLOTS:
+		var e = Meta.worn(h.cls, slot)
+		if e:
+			h.equipment[slot] = e
+			h.max_hp += Stats.g(Stats.equip_stats(h, slot, e), "hp")
+	h.hp = h.max_hp
+
+## Hero level a run starts at (expedition chapters start further along, mode hook).
+func start_level() -> int:
+	return 1
 
 func enter_placement() -> void:
 	phase = P.PLACEMENT
@@ -801,7 +830,8 @@ func game_over() -> void:
 	Cinematic.reset(self)
 	print("[Trio] GAME OVER wave=", wave)
 	phase = P.GAMEOVER
-	Meta.record_best(mode_id(), wave)
+	if record_id() != "":
+		Meta.record_best(record_id(), wave)
 	_discard_loot()
 	cam.base_scale = 1.0
 	cam.group_focus([], false)
@@ -811,7 +841,7 @@ func game_over() -> void:
 	hud.set_fight(false)
 	Sfx.play("sad", -4.0)
 	Music.duck(-18.0, 1.2, 2.5)   # minor-key jingle clashes with the C-major loop
-	hud.show_gameover(wave)
+	hud.show_settlement(end_run(false))
 	_shot_later(0.9, "gameover")
 	if autoplay:
 		await get_tree().create_timer(3.0).timeout
@@ -849,11 +879,17 @@ func on_enemy_killed(e: Actor, killer: Actor) -> void:
 			hud.float_text(e.global_position + Vector3(0, 1.3, 0), "+1 결정", Defs.COL_CRYSTAL)
 	_roll_drops(e, pf)
 
+## Drops: skill books are the run's growth (graded by how far the run is), 강화석 feed the permanent gear,
+## and gear itself is rare (a mid-boss always gives one piece — it is kept forever).
 func _roll_drops(e: Actor, pf: Dictionary) -> void:
 	var at := e.global_position
+	var jit := func() -> Vector3: return at + Vector3(randf_range(-0.35, 0.35), 0, randf_range(-0.35, 0.35))
+	var role := Defs.role(e.kind)
 	if e.kind != "hydra":
-		if wave >= 20 and randf() < 0.03:
-			_give(Inventory.make_skillbook(), at)
+		if randf() < BOOK_DROP.get(role, 0.07) + Stats.g(pf, "dropBonus") * 0.5:
+			_give(Inventory.make_skillbook(roll_book_grade(role == "boss" or role == "giant")), jit.call())
+		if randf() < STONE_DROP.get(role, 0.3):
+			_give(Inventory.make_stone(stone_amount(role)), jit.call())
 		if wave >= 20 and randf() < 0.04:
 			_give(Inventory.make("special", "inventoryExpand"), at)
 		if wave >= 15:
@@ -863,21 +899,53 @@ func _roll_drops(e: Actor, pf: Dictionary) -> void:
 			elif r < 0.013:
 				_give(Inventory.make("relic", Inventory.random_relic("rare")), at)
 	# Gear drop window (Gear): boss-role enemies roll one grade higher; a mid-boss (giant) always drops
-	# GIANT_DROPS jackpot pieces — the region's "graduation" loot that seeds the next region's base grade.
-	var role := Defs.role(e.kind)
+	# GIANT_DROPS pieces. Ordinary kills only rarely drop gear now (GEAR_DROP_SCALE of the old rates).
 	var jackpot := role == "boss" or role == "giant"
-	var n := GIANT_DROPS if role == "giant" else (1 if randf() < Defs.DROP_RATES.get(role, 0.2) + Stats.g(pf, "dropBonus") + Gear.drop_bonus(wave) else 0)
+	var n := GIANT_DROPS if role == "giant" else (1 if randf() < (Defs.DROP_RATES.get(role, 0.2) + Stats.g(pf, "dropBonus") + Gear.drop_bonus(wave)) * GEAR_DROP_SCALE else 0)
 	for i in n:
 		var k := Inventory.random_item_key(wave, self, jackpot)
 		_give(Inventory.make_found(k, wave), at + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3)) * float(mini(i, 1)))
 
-const GIANT_DROPS := 2
+const GIANT_DROPS := 1
+const GEAR_DROP_SCALE := 0.12
+## Per-kill skill book / 강화석 chances by enemy role.
+const BOOK_DROP := {"minion": 0.06, "fast": 0.07, "tank": 0.09, "boss": 0.30, "giant": 1.0}
+const STONE_DROP := {"minion": 0.28, "fast": 0.3, "tank": 0.4, "boss": 0.8, "giant": 1.0}
+## Book grade odds (일반, 희귀, 영웅, 전설) at the start of the march and how far they shift per region.
+const BOOK_ODDS := [0.72, 0.22, 0.05, 0.01]
+const BOOK_SHIFT := [-0.08, 0.03, 0.035, 0.015]
+
+## Grade of a dropped skill book: better the further the run has gone (bosses roll one grade higher).
+func roll_book_grade(boss := false) -> int:
+	var r := float(Regions.of_group(wave))
+	var w := []
+	var total := 0.0
+	for i in 4:
+		var v := maxf(0.02, BOOK_ODDS[i] + BOOK_SHIFT[i] * r)
+		w.append(v)
+		total += v
+	var x := randf() * total
+	var g := 1
+	for i in 4:
+		x -= w[i]
+		if x <= 0.0:
+			g = i + 1
+			break
+	return mini(4, g + (1 if boss else 0))
+
+## 강화석 in one drop: grows with the region.
+func stone_amount(role: String) -> int:
+	var base := 1 + int(Regions.of_group(wave) / 2)
+	match role:
+		"giant": return base * 6 + 4
+		"boss": return base * 2 + 1
+		"tank": return base + randi() % 2
+	return base
 
 ## Drops land on the field first (Diablo style) and fly into the bag when the wave ends.
 var field_loot: Array = []   # [{entry, node}]
 var _loot_in_flight := 0
-var _loot_pending := 0      # collected items not yet in the bag: merges wait until every one has landed
-var _merging := false       # the sequential merge show is playing
+var _loot_pending := 0      # collected items not yet in the bag
 
 func _give(entry: Dictionary, at: Vector3) -> void:
 	var col: Color = Defs.RARITY_COL[Inventory.rarity_of(entry)]
@@ -912,11 +980,7 @@ func _collect_loot() -> float:
 			_loot_in_flight += 1
 			hud.fly_item(sp, e, func():
 				_loot_in_flight -= 1
-				var res := Inventory.add(self, e)
-				if res.begins_with("sold:"):
-					hud.toast("가방이 가득 차서 판매 +%sG" % res.substr(5), Defs.COL_GOLD)
-					hud.set_gold(gold)
-				hud.refresh_inventory(e["id"])
+				_land_item(e)
 				_loot_landed(), slot_off))
 	return 0.35 + 0.14 * list.size() + 0.75 if not list.is_empty() else 0.0
 
@@ -929,36 +993,71 @@ func _discard_loot() -> void:
 
 func _loot_landed() -> void:
 	_loot_pending = maxi(0, _loot_pending - 1)
-	if _loot_pending == 0:
-		get_tree().create_timer(0.25, true, false, true).timeout.connect(queue_merges)   # a beat after the last item lands
 
-## Called by Inventory.settle after any bag / equipment change. Merges are staged one by one in the bag
-## (HudPanels.play_merge); while loot is still flying in they wait, so the bag fills first, then merges.
-func queue_merges() -> void:
-	if _loot_pending > 0 or _merging or not is_inside_tree():
-		return
-	if Inventory.find_merge(self) == "":
-		return
-	_play_merges()
+# ---------------------------------------------------------------- permanent gear & run currencies
+## Called by Inventory.settle after any bag / equipment change: the permanent gear held right now is saved.
+func sync_gear() -> void:
+	if not run_over:
+		Meta.sync_run(self)
 
-func _play_merges() -> void:
-	_merging = true
-	var chain := 0
-	while is_inside_tree():
-		var k := Inventory.find_merge(self)
-		if k == "":
-			break
-		if test_mode != "":
-			print("[MergeShow] t=", snappedf(_clock, 0.01), " ", k, " pending=", _loot_pending)
-		await hud.panels.play_merge(k, chain)
-		chain += 1
-	_merging = false
+## A full bag sends picked-up gear straight to the permanent storage.
+func stash_gear(e: Dictionary) -> void:
+	Meta.storage.append(e)
+	Meta.save()
+	hud.toast("가방이 가득 차서 %s → 보관함" % Inventory.name_of(e), Color("8fd0ff"))
 
-func on_merged(names: Array) -> void:
-	for n in names:
-		hud.toast("합성! %s" % n, Color("ffd27a"))
-	Sfx.play("chime", -5.0, 1.3)
+func add_stones(n: int) -> void:
+	stones += n
+	hud.set_stones(stones)
+
+## Skill books in the bag that hero class cls can use (HUD badge).
+func books_for(cls: String) -> int:
+	var n := 0
+	for e in inventory:
+		if e["kind"] == "skillbook" and Inventory.skillbook_def(e).get("cls", "") == cls:
+			n += 1
+	return n
+
+## 강화석 a leftover skill book turns into when the run ends.
+const BOOK_STONES := {1: 1, 2: 3, 3: 6, 4: 12}
+
+## The run is over (wiped / cleared / left): unopened chests are opened on the spot, leftover skill books
+## become 강화석, and gear, gold and 강화석 are banked for good. Returns the settlement summary.
+func end_run(cleared: bool, quiet := false) -> Dictionary:
+	if run_over:
+		return {}
+	run_over = true
+	var r := {"cleared": cleared, "title": gameover_text(), "chests": chests.size(), "gear": [], "books": 0, "book_stones": 0}
+	for t in chests:
+		var c := ChestLoot.roll(self, wave, int(t))
+		gold += int(c["gold"])
+		for e in c["items"]:
+			if e["kind"] == "stone":
+				stones += int(e["n"])
+			elif e["kind"] == "equip":
+				inventory.append(e)
+			elif e["kind"] == "skillbook":
+				inventory.append(e)
+	chests.clear()
+	for e in inventory.duplicate():
+		if e["kind"] == "skillbook":
+			r["books"] += 1
+			r["book_stones"] += int(BOOK_STONES.get(int(Inventory.skillbook_def(e).get("grade", 1)), 1))
+			inventory.erase(e)
+	stones += int(r["book_stones"])
+	for e in inventory:
+		if e["kind"] == "equip":
+			r["gear"].append(e)
+	r["gold"] = gold
+	r["stones"] = stones
+	Meta.end_run(self, gold, stones)
 	hud.refresh_inventory()
+	hud.set_stones(stones)
+	hud.set_gold(gold)
+	hud.panels.refresh_chests()
+	if not quiet:
+		print("[Run] end cleared=", cleared, " gold=", gold, " stones=", stones, " gear=", r["gear"].size(), " books->", r["book_stones"])
+	return r
 
 func _drop_coin(pos: Vector3, amount: int) -> void:
 	var node := Vfx.coin(pos)
@@ -991,25 +1090,20 @@ func grant_exp(h: Actor, amount: int) -> void:
 	var leveled := false
 	while h.exp >= h.level * 40:
 		h.exp -= h.level * 40
-		h.level += 1
-		h.max_hp += 15
-		h.atk += 8
-		h.hp = minf(h.hp + 30, h.max_hp)
-		if h.level % 2 == 0:
-			h.sp += 1
+		_level_up(h)
 		leveled = true
-	for slot in h.skillbooks:
-		var b: Dictionary = h.skillbooks[slot]
-		b["exp"] += amount
-		while b["level"] < Defs.SKILLBOOK_MAX and b["exp"] >= Defs.skillbook_exp_need(b["level"]):
-			b["exp"] -= Defs.skillbook_exp_need(b["level"])
-			b["level"] += 1
 	if leveled:
 		Vfx.upgrade_pillar(h.global_position)
 		h.model.punch_scale(1.4, 0.65, 0.5)
 		h.model.flash(Color(1, 0.9, 0.4), 1.4, 0.35)
 		hud.callout(h.global_position + Vector3(0, 1.5, 0), "LEVEL UP!", Defs.COL_GOLD)
 		Sfx.play("chime", -6.0, 1.1)
+
+func _level_up(h: Actor) -> void:
+	h.level += 1
+	h.max_hp += 15
+	h.atk += 8
+	h.hp = minf(h.hp + 30, h.max_hp)
 
 func on_hero_down(h: Actor) -> void:
 	if not h.alive:
@@ -1106,9 +1200,7 @@ func use_item(e: Dictionary) -> void:
 	if not tutorial_allows("item"):
 		return
 	if e["kind"] == "skillbook":
-		e["revealed"] = true
-		hud.refresh_inventory()
-		hud.skillbook_choice(e)
+		use_book(e)
 		return
 	if e["kind"] != "special":
 		return
@@ -1122,11 +1214,6 @@ func use_item(e: Dictionary) -> void:
 			for h in alive_heroes():
 				h.heal(h.max_hp, true)
 			Sfx.play("chime", -5.0, 1.4)
-		"skillPoint":
-			for h in alive_heroes():
-				h.sp += 1
-				Vfx.upgrade_pillar(h.global_position)
-			Sfx.play("chime", -5.0, 1.0)
 		"massKill":
 			if phase != P.BATTLE:
 				hud.toast("전투 중에만 쓸 수 있어요")
@@ -1151,26 +1238,125 @@ func use_item(e: Dictionary) -> void:
 		hud.show_hero_panel(selected)
 	tutorial_event("item")
 
-func replace_skill_with_book(e: Dictionary, slot: int) -> void:
-	var h := hero(e["cls"])
+## Use a skill book (any time): a skill the hero knows goes up one level (max Defs.BOOK_MAX); a new one is
+## learned into a free slot, or — with every slot taken — the player picks one to forget (HudPanels).
+func use_book(e: Dictionary) -> void:
+	var bd := Inventory.skillbook_def(e)
+	var h := hero(bd.get("cls", ""))
 	if h == null:
 		return
-	h.skillbooks[slot] = {"id": e["skill"], "level": 1, "exp": 0}
-	h.skills[slot] = 0
+	var i := learned_index(h, e["skill"])
+	if i >= 0:
+		if int(h.learned[i]["level"]) >= Defs.BOOK_MAX:
+			hud.toast("%s은(는) 이미 최고 레벨이에요" % bd["name"])
+			return
+		h.learned[i]["level"] += 1
+		_skill_hp(h, bd, 1)
+		_book_used(h, e, "%s Lv.%d" % [bd["name"], h.learned[i]["level"]])
+	elif h.learned.size() < Defs.SKILL_SLOTS:
+		h.learned.append({"id": e["skill"], "level": 1})
+		_skill_hp(h, bd, 1)
+		_book_used(h, e, "새 스킬! %s" % bd["name"])
+	else:
+		hud.skillbook_choice(e)
+
+## Autoplay: read every skill book in the bag (a full hero swaps its lowest-grade skill for a better book).
+func auto_books() -> void:
+	if hud.has_overlay() or run_over:
+		return
+	for e in inventory.duplicate():
+		if e["kind"] != "skillbook":
+			continue
+		var bd := Inventory.skillbook_def(e)
+		var h := hero(bd["cls"])
+		if h == null:
+			continue
+		var i := learned_index(h, e["skill"])
+		if i >= 0 and int(h.learned[i]["level"]) >= Defs.BOOK_MAX:
+			sell_item(e)
+		elif i >= 0 or h.learned.size() < Defs.SKILL_SLOTS:
+			use_book(e)
+		else:
+			var worst := 0
+			for j in h.learned.size():
+				if int(Defs.book(h.learned[j]["id"])["grade"]) < int(Defs.book(h.learned[worst]["id"])["grade"]):
+					worst = j
+			if int(bd["grade"]) > int(Defs.book(h.learned[worst]["id"])["grade"]):
+				replace_skill_with_book(e, worst)
+			else:
+				sell_item(e)
+	for e in inventory.duplicate():   # and wear any clearly better gear
+		if e["kind"] != "equip":
+			continue
+		var slot: String = Defs.item(e["key"]).get("slot", "")
+		var best: Actor = null
+		var gain := 0.0
+		for h in alive_heroes():
+			var cur = h.equipment.get(slot)
+			var d := _gear_power(e) - (_gear_power(cur) if cur else 0.0)
+			if d > gain:
+				gain = d
+				best = h
+		if best:
+			Inventory.equip(self, best, e)
+
+static func _gear_power(e: Dictionary) -> float:
+	var st := Stats.entry_stats(e)
+	var p := 0.0
+	for k in st:
+		p += float(st[k]) * (1.0 if k == "atk" else (0.3 if k == "hp" else 100.0))
+	return p
+
+func learned_index(h: Actor, id: String) -> int:
+	for i in h.learned.size():
+		if h.learned[i]["id"] == id:
+			return i
+	return -1
+
+## All slots taken: forget slot i's skill and learn the book's skill in its place (Lv.1).
+func replace_skill_with_book(e: Dictionary, slot: int) -> void:
+	var bd := Inventory.skillbook_def(e)
+	var h := hero(bd.get("cls", ""))
+	if h == null or slot < 0 or slot >= h.learned.size() or not inventory.has(e):
+		return
+	var old: Dictionary = h.learned[slot]
+	_skill_hp(h, Defs.book(old["id"]), -int(old["level"]))
+	h.learned[slot] = {"id": e["skill"], "level": 1}
+	_skill_hp(h, bd, 1)
+	_book_used(h, e, "새 스킬! %s" % bd["name"])
+
+## Flat max HP skills (생명력) take effect right away (and are taken back when forgotten).
+func _skill_hp(h: Actor, bd: Dictionary, levels: int) -> void:
+	var add: float = float(bd.get("fx", {}).get("bonusHp", 0.0)) * levels
+	if add != 0.0:
+		h.max_hp = maxf(1.0, h.max_hp + add)
+		h.hp = clampf(h.hp + maxf(0.0, add), 1.0 if h.alive else 0.0, h.max_hp)
+
+func _book_used(h: Actor, e: Dictionary, text: String) -> void:
 	inventory.erase(e)
 	hud.refresh_inventory()
-	Vfx.upgrade_pillar(h.global_position)
-	hud.callout(h.global_position + Vector3(0, 1.5, 0), Inventory.skillbook_def(e)["name"], Color("e08aff"))
-	Sfx.play("chime", -4.0, 0.8)
-	if selected == h:
+	var col: Color = Defs.RARITY_COL[Inventory.rarity_of(e)]
+	if h.alive:
+		Vfx.upgrade_pillar(h.global_position)
+		h.model.punch_scale(1.3, 0.75, 0.4)
+		h.model.flash(col.lightened(0.3), 1.4, 0.3)
+		hud.callout(h.global_position + Vector3(0, 1.5, 0), text, Hud._vivid(col))
+	else:
+		hud.toast(text, Hud._vivid(col))
+	Sfx.play("chime", -4.0, 0.8 + 0.1 * float(Inventory.skillbook_def(e).get("grade", 1)))
+	tutorial_event("skill_up")
+	if selected == h or hud.hero_shown() == h:
 		hud.show_hero_panel(h)
 
 ## Merchant stock (spec §5.4). Each: {entry, price}.
 func merchant_items() -> Array:
 	var w := maxi(1, wave - 1)
 	var out := []
+	for i in 2:   # skill books are the merchant's main ware
+		var b := Inventory.make_skillbook(mini(4, roll_book_grade() + (1 if i == 0 and randf() < 0.35 else 0)))
+		out.append({"entry": b, "price": BOOK_PRICE[int(Inventory.skillbook_def(b)["grade"])] + 10 * w})
 	var pairs := Gear.pair_keys(self, w)
-	if not pairs.is_empty():   # the merchant always carries the third copy of one pair you hold
+	if not pairs.is_empty() and randf() < 0.5:   # sometimes the third copy of a pair you hold (merge it in the lobby)
 		var pk: String = pairs[randi() % pairs.size()]
 		out.append({"entry": Inventory.make("equip", pk), "price": Gear.buy_price(Gear.grade_of_key(pk))})
 	while out.size() < 4:
@@ -1201,6 +1387,8 @@ func merchant_items() -> Array:
 				price = Gear.buy_price(Inventory.tier_of(e))
 		out.append({"entry": e, "price": price})
 	return out
+
+const BOOK_PRICE := {1: 120, 2: 320, 3: 800, 4: 1800}
 
 func buy_merchant(i: int) -> bool:
 	var stock: Array = hud.merchant_stock()
@@ -1295,31 +1483,19 @@ func chest_reward(r: Dictionary, from: Array) -> void:
 				hud.set_gold(gold)))
 
 func _chest_item_in(e: Dictionary) -> void:
+	_land_item(e)
+
+## An item arriving in the bag (loot fly-in, chest reward, ...).
+func _land_item(e: Dictionary) -> void:
 	var res := Inventory.add(self, e)
 	if res.begins_with("sold:"):
 		hud.toast("가방이 가득 차서 판매 +%sG" % res.substr(5), Defs.COL_GOLD)
 		hud.set_gold(gold)
+	elif res == "stone":
+		Sfx.play("tick", -8.0, 1.6)
 	hud.refresh_inventory(e["id"])
 
 # ---------------------------------------------------------------- skills & tutorial hooks
-## Spend a skill point on passive slot i (spec §3.3). Vitality adds +20 max HP on top (original bug #2 fixed).
-func upgrade_skill(h: Actor, i: int) -> bool:
-	if not can_edit() or h.sp <= 0 or h.skills[i] >= Defs.SKILL_MAX or h.skillbooks.has(i):
-		return false
-	if not tutorial_allows("skill", h):
-		return false
-	h.sp -= 1
-	h.skills[i] += 1
-	if Defs.SKILLS[h.cls][i]["id"] == "vitality":
-		h.max_hp += 20
-		h.hp = minf(h.hp + 20, h.max_hp)
-	h.model.punch_scale(1.3, 0.75, 0.4)
-	h.model.flash(Color(1, 0.9, 0.4), 1.2, 0.3)
-	Vfx.upgrade_pillar(h.global_position)
-	Sfx.play("chime", -6.0, 1.2)
-	tutorial_event("skill_up")
-	return true
-
 func on_ult_used(h: Actor) -> void:
 	tutorial_event("ult", h)
 
@@ -1327,7 +1503,7 @@ func on_ult_used(h: Actor) -> void:
 const TUTORIAL := {
 	1: ["캐릭터 배치", "워리어, 레인저, 메이지를 각각 한 번씩 원하는 칸으로 옮겨 보세요!"],
 	2: ["전투 시작", "반짝이는 [전투 시작!] 버튼을 눌러 보세요!"],
-	3: ["스킬 업그레이드", "반짝이는 영웅을 눌러 상세 창을 열고, UP 버튼으로 스킬을 올려 보세요!"],
+	3: ["스킬북 사용", "가방의 스킬북을 눌러 [사용]해서 영웅에게 스킬을 가르쳐 보세요!"],
 	4: ["궁극기 사용", "전투를 시작한 뒤 메이지를 길게 눌러 조준하고, 손을 떼서 궁극기를 써 보세요!"],
 	5: ["아이템 장착 / 판매", "가방의 반짝이는 아이템을 영웅에게 끌어다 놓거나, 판매해 보세요!"],
 }
@@ -1351,7 +1527,7 @@ func tutorial_allows(action: String, h: Actor = null) -> bool:
 		"fight": ok = tutorial == 2 or tutorial == 4
 		"select", "skill": ok = tutorial == 3
 		"ult": ok = tutorial == 4 and h != null and h.cls == "mage"
-		"item": ok = tutorial == 5
+		"item": ok = tutorial == 5 or tutorial == 3
 		"talent": ok = false
 	if not ok:
 		hud.nudge_tutorial()
@@ -1389,8 +1565,8 @@ func tutorial_event(what: String, h: Actor = null) -> void:
 		"wave_end":
 			if tut_pending3:
 				tut_pending3 = false
-				for hh in alive_heroes():
-					hh.sp = maxi(hh.sp, 1)
+				Inventory.add(self, Inventory.make_skillbook(1, "warrior"))
+				hud.refresh_inventory()
 				if inventory.is_empty():
 					Inventory.add(self, Inventory.make("equip", "sword1"))
 					hud.refresh_inventory()

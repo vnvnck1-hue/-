@@ -112,47 +112,64 @@ static func sub_wave_count(wave: int) -> int:
 		return 2
 	return 1
 
-# ---------------------------------------------------------------- passive skills
-const SKILLS := {
-	"warrior": [
-		{"id": "ironWall", "name": "철벽", "desc": "받는 피해 15% 감소", "fx": {"dmgReduce": 0.15}},
-		{"id": "counter", "name": "반격", "desc": "피격 시 30% 확률로 반격", "fx": {"counterChance": 0.30}},
-		{"id": "vitality", "name": "생명력", "desc": "최대 체력 +20", "fx": {"bonusHp": 20}},
-	],
-	"ranger": [
-		{"id": "rapidFire", "name": "속사", "desc": "공격 속도 20% 증가", "fx": {"atkSpeedBonus": 0.20}},
-		{"id": "pierce", "name": "관통", "desc": "25% 확률로 뒤의 적도 관통", "fx": {"pierceChance": 0.25}},
-		{"id": "critical", "name": "치명타", "desc": "치명타 확률 20%", "fx": {"critChance": 0.20}},
-	],
-	"mage": [
-		{"id": "explosion", "name": "폭발", "desc": "30% 확률로 주변 적에게 50% 피해", "fx": {"explosionChance": 0.30}},
-		{"id": "freeze", "name": "빙결", "desc": "25% 확률로 적을 2초간 둔화", "fx": {"freezeChance": 0.25}},
-		{"id": "arcane", "name": "마력 증폭", "desc": "주는 피해 20% 증가", "fx": {"dmgBonus": 0.20}},
-	],
+# ---------------------------------------------------------------- skill books (run growth)
+## Skills are found, not trained: skill books drop in battle (and come from chests and the merchant) and are
+## used from the bag whenever the player likes. The first book of a skill teaches it (into one of SKILL_SLOTS
+## slots); every further copy raises it one level up to BOOK_MAX. Everything learned is lost when the run ends.
+## grade: 1 일반 (basic passives) · 2 희귀 (stronger mixes) · 3 영웅 (signature skill upgrades) · 4 전설 (ultimate upgrades).
+## fx values are per level. Hero-only keys: activeMult (signature skill damage), activeCount (extra arrows),
+## activeStun / activeFreeze (seconds), ultDamageBonus, ultCooldownReduce, ultBounces, bonusHp (flat max HP).
+const SKILL_SLOTS := 4
+const BOOK_MAX := 5
+const BOOK_GRADES := {1: ["일반", "common"], 2: ["희귀", "rare"], 3: ["영웅", "epic"], 4: ["전설", "legendary"]}
+const SKILL_BOOKS := {
+	# warrior
+	"ironWall": {"cls": "warrior", "grade": 1, "name": "철벽", "desc": "받는 피해 -5%", "fx": {"dmgReduce": 0.05}},
+	"counter": {"cls": "warrior", "grade": 1, "name": "반격", "desc": "피격 시 반격 확률 +8%", "fx": {"counterChance": 0.08}},
+	"vitality": {"cls": "warrior", "grade": 1, "name": "생명력", "desc": "최대 체력 +30", "fx": {"bonusHp": 30}},
+	"berserkerRage": {"cls": "warrior", "grade": 2, "name": "광전사의 분노", "desc": "주는 피해 +8%, 공격 속도 +4%", "fx": {"dmgBonus": 0.08, "atkSpeedBonus": 0.04}},
+	"whirlSlash": {"cls": "warrior", "grade": 2, "name": "회전 베기", "desc": "폭발 확률 +8%, 주는 피해 +4%", "fx": {"explosionChance": 0.08, "dmgBonus": 0.04}},
+	"ironTaunt": {"cls": "warrior", "grade": 2, "name": "철벽 도발", "desc": "받는 피해 -4%, 반격 확률 +5%", "fx": {"dmgReduce": 0.04, "counterChance": 0.05}},
+	"slamMastery": {"cls": "warrior", "grade": 3, "name": "강습 숙련", "desc": "용맹한 강습 피해 +25%, 기절 +0.2초", "fx": {"activeMult": 0.25, "activeStun": 0.2}},
+	"warCry": {"cls": "warrior", "grade": 3, "name": "투지", "desc": "마나 획득 +12% (강습을 더 자주)", "fx": {"manaGainMult": 0.12}},
+	"earthFury": {"cls": "warrior", "grade": 4, "name": "대지의 분노", "desc": "충격파 피해 +20%, 쿨타임 -6%", "fx": {"ultDamageBonus": 0.20, "ultCooldownReduce": 0.06}},
+	# ranger
+	"rapidFire": {"cls": "ranger", "grade": 1, "name": "속사", "desc": "공격 속도 +6%", "fx": {"atkSpeedBonus": 0.06}},
+	"pierce": {"cls": "ranger", "grade": 1, "name": "관통", "desc": "관통 확률 +8%", "fx": {"pierceChance": 0.08}},
+	"critical": {"cls": "ranger", "grade": 1, "name": "치명타", "desc": "치명타 확률 +6%", "fx": {"critChance": 0.06}},
+	"sniperMode": {"cls": "ranger", "grade": 2, "name": "저격 모드", "desc": "치명타 +5%, 주는 피해 +6%", "fx": {"critChance": 0.05, "dmgBonus": 0.06}},
+	"splitArrow": {"cls": "ranger", "grade": 2, "name": "분열 화살", "desc": "관통 +6%, 폭발 확률 +5%", "fx": {"pierceChance": 0.06, "explosionChance": 0.05}},
+	"shadowEvasion": {"cls": "ranger", "grade": 2, "name": "그림자 회피", "desc": "회피 +4%, 공격 속도 +3%", "fx": {"dodgeChance": 0.04, "atkSpeedBonus": 0.03}},
+	"volleyMastery": {"cls": "ranger", "grade": 3, "name": "다중 사격 숙련", "desc": "다중 사격 화살 +1발, 피해 +10%", "fx": {"activeCount": 1, "activeMult": 0.10}},
+	"hunterFocus": {"cls": "ranger", "grade": 3, "name": "사냥꾼의 집중", "desc": "마나 획득 +12% (다중 사격을 더 자주)", "fx": {"manaGainMult": 0.12}},
+	"arrowStorm": {"cls": "ranger", "grade": 4, "name": "화살 폭풍", "desc": "집중 포화 피해 +20%, 쿨타임 -6%", "fx": {"ultDamageBonus": 0.20, "ultCooldownReduce": 0.06}},
+	# mage
+	"explosion": {"cls": "mage", "grade": 1, "name": "폭발", "desc": "폭발 확률 +8%", "fx": {"explosionChance": 0.08}},
+	"freeze": {"cls": "mage", "grade": 1, "name": "빙결", "desc": "빙결 확률 +7%", "fx": {"freezeChance": 0.07}},
+	"arcane": {"cls": "mage", "grade": 1, "name": "마력 증폭", "desc": "주는 피해 +7%", "fx": {"dmgBonus": 0.07}},
+	"blackHole": {"cls": "mage", "grade": 2, "name": "블랙홀", "desc": "폭발 +6%, 빙결 +3%, 주는 피해 +4%", "fx": {"explosionChance": 0.06, "freezeChance": 0.03, "dmgBonus": 0.04}},
+	"overcharge": {"cls": "mage", "grade": 2, "name": "과충전", "desc": "공격 속도 +5%, 주는 피해 +6%", "fx": {"atkSpeedBonus": 0.05, "dmgBonus": 0.06}},
+	"absoluteFrost": {"cls": "mage", "grade": 2, "name": "절대 동결", "desc": "빙결 +6%, 받는 피해 -3%", "fx": {"freezeChance": 0.06, "dmgReduce": 0.03}},
+	"frostMastery": {"cls": "mage", "grade": 3, "name": "절대 영도 숙련", "desc": "절대 영도 피해 +25%, 빙결 +0.2초", "fx": {"activeMult": 0.25, "activeFreeze": 0.2}},
+	"manaFlow": {"cls": "mage", "grade": 3, "name": "마나 순환", "desc": "마나 획득 +12% (절대 영도를 더 자주)", "fx": {"manaGainMult": 0.12}},
+	"stormLord": {"cls": "mage", "grade": 4, "name": "번개 군주", "desc": "체인 라이트닝 +1회 튕김, 피해 +15%", "fx": {"ultBounces": 1, "ultDamageBonus": 0.15}},
 }
-const SKILL_MAX := 3
 
-const SKILLBOOK_SKILLS := {
-	"warrior": [
-		{"id": "berserkerRage", "name": "광전사의 분노", "desc": "피해와 공속 증가", "fx": {"dmgBonus": 0.14, "atkSpeedBonus": 0.06}},
-		{"id": "whirlSlash", "name": "회전 베기", "desc": "주변 폭발 확률과 피해 증가", "fx": {"explosionChance": 0.12, "dmgBonus": 0.06}},
-		{"id": "ironTaunt", "name": "철벽 도발", "desc": "피해 감소와 반격 확률 증가", "fx": {"dmgReduce": 0.08, "counterChance": 0.08}},
-	],
-	"ranger": [
-		{"id": "sniperMode", "name": "저격 모드", "desc": "치명타와 피해 증가", "fx": {"critChance": 0.08, "dmgBonus": 0.10}},
-		{"id": "splitArrow", "name": "분열 화살", "desc": "관통과 폭발 확률 증가", "fx": {"pierceChance": 0.10, "explosionChance": 0.08}},
-		{"id": "shadowEvasion", "name": "그림자 회피", "desc": "회피와 공속 증가", "fx": {"dodgeChance": 0.07, "atkSpeedBonus": 0.04}},
-	],
-	"mage": [
-		{"id": "blackHole", "name": "블랙홀", "desc": "폭발·빙결 확률과 피해 증가", "fx": {"explosionChance": 0.10, "freezeChance": 0.05, "dmgBonus": 0.06}},
-		{"id": "overcharge", "name": "과충전", "desc": "공속과 피해 증가", "fx": {"atkSpeedBonus": 0.08, "dmgBonus": 0.10}},
-		{"id": "absoluteFrost", "name": "절대 동결", "desc": "빙결 확률과 피해 감소", "fx": {"freezeChance": 0.10, "dmgReduce": 0.03}},
-	],
-}
-const SKILLBOOK_MAX := 5
+static func book(id: String) -> Dictionary:
+	return SKILL_BOOKS.get(id, {})
 
-static func skillbook_exp_need(level: int) -> int:
-	return 70 + level * 55
+static func book_grade_name(g: int) -> String:
+	return BOOK_GRADES.get(g, ["?", "common"])[0]
+
+static func book_rarity(g: int) -> String:
+	return BOOK_GRADES.get(g, ["?", "common"])[1]
+
+static func books_of(cls: String, grade: int) -> Array:
+	var out := []
+	for id in SKILL_BOOKS:
+		if SKILL_BOOKS[id]["cls"] == cls and SKILL_BOOKS[id]["grade"] == grade:
+			out.append(id)
+	return out
 
 const ACTIVE_SKILLS := {
 	"warrior": {"name": "용맹한 강습", "desc": "가장 먼 적에게 도약해 강타하고 주변을 기절시킵니다.",
@@ -258,7 +275,6 @@ const RELICS := {
 const SPECIAL := {
 	"revive": {"name": "부활의 깃털", "price": 500, "desc": "쓰러진 동료 1명을 체력 100%로 부활"},
 	"fullHeal": {"name": "여신의 축복", "price": 300, "desc": "모든 아군 체력 100% 회복"},
-	"skillPoint": {"name": "지혜의 서", "price": 600, "desc": "모든 아군 스킬 포인트 +1"},
 	"massKill": {"name": "심판의 번개", "price": 800, "desc": "전투 중 모든 적을 즉시 제거"},
 	"inventoryExpand": {"name": "공간 확장 키트", "price": 900, "desc": "인벤토리 칸 +3"},
 	"crown": {"name": "전설의 왕관", "price": 1500, "equip": true, "slot": "accessory", "tier": 5,
@@ -319,7 +335,7 @@ const TALENTS := [
 	{"id": "crystalSense", "branch": "core", "name": "결정 감응", "max": 5, "costs": [5, 8, 12, 18, 25], "req": ["startGold"], "pos": Vector2(450, 145), "fx": {"crystalDropBonus": 0.005}, "desc": "결정 드랍 확률 +0.5%"},
 	{"id": "itemSense", "branch": "core", "name": "장비 감별", "max": 5, "costs": [4, 7, 11, 16, 22], "req": ["allAtk"], "pos": Vector2(295, 230), "fx": {"dropBonus": 0.01}, "desc": "아이템 드랍률 +1%"},
 	{"id": "battleRecord", "branch": "core", "name": "전투 기록", "max": 5, "costs": [3, 5, 8, 12, 16], "req": ["allHp"], "pos": Vector2(605, 230), "fx": {"expMult": 0.03}, "desc": "경험치 +3%"},
-	{"id": "emergencySupply", "branch": "core", "name": "비상 보급", "max": 1, "costs": [15], "req": ["waveHeal"], "pos": Vector2(360, 395), "flag": true, "desc": "런 시작 시 1티어 장비 1개"},
+	{"id": "emergencySupply", "branch": "core", "name": "비상 보급", "max": 1, "costs": [15], "req": ["waveHeal"], "pos": Vector2(360, 395), "flag": true, "desc": "런 시작 시 일반 스킬북 1권"},
 	{"id": "secondChance", "branch": "core", "name": "두 번째 기회", "max": 1, "costs": [30], "req": ["waveHeal"], "pos": Vector2(540, 395), "flag": true, "desc": "런 중 첫 사망 영웅 1회 30% 부활"},
 	{"id": "timeCore", "branch": "core", "name": "시간의 핵", "max": 1, "costs": [40], "req": ["crystalSense"], "pos": Vector2(450, 60), "flag": true, "desc": "직업 최종 특성의 열쇠"},
 	{"id": "warAtk", "branch": "warrior", "name": "붉은 단련", "max": 5, "costs": [2, 4, 6, 9, 13], "req": ["root"], "pos": Vector2(585, 350), "cls": "warrior", "fx": {"atkMult": 0.03}, "desc": "워리어 공격력 +3%"},

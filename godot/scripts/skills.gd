@@ -22,7 +22,7 @@ static func cast_active(game: Node, h: Actor) -> void:
 	if game.alive_enemies().is_empty():
 		return
 	h.mana = 0.0
-	var def: Dictionary = Defs.ACTIVE_SKILLS[h.cls]
+	var def := active_def(h)
 	game.hud.callout(h.global_position + Vector3(0, 1.5, 0), def["name"] + "!", Color("9fe8ff"))
 	h.model.flash(Color(0.6, 0.9, 1.0), 1.8, 0.35)
 	# brief hit-stop + zoom kick so the skill cast reads clearly
@@ -37,6 +37,19 @@ static func cast_active(game: Node, h: Actor) -> void:
 		"warrior": _jump_slam(game, h, def)
 		"ranger": _multi_shot(game, h, def)
 		"mage": _absolute_zero(game, h, def)
+
+## The hero's signature skill with its 영웅 skill book upgrades applied (damage, arrows, stun / freeze time).
+static func active_def(h: Actor) -> Dictionary:
+	var def: Dictionary = Defs.ACTIVE_SKILLS[h.cls].duplicate()
+	var sk := Stats.skill_fx(h)
+	def["mult"] = float(def["mult"]) * (1.0 + Stats.g(sk, "activeMult"))
+	if def.has("count"):
+		def["count"] = int(def["count"]) + int(Stats.g(sk, "activeCount"))
+	if def.has("stun"):
+		def["stun"] = float(def["stun"]) + Stats.g(sk, "activeStun") * 1000.0
+	if def.has("freeze"):
+		def["freeze"] = float(def["freeze"]) + Stats.g(sk, "activeFreeze") * 1000.0
+	return def
 
 ## Leap to the farthest enemy, crash down: big hit on the target, splash around, stun everything hit.
 static func _jump_slam(game: Node, h: Actor, def: Dictionary) -> void:
@@ -303,7 +316,7 @@ static func cone_targets(game: Node, origin: Vector3, aim: Vector3) -> Array:
 
 ## Chain lightning path: from the mage to the nearest unvisited enemy, repeatedly.
 static func chain_path(game: Node, h: Actor) -> Array:
-	var n: int = Defs.ULTIMATES["mage"]["bounces"] + int(Stats.g(Stats.talent_fx(h), "mageUltBounces"))
+	var n: int = Defs.ULTIMATES["mage"]["bounces"] + int(Stats.g(Stats.talent_fx(h), "mageUltBounces")) + int(Stats.g(Stats.skill_fx(h), "ultBounces"))
 	var out := []
 	var from := h.global_position
 	var left: Array = game.alive_enemies()
@@ -337,7 +350,7 @@ static func cast_ultimate(game: Node, h: Actor, aim: Vector3) -> void:
 		Cinematic.release(game, handle, 0.0)
 		return
 	var ap := Stats.attack_power(game, h)
-	var ult_dmg := maxf(1.0, floorf(ap * u.get("mult", 1.0) * (1.0 + Stats.g(Stats.talent_fx(h), "ultDamageBonus"))))
+	var ult_dmg := maxf(1.0, floorf(ap * u.get("mult", 1.0) * (1.0 + Stats.ult_damage_bonus(h))))
 	game.hud.flash(0.12, 0.2)
 	h.model.flash(Color(1, 0.9, 0.5), 2.0, 0.4)
 	var hold := 1.1

@@ -1,5 +1,9 @@
 # 장비 머지 설계 — 등급 사다리 & 스테이지별 드롭 창
 
+> 2026-10-11 변경(`docs/habby_meta_plan.md` 3-B/3-C): 장비는 영구 보관되고, 합성은 판 안이 아니라 **로비 보관함**(`Meta.merge_all`)에서 한다.
+> 일반 처치에서 장비가 나올 확률은 예전의 12%로 낮췄고(`GEAR_DROP_SCALE`), 중간 보스는 1개를 확정으로 준다. 판 안의 성장은 스킬북이 맡는다.
+> 아래의 등급 사다리, 합성 규칙, 드롭 창은 그대로 유효하다. 다만 "가방"을 "보관함"으로 바꿔 읽고, 시뮬레이션 수치는 예전 구조 기준이다.
+
 구현: `scripts/gear.gd`(Gear), `scripts/inventory.gd`, `main.gd::_roll_drops / merchant_items`, `regions.gd`의 `gear`.
 검증: `tools/gear_sim.gd`(헤드리스 경제 시뮬레이션), `tools/gear_table.gd`(능력치 표), `--test=gear`(화면 확인).
 

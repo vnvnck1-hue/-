@@ -1,7 +1,8 @@
 extends SceneTree
 ## Headless merge-economy simulation (no save file touched):
 ##   Godot --headless --path . -s res://tools/gear_sim.gd [-- --runs=200 --groups=120]
-## Plays the real drop code (Inventory.random_item_key / add / try_merge, Waves.normal for kill counts)
+## Plays the real drop code (Inventory.random_item_key / add, Waves.normal for kill counts) with the old in-bag
+## merge (local _try_merge: merging now happens in the lobby storage, see Meta.merge_all)
 ## with a greedy auto-equip, and prints per-region merge frequency and the grade of the equipped gear.
 
 class FakeHero:
@@ -126,10 +127,37 @@ func _auto_equip(g: FakeGame) -> void:
 				h.equipment[slot] = best
 				if cur:
 					g.inventory.append(cur)
-	Inventory.try_merge(g)
+	_try_merge(g)
 	# a player clears lone uniques out of a nearly full bag (sells them); pairs are kept for transcendence
 	if g.inventory.size() >= g.inv_cap - 2:
 		for e in g.inventory.duplicate():
-			if e["kind"] == "equip" and not Gear.is_family(e["key"]) and Inventory._count_key(g, e["key"]) < 2:
+			if e["kind"] == "equip" and not Gear.is_family(e["key"]) and _count_key(g, e["key"]) < 2:
 				g.gold += Inventory.sell_price(g, e)
 				g.inventory.erase(e)
+
+static func _count_key(g, k: String) -> int:
+	var n := 0
+	for x in g.inventory:
+		if Inventory.merge_key(x) == k:
+			n += 1
+	return n
+
+## The old bag merge: 3 of one merge key -> next grade (family picked from the materials), until stable.
+static func _try_merge(g) -> void:
+	var again := true
+	while again:
+		again = false
+		for e in g.inventory:
+			var mk := Inventory.merge_key(e)
+			if mk == "" or Inventory.merge_result(mk) == "" or _count_key(g, mk) < 3:
+				continue
+			var used: Array = g.inventory.filter(func(x): return Inventory.merge_key(x) == mk).slice(0, 3)
+			for u in used:
+				g.inventory.erase(u)
+			var res := Inventory.merge_result(mk)
+			if Gear.is_group(mk):
+				res = Gear.key(Gear.family_of(used[randi() % 3]["key"]), Gear.group_grade(mk) + 1)
+			g.inventory.append(Inventory.make("equip", res))
+			g.on_merged([res])
+			again = true
+			break
