@@ -1,6 +1,11 @@
 class_name ItemIcon
 extends Control
-## Procedurally drawn item icon (chunky dark outline + flat toy colours), sized to its rect.
+## Item icon sized to its rect: the painted PNG from res://art/items/<id>.png when one exists
+## (imported from art/catalog by tools/icon_import/import_icons.py), otherwise drawn procedurally
+## (chunky dark outline + flat toy colours). Grade pips / 초월 stars are drawn on top either way.
+
+const ICON_DIR := "res://art/items/"
+static var _tex_cache := {}
 
 var INK: Color = UiTheme.ink()
 const METAL := Color("dfe6ee")
@@ -13,10 +18,35 @@ var show_tier := true
 func _init(e: Dictionary = {}) -> void:
 	entry = e
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
 func set_entry(e: Dictionary) -> void:
 	entry = e
 	queue_redraw()
+
+## Catalog id of the PNG for an entry ("" if it has none). 초월 grades (9+) reuse the 태초 (8) art.
+static func icon_id(e: Dictionary) -> String:
+	match e.get("kind", ""):
+		"equip":
+			var k: String = e["key"]
+			var fam := Gear.family_of(k)
+			if fam != "":
+				return Gear.key(fam, mini(Gear.grade_of_key(k), Gear.STAR_FROM))
+			return k
+		"relic", "special":
+			return e["key"]
+		"skillbook":
+			return "skillbook"
+	return ""
+
+static func texture_for(e: Dictionary) -> Texture2D:
+	var id := icon_id(e)
+	if id == "":
+		return null
+	if not _tex_cache.has(id):
+		var path := ICON_DIR + id + ".png"
+		_tex_cache[id] = load(path) if ResourceLoader.exists(path) else null
+	return _tex_cache[id]
 
 func _shape() -> String:
 	match entry.get("kind", ""):
@@ -69,7 +99,14 @@ func _draw() -> void:
 	var P := func(x: float, y: float) -> Vector2: return o + Vector2(x, y) * s
 	var tint: Color = Defs.RARITY_COL[Inventory.rarity_of(entry)]
 	var w := s * 0.09
-	match _shape():
+	var tex := texture_for(entry)
+	if tex != null:
+		var pad := s * 0.06
+		draw_texture_rect(tex, Rect2(o + Vector2(pad, pad * 0.4), Vector2(s - pad * 2.0, s - pad * 2.0)), false)
+		# the book art is drawn locked; an appraised book gets a gold star badge
+		if entry.get("kind", "") == "skillbook" and entry.get("revealed", false):
+			_star(o + Vector2(s * 0.8, s * 0.8), s * 0.15)
+	match "" if tex != null else _shape():
 		"sword":
 			_line(P.call(0.25, 0.75), P.call(0.72, 0.28), METAL, w * 1.3)
 			_line(P.call(0.2, 0.58), P.call(0.42, 0.8), GOLD, w)

@@ -11,7 +11,7 @@ const NAMES := ["일반", "희귀", "영웅", "전설"]
 const RARITY := ["common", "rare", "epic", "legendary"]   # Defs.RARITY_COL keys (tier colour)
 ## Chance that one tap raises tier i -> i + 1.
 const UP_ODDS := [0.30, 0.18, 0.09]
-const FIELD_CHANCE := 0.3
+const FIELD_CHANCE := 0.09   # was 0.3, cut by 70%
 const BOSS_TIER := 1
 ## Per tier: item count, grade bonus of the best item (over the stage drop window), gold multiplier.
 const ITEMS := [1, 2, 3, 4]

@@ -119,7 +119,7 @@ func _announce(r: int) -> void:
 
 # ---------------------------------------------------------------- open / close with the cloud transition
 func open_map(p_unlock := false) -> void:
-	if _busy or hud.has_overlay() or game.phase == 4:   # P.GAMEOVER
+	if _busy or hud.has_overlay() or game.phase == 4 or Cinematic.active or Skills.aiming or game.drag_stage:   # 4 = P.GAMEOVER
 		return
 	_busy = true
 	if p_unlock:
@@ -133,7 +133,6 @@ func open_map(p_unlock := false) -> void:
 	hud.root.add_child(root)
 	hud.overlay = root
 	_root = root
-	var was_paused := get_tree().paused
 	get_tree().paused = true
 	root.tree_exiting.connect(func():
 		_map = null
@@ -141,8 +140,10 @@ func open_map(p_unlock := false) -> void:
 		_plaques.clear()
 		if not _busy and game.cam.sky_k > 0.0:   # closed without the cloud pass (Esc): settle back down
 			game.cam.create_tween().tween_method(_sky, game.cam.sky_k, 0.0, 0.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		# don't restore a pause captured at open time: an ult intro / skill aim that paused the field may have
+		# ended (and unpaused) while the map was up, and restoring it would freeze the battle for good
 		if is_inside_tree():
-			get_tree().paused = was_paused)
+			get_tree().paused = Cinematic.active or Skills.aiming)
 	# the field camera pulls back and up toward the sky; the clouds roll in just before it gets there
 	var lift: Tween = game.cam.create_tween()
 	lift.tween_method(_sky, 0.0, 1.0, LIFT).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)

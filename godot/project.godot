@@ -7,6 +7,8 @@ config/name="Trio Chess"
 config/description="Trio Chess - Toy Clash style 3-hero grid defense"
 run/main_scene="res://scenes/Lobby.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
+config/icon="res://icon.svg"
+config/windows_native_icon="res://icon.ico"
 
 [autoload]
 

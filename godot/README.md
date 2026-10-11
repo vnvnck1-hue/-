@@ -18,6 +18,18 @@
   "<Godot 설치 폴더>/Godot_v4.7.2-stable_mono_win64_console.exe" --headless --path . --export-pack "Windows Desktop" build/TrioChess.pck
   ```
 
+## 모바일에서 플레이 (웹 빌드)
+화면이 세로(720×1280)이고 조작은 터치(마우스 에뮬레이션)로 모두 되므로, 웹으로 내보내 폰 브라우저로 접속합니다.
+웹은 Compatibility 렌더러(WebGL 2)로 돌아서 PC판보다 그림자·후처리가 단순하고, 첫 게임 진입 때 셰이더 컴파일로 몇 초간 회색 화면이 보일 수 있습니다.
+- 웹 export에는 Mono가 아닌 **일반 Godot 4.7.2**와 export 템플릿(`%APPDATA%\Godot\export_templates\4.7.2.stable\`)이 필요합니다.
+  ```bash
+  "<일반 Godot 4.7.2 폴더>/Godot_v4.7.2-stable_win64_console.exe" --headless --path . --export-release "Web" build/web/index.html
+  ```
+- PC에서 서버 실행(같은 Wi-Fi의 폰에서 접속): `python -m http.server 8060 --directory build/web` → 폰에서 `http://<PC의 IPv4>:8060`
+  - Windows 방화벽이 막으면 관리자 PowerShell에서 한 번 허용: `New-NetFirewallRule -DisplayName "TrioChess Web 8060" -Direction Inbound -Protocol TCP -LocalPort 8060 -Action Allow -Profile Any`
+- 풀스크린: 폰 브라우저 메뉴의 **홈 화면에 추가**로 설치하면 주소창 없이 세로 고정으로 실행됩니다(PWA, 오프라인 캐시는 HTTPS에서만 동작).
+- 게임 중 로비 복귀는 게임 오버 창의 [로비로] 버튼이나 새로고침으로 합니다(모바일엔 Esc 키가 없음).
+
 ## 로비와 모드
 실행하면 로비가 먼저 나옵니다. 위쪽에는 영웅 3명이 선 회전 무대가, 아래쪽에는 모드 카드와 최고 기록이 있습니다.
 - **클래식 디펜스**: 기존 6×8 보드 웨이브 방어 (아래 설명 전부)
@@ -54,7 +66,7 @@
 - **떠돌이 상인**: 13무리마다(예전 10무리보다 30% 드묾) 그 무리의 캠프 옆 길가에 상인이 수레 노점을 차립니다. 상점은 저절로 열리지 않고,
   상인(또는 머리 위 "상점" 말풍선)을 터치해야 열립니다. 상점이 열린 동안 필드는 멈추고, 그 방문 동안 다시 터치해도 같은 물건이 나옵니다. 일행이 지나가면 상인은 뒤로 멀어집니다.
 - **보물상자 (상자깡 가챠)**: Squad Busters "Tap to Power Up" 상자 연출을 레퍼런스로 삼았습니다(ArtStation Octopo VFX "Chest Jackpot / Rarity Swap / Lucky Find").
-  - 획득: 일반 무리 앞 길 위에 가끔(30%) 보물상자가 놓여 있고, 일행이 지나가면 상자가 빙글 튀어 올라 **가방 왼쪽 위 상자 아이콘**으로 날아가 쌓입니다(빨간 숫자 = 개수).
+  - 획득: 일반 무리 앞 길 위에 가끔(9%) 보물상자가 놓여 있고, 일행이 지나가면 상자가 빙글 튀어 올라 **가방 왼쪽 위 상자 아이콘**으로 날아가 쌓입니다(빨간 숫자 = 개수).
     중간 보스를 잡으면 **희귀 상자**가 하나 확정으로 나옵니다. 상자 아이콘은 들썩이며 열어 달라고 조릅니다.
   - 상자깡: 아이콘을 누르면 필드가 멈추고 상자깡 화면이 열립니다. 상자가 떨어져 쿵 하고 튄 뒤 **"탭해서 강화!" 4번** —
     탭할 때마다 확률로 등급이 오릅니다(일반 → 희귀 → 영웅 → 전설, 탭당 30%/18%/9%, 최종 확률 약 24/53/21/2%).
@@ -151,9 +163,10 @@
 | battle | `audio/bgm_main.wav` | `synth_bgm.py --game` (120 BPM, 32초) | 클래식 디펜스 |
 | field | `audio/bgm_field.wav` | `synth_bgm_field.py --game` (90 BPM, 43초) | 끝없는 행군 |
 | lobby | `audio/bgm_lobby.wav` | `synth_bgm_calm.py --game` (72 BPM, 53초) | 로비 |
+| gacha | `audio/bgm_gacha.wav` | `synth_bgm_gacha.py --game` (100 BPM, 38초) | 보물상자 화면 |
 
-- 게임용 믹스는 효과음 대역을 비웠습니다. battle은 킥·베이스 저역, 리드, 하이햇을 줄이고 90 Hz·1.5 kHz를 깎았습니다. field는 플루트를 조금 줄이고 같은 두 대역을 깎았고, lobby는 클릭·차임 자리인 1.2 kHz를 살짝 깎았습니다.
-- `scripts/music.gd`(오토로드 `Music`): 로비는 `Music.play("lobby")`, 게임 씬은 `music_track()`(클래식 `battle`, 행군이 덮어써서 `field`)로 곡을 요청하면 1.2초 동안 크로스페이드로 바뀝니다. 같은 곡을 다시 요청하면 무시합니다. 곡별 음량 보정은 `TRACKS`에 있습니다(lobby -3 dB). 버스는 코드로 만듭니다.
+- 게임용 믹스는 효과음 대역을 비웠습니다. battle은 킥·베이스 저역, 리드, 하이햇을 줄이고 90 Hz·1.5 kHz를 깎았습니다. field는 플루트를 조금 줄이고 같은 두 대역을 깎았고, gacha는 셀레스타·글로켄을 줄이고 같은 두 대역과 3.2 kHz(sparkle)를 깎았고, lobby는 클릭·차임 자리인 1.2 kHz를 살짝 깎았습니다.
+- `scripts/music.gd`(오토로드 `Music`): 로비는 `Music.play("lobby")`, 게임 씬은 `music_track()`(클래식 `battle`, 행군이 덮어써서 `field`)로 곡을 요청하면 1.2초 동안 equal-power 크로스페이드(중간에 음량이 꺼지지 않음)로 바뀝니다. 보물상자 화면을 열면 `gacha`로 1.8초 동안 넘어가고, 닫으면 필드 곡이 멈췄던 자리부터 다시 페이드인됩니다(`play(track, fade, true)`, 빠르게 오가면 페이드 도중에 방향만 바꿉니다). 같은 곡을 다시 요청하면 무시합니다. 곡별 음량 보정은 `TRACKS`에 있습니다(lobby -3 dB, gacha -1 dB). 버스는 코드로 만듭니다.
   - `Music` 버스 -12 dB. `SFX` 버스를 사이드체인으로 쓰는 컴프레서가 있어서 큰 타격음이 날 때만 음악이 2~6 dB 내려갑니다.
   - `SFX` 버스 -1.5 dB(`sfx.gd`의 모든 플레이어), `Master` 버스에 하드 리미터(-1 dB)
   - 게임 오버 징글이 단조라서, 그동안은 음악 버스를 -18 dB 더 낮춥니다(`Music.duck`).
@@ -188,6 +201,7 @@
 - `--mode=classic|march`: 로비를 건너뛰고 바로 모드 진입 (`--autoplay`/`--test`만 주면 클래식으로 진입)
 - `--mode=march --test=camp`: 적 캠프 대기 연출 스크린샷
 - `--mode=march --test=notice`: 장비 드래그 슬로우모션·영웅 줌인, 필드 아이템 이름표 정렬(겹침 없음) + 중앙 알림 띠(기믹 문구 + 토스트 최대 2개, 밀어내기) 검증
+- `--mode=march --test=pause`: 아이템 정보·영웅 정보창이 열려 있는 동안 행군·전투 정지, 닫으면 재개 검증
 - `--mode=march --test=ui`: 장비 드래그 슬로우모션·전투 중 장착·얼굴 탭 정보창 검증
 - 자동 진행·테스트 모드는 별도 저장 파일(`user://trio_save_test.json`)을 씁니다.
 

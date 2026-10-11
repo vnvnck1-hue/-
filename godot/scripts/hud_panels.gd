@@ -372,12 +372,6 @@ const STAT_NAME := {"atk": ["공격력", false], "hp": ["체력", false], "critC
 	"dropBonus": ["드랍률", true], "goldMult": ["골드", true]}
 const EFFECT_NAME := {"sharedMana": "마나 공유", "killMana": "처치 시 마나 충전", "knockback": "공격 시 넉백",
 	"swap": "공격 시 위치 교환", "lightning": "3타마다 번개"}
-const EFFECT_DESC := {
-	"sharedMana": "마나 공유: 다른 아군이 공격할 때 얻는 마나의 50%를 함께 얻습니다.",
-	"killMana": "처치 시 마나 충전: 적이 쓰러질 때마다 마나가 가득 찹니다.",
-	"knockback": "넉백: 공격한 적을 뒤로 밀어냅니다(위치 교환과 함께면 무효, 거인 면역).",
-	"swap": "위치 교환: 공격할 때마다 대상과 자리를 맞바꿉니다.",
-	"lightning": "번개: 3번째 공격마다 다른 적 1명에게 피해의 80% 번개가 튑니다."}
 const RARITY_NAME := {"common": "일반", "uncommon": "고급", "rare": "희귀", "epic": "영웅", "legendary": "전설", "mythic": "신화",
 	"ancient": "고대", "primal": "태초", "transcendent": "초월"}
 const SPECIAL_DETAIL := {
@@ -593,7 +587,7 @@ func slot_center(i: int) -> Vector2:
 	return inv_title.get_global_rect().get_center()
 
 ## One staged merge (Main._play_merges runs them one after another once the bag has everything):
-## the three copies lift out of their slots (equipped copies rise from their hero), wobble, rush together
+## the three copies lift out of their bag slots, wobble, rush together
 ## onto the target slot, flash with a rarity ring + stars, and the merged item pops into that slot.
 ## chain = how many merges this run already showed (each one rings a little higher).
 func play_merge(key: String, chain := 0) -> void:
@@ -604,24 +598,23 @@ func play_merge(key: String, chain := 0) -> void:
 	var target := Inventory.merge_target(game, key)
 	var dest := slot_center(target)
 	var froms: Array[Vector2] = []
+	var mats: Array = []   # each material keeps its own icon (a merge group mixes families)
 	var sample := {}
-	for i in src["bag"]:
+	for i in src:
 		sample = game.inventory[i]
+		mats.append(sample)
 		froms.append(slot_center(i))
 		var sp := inv_slots[i] if i < inv_slots.size() else null
 		if sp:   # the copy leaves its slot
 			sp.add_theme_stylebox_override("panel", UiTheme.empty_slot(14))
 			(sp.get_child(0) as ItemIcon).set_entry({})
-	for hs in src["heroes"]:
-		var h: Node3D = hs[0]
-		sample = hs[0].equipment[hs[1]]
-		froms.append(game.cam.unproject_position(h.global_position + Vector3(0, 1.0, 0)))
 	var rc: Color = Defs.RARITY_COL[Inventory.rarity_of(sample)]
 	var vivid := Hud._vivid(rc)
 	var layer := hud._fly_root()
 	var ghosts: Array[Control] = []
-	for f in froms:
-		var g := _merge_ghost(sample, rc)
+	for fi in froms.size():
+		var f := froms[fi]
+		var g := _merge_ghost(mats[fi], rc)
 		layer.add_child(g)
 		g.position = f - g.size * 0.5
 		ghosts.append(g)
@@ -878,62 +871,123 @@ func describe(e: Dictionary) -> String:
 			return Inventory.skillbook_def(e)["desc"]
 	return ""
 
-## Full description for the info card.
-func describe_full(e: Dictionary) -> String:
-	var lines := []
+## Stat categories for the item card: each group gets its own colour so offence / survival / utility read at a glance.
+const STAT_GROUP := {"atk": 0, "critChance": 0, "atkSpeedBonus": 0, "dmgBonus": 0, "explosionChance": 0, "doubleAttackChance": 0, "range": 0,
+	"hp": 1, "dmgReduce": 1, "counterChance": 1, "lifeSteal": 1,
+	"moveSpeedBonus": 2, "manaGainMult": 2, "dropBonus": 2, "goldMult": 2}
+const GROUP_COL := ["d8432c", "2f9a4a", "2f78d0"]   # 공격 / 생존 / 보조
+const EFFECT_COL := "9a3cc8"
+const META_COL := "8a7a60"
+const BODY_COL := "3a2a20"
+## Effect body for the card (the effect name is its own coloured heading above it).
+const EFFECT_BODY := {
+	"sharedMana": "다른 아군이 공격할 때 얻는 마나의 50%를 함께 얻습니다.",
+	"killMana": "적이 쓰러질 때마다 마나가 가득 찹니다.",
+	"knockback": "공격한 적을 뒤로 밀어냅니다.",
+	"swap": "공격할 때마다 대상과 자리를 맞바꿉니다.",
+	"lightning": "3번째 공격마다 다른 적 1명에게 피해의 80% 번개가 튑니다."}
+
+## Info-card rows: [bbcode, plain text (height estimate), font size, (stat value bbcode)]; size 0 is a section gap.
+## Rows carrying a value are laid out as a two-column table so the numbers line up.
+func _card_rows(e: Dictionary) -> Array:
+	var rows := []
 	match e["kind"]:
 		"equip":
 			var def := Defs.item(e["key"])
 			var tier := int(def.get("tier", 1))
-			var family := Gear.is_family(e["key"])
-			var grade_txt := ("%s 등급" % Gear.grade_name(tier)) if family else ("%d티어" % tier)
-			lines.append("장착 부위: %s · %s" % [SLOT_KO.get(def.get("slot", ""), "?"), grade_txt])
-			lines.append(_stat_lines(Stats.entry_stats(e)))
-			if e.has("pw"):
-				lines.append("시대 보정 ×%.2f (늦게 얻을수록 공격력·체력이 강해집니다)" % float(e["pw"]))
-			for x in def.get("effects", []):
-				lines.append(EFFECT_DESC.get(x, x))
-			if family:
-				var held := Inventory._count_key(game, e["key"]) if game else 0
-				lines.append("같은 장비 3개 → %s 등급으로 자동 합성 (보유 %d/3)" % [Gear.grade_name(tier + 1), clampi(held, 1, 3)])
-			elif Defs.transcendent_of(e["key"]) != "":
-				lines.append("같은 전설 3개를 모으면 초월 아이템으로 합성됩니다.")
+			var grade_txt := ("%s 등급" % Gear.grade_name(tier)) if Gear.is_family(e["key"]) else ("%d티어" % tier)
+			_text_rows(rows, "%s  ·  %s" % [SLOT_KO.get(def.get("slot", ""), "?"), grade_txt], 18, META_COL)
+			_stat_rows(rows, Stats.entry_stats(e))
+			_effect_rows(rows, def.get("effects", []))
 		"special":
 			var sd: Dictionary = Defs.SPECIAL[e["key"]]
 			if sd.get("equip", false):
-				lines.append("장착 부위: 장신구")
-				lines.append(_stat_lines(sd["stats"]))
-			lines.append(SPECIAL_DETAIL.get(e["key"], sd["desc"]))
+				_text_rows(rows, "장신구", 18, META_COL)
+				_stat_rows(rows, sd["stats"])
+				_effect_rows(rows, sd.get("effects", []))
+			else:
+				_text_rows(rows, SPECIAL_DETAIL.get(e["key"], sd["desc"]))
 		"relic":
 			var r: Dictionary = Defs.RELICS[e["key"]]
-			lines.append(r["desc"])
-			lines.append("가방에 넣어 두기만 해도 모든 영웅에게 효과가 적용됩니다(장착 불가). 여러 개면 중첩됩니다.")
+			_text_rows(rows, r["desc"], 22)
+			rows.append(["", "", 0])
+			_text_rows(rows, "가방에 넣어 두기만 해도 모든 영웅에게 적용 (장착 불가 · 중첩 가능)", 17, META_COL)
 			if r["rarity"] == "legendary":
-				lines.append("전설 유물은 게임 오버 뒤 다음 런에도 남습니다. 팔면 사라져요.")
+				_text_rows(rows, "전설 유물은 다음 런에도 남습니다. 팔면 사라져요.", 17, META_COL)
 		"skillbook":
 			if not e["revealed"]:
-				lines.append("%s 전용 스킬북. 사용하면 어떤 스킬인지 밝혀지고, 패시브 스킬 하나와 교체할 수 있습니다." % Defs.HEROES[e["cls"]]["name"])
+				_text_rows(rows, "%s 전용 스킬북" % Defs.HEROES[e["cls"]]["name"], 22)
+				_text_rows(rows, "사용하면 스킬이 밝혀지고, 패시브 스킬 하나와 교체할 수 있습니다.", 18)
 			else:
-				var sk := Inventory.skillbook_def(e)
-				lines.append("%s 전용 · 레벨당 %s" % [Defs.HEROES[e["cls"]]["name"], _stat_lines(sk["fx"])])
-			lines.append("교체하면 그 칸에 투자한 포인트는 사라집니다. 전투 경험치로 Lv.5까지 성장합니다.")
-	return "\n".join(lines)
+				_text_rows(rows, "%s 전용 · 레벨당" % Defs.HEROES[e["cls"]]["name"], 18, META_COL)
+				_stat_rows(rows, Inventory.skillbook_def(e)["fx"])
+			rows.append(["", "", 0])
+			_text_rows(rows, "교체하면 그 칸의 투자 포인트는 사라집니다 · 전투 경험치로 Lv.5까지 성장", 17, META_COL)
+	return rows
+
+## One stat per line, ordered offence → survival → utility; the name is tinted by its group, the value is large.
+func _stat_rows(rows: Array, stats: Dictionary) -> void:
+	var keys := stats.keys().filter(func(k): return STAT_NAME.has(k))
+	if keys.is_empty():
+		return
+	keys.sort_custom(func(a, b): return STAT_GROUP.get(a, 3) < STAT_GROUP.get(b, 3))
+	rows.append(["", "", 0])
+	for k in keys:
+		var n: Array = STAT_NAME[k]
+		var v: float = stats[k]
+		var val := ("+%d%%" % roundi(v * 100.0)) if n[1] else ("+%d" % int(v))
+		var col: String = GROUP_COL[STAT_GROUP.get(k, 2)]
+		rows.append(["[color=#%s]●  %s[/color]" % [col, n[0]], "●  %s   %s" % [n[0], val], 24,
+			"[font_size=27][color=#%s]%s[/color][/font_size]" % [BODY_COL, val]])
+
+## Special effects: purple heading, then what it does on its own line in smaller text.
+func _effect_rows(rows: Array, effs: Array) -> void:
+	for x in effs:
+		rows.append(["", "", 0])
+		_text_rows(rows, "◆  " + EFFECT_NAME.get(x, x), 23, EFFECT_COL)
+		if EFFECT_BODY.has(x):
+			_text_rows(rows, EFFECT_BODY[x], 19)
+
+func _text_rows(rows: Array, text: String, size := 20, col := BODY_COL) -> void:
+	for ln in text.split("\n"):
+		rows.append(["[color=#%s]%s[/color]" % [col, ln], ln, size])
 
 func _show_tip(e: Dictionary, pinned: bool) -> void:
 	_close_tip()
 	tip_entry = e
 	tip_pinned = pinned
 	var W := 600.0
-	var desc := describe_full(e)
-	var body := hud.label(desc, 20, Color("3a2a20"), 0)
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	var rows := _card_rows(e)
+	var bb := []
+	var body_h := 12.0
+	var text_w := W - 160.0
+	var cells := ""   # pending stat table
+	for r in rows + [["", "", -1]]:
+		var fs: int = r[2]
+		if r.size() > 3:
+			cells += "[cell padding=0,2,28,2][font_size=%d]%s[/font_size][/cell][cell]%s[/cell]" % [fs, r[0], r[3]]
+		elif cells != "":
+			bb.append("[table=2]%s[/table]" % cells)
+			cells = ""
+		if fs < 0:
+			break
+		if fs == 0:   # section gap
+			bb.append("[font_size=8] [/font_size]")
+			fs = 8
+		elif r.size() <= 3:
+			bb.append("[font_size=%d]%s[/font_size]" % [fs, r[0]])
+		var plain: String = r[1] if r[1] != "" else " "
+		body_h += hud.font.get_multiline_string_size(plain, HORIZONTAL_ALIGNMENT_LEFT, text_w, maxi(fs, 27 if plain.begins_with("●") else fs)).y + 4.0
+	body_h = maxf(96.0, body_h)
+	var body := RichTextLabel.new()
+	body.bbcode_enabled = true
+	body.scroll_active = false
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var lines := 0
-	for ln in desc.split("\n"):
-		lines += maxi(1, int(ceilf(ln.length() / 17.0)))
-	var body_h := maxf(96.0, lines * 28.0 + 10.0)
-	var H := 70.0 + body_h + (70.0 if pinned else 14.0)
+	body.add_theme_font_override("normal_font", hud.font)
+	body.add_theme_constant_override("line_separation", 4)
+	body.text = "\n".join(bb)
+	var H := 70.0 + body_h + (74.0 if pinned else 40.0)
 	var rarity := Inventory.rarity_of(e)
 	var col: Color = Defs.RARITY_COL[rarity]
 	var card := hud.panel(Color("fff4e0"), Rect2(0, 0, W, H), 22, 5)
@@ -1003,6 +1057,10 @@ func _show_tip(e: Dictionary, pinned: bool) -> void:
 		pl.size = Vector2(W - 32, 26)
 		card.add_child(pl)
 	hud.pop_in(card, 0.85, 0.16)
+
+## An item card or hero card is on screen: the field holds still while the player reads it (main._info_pause_tick).
+func info_open() -> bool:
+	return (tip != null and is_instance_valid(tip)) or (hero_card != null and is_instance_valid(hero_card))
 
 func _close_tip() -> void:
 	if tip and is_instance_valid(tip):

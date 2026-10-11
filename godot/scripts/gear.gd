@@ -5,7 +5,8 @@ extends RefCounted
 ## Family gear (sword/axe/bow/staff/shield/helmet/ring/amulet) climbs an open-ended grade ladder:
 ##   1 일반 · 2 고급 · 3 희귀 · 4 영웅 · 5 전설 · 6 신화 · 7 고대 · 8 태초 · 9+ 초월 ★1, ★2, ... (endless)
 ## Grades 1-4 are the hand-written Defs.ITEMS; 5+ are generated here from the grade-4 item
-## (flat stats x GROWTH per grade, percentage stats +small step with caps), so 3 identical always merge up.
+## (flat stats x GROWTH per grade, percentage stats +small step with caps), so any 3 of a group always merge up.
+## Merging is by slot + grade (see group()), not by exact item: 3 weapons of one grade -> 1 weapon one grade up.
 ##
 ## Drop window: encounter group k sits in region r = (k-1)/10 (laps keep counting), whose base grade is B = r + 1.
 ## Drops roll a grade offset from B; early in a region most drops are B-1 (merge fodder), by the mid-boss
@@ -65,6 +66,30 @@ static func is_family(key: String) -> bool:
 
 static func key(fam: String, grade: int) -> String:
 	return "%s%d" % [fam, maxi(1, grade)]
+
+## Merge groups: family gear merges by slot + grade (weapon: sword/axe/bow/staff, armor: shield/helmet,
+## accessory: ring/amulet). Three of one group -> one item of the next grade whose family is picked at
+## random among the three materials. Group key format: "weapon#3".
+static func slot_of_family(fam: String) -> String:
+	return Defs.ITEMS[fam + "1"]["slot"]
+
+static func families_in(slot: String) -> Array:
+	return Defs.FAMILIES.filter(func(f): return slot_of_family(f) == slot)
+
+static func group(slot: String, grade: int) -> String:
+	return "%s#%d" % [slot, grade]
+
+static func group_of(k: String) -> String:
+	return group(slot_of_family(family_of(k)), grade_of_key(k))
+
+static func is_group(g: String) -> bool:
+	return g.contains("#")
+
+static func group_slot(g: String) -> String:
+	return g.get_slice("#", 0)
+
+static func group_grade(g: String) -> int:
+	return int(g.get_slice("#", 1))
 
 static func rarity(grade: int) -> String:
 	return RARITY.get(grade, "transcendent") if grade <= STAR_FROM else "transcendent"
@@ -156,37 +181,36 @@ static func roll_grade(k: int, boss := false) -> int:
 static func featured(k: int) -> Array:
 	return Regions.info(region_of(k)).get("gear", [])
 
-static func roll_family(k: int) -> String:
+## Region-weighted family (optionally limited to one slot's families).
+static func roll_family(k: int, slot := "") -> String:
 	var fe := featured(k)
+	var pool: Array = Defs.FAMILIES if slot == "" else families_in(slot)
 	var total := 0.0
-	for f in Defs.FAMILIES:
+	for f in pool:
 		total += FEATURED_W if f in fe else 1.0
 	var r := randf() * total
-	for f in Defs.FAMILIES:
+	for f in pool:
 		r -= FEATURED_W if f in fe else 1.0
 		if r <= 0.0:
 			return f
-	return Defs.FAMILIES[0]
+	return pool[0]
 
-## Family keys the player holds exactly two of (bag + equipped) within the current window's reach.
+## Item keys that would be the third piece of a merge group the player holds exactly two of
+## in the bag (equipped gear never merges), within the current window's reach. The family is rolled within the group's slot.
 static func pair_keys(game: Node, k: int) -> Array:
 	if game == null:
 		return []
 	var counts := {}
 	for e in game.inventory:
 		if e.get("kind", "") == "equip" and is_family(e["key"]):
-			counts[e["key"]] = counts.get(e["key"], 0) + 1
-	for h in game.heroes:
-		for slot in h.equipment:
-			var e = h.equipment[slot]
-			if e and is_family(e["key"]):
-				counts[e["key"]] = counts.get(e["key"], 0) + 1
+			var gk := group_of(e["key"])
+			counts[gk] = counts.get(gk, 0) + 1
 	var b := base_grade(k)
 	var out := []
-	for key_ in counts:
-		var g := grade_of_key(key_)
-		if counts[key_] == 2 and g >= b - 2 and g <= b + 1:
-			out.append(key_)
+	for gk in counts:
+		var g := group_grade(gk)
+		if counts[gk] == 2 and g >= b - 2 and g <= b + 1:
+			out.append(key(roll_family(k, group_slot(gk)), g))
 	return out
 
 ## One family-gear drop for group k: merge assist first, else window grade + region-weighted family.

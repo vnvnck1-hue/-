@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Game icon: the trio (ranger · warrior · mage) as toy chibi heads on a meadow. Colours from UnitModel. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5cc2f2"/>
+      <stop offset="1" stop-color="#c4ecff"/>
+    </linearGradient>
+    <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9ad050"/>
+      <stop offset="1" stop-color="#5fa83a"/>
+    </linearGradient>
+    <clipPath id="card"><rect x="8" y="8" width="240" height="240" rx="54"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#card)" stroke="#16121f" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="0" y="0" width="256" height="256" fill="url(#sky)" stroke="none"/>
+    <!-- sun sparkle + cloud -->
+    <circle cx="206" cy="48" r="20" fill="#ffd23f" stroke="none" opacity=".9"/>
+    <path d="M30 70 q4 -18 22 -14 q8 -14 24 -4 q16 -2 16 12 q0 10 -12 10 h-40 q-12 0 -10 -4z" fill="#fff" stroke="none" opacity=".9"/>
+    <!-- meadow -->
+    <path d="M-10 200 Q60 176 128 188 T266 196 V266 H-10Z" fill="url(#hill)"/>
+
+    <!-- ranger (left, behind): green shoulders, pink hood -->
+    <g transform="translate(-8 0)">
+    <path d="M18 266 Q20 214 64 212 Q108 214 110 266Z" fill="#4fae55"/>
+    <path d="M32 120 Q22 92 6 84 Q40 78 58 104Z" fill="#ff6fae"/>
+    <circle cx="64" cy="164" r="44" fill="#ff6fae"/>
+    <circle cx="66" cy="172" r="30" fill="#f4ad7a" stroke-width="5"/>
+    <path d="M38 166 Q48 140 70 144 Q90 146 94 164 Q78 154 66 160 Q52 154 38 166Z" fill="#ff9f5a" stroke-width="5"/>
+    <ellipse cx="56" cy="178" rx="4.5" ry="6" fill="#16121f" stroke="none"/>
+    <ellipse cx="78" cy="178" rx="4.5" ry="6" fill="#16121f" stroke="none"/>
+    </g>
+
+    <!-- mage (right, behind): blue robe, beard, purple hat with a gold star -->
+    <path d="M146 266 Q148 214 192 212 Q236 214 238 266Z" fill="#3d72d9"/>
+    <circle cx="192" cy="170" r="36" fill="#f4ad7a"/>
+    <path d="M164 182 Q170 214 192 214 Q214 214 220 182 Q206 196 192 194 Q178 196 164 182Z" fill="#8a5a36" stroke-width="5"/>
+    <ellipse cx="180" cy="168" rx="4.5" ry="6" fill="#16121f" stroke="none"/>
+    <ellipse cx="204" cy="168" rx="4.5" ry="6" fill="#16121f" stroke="none"/>
+    <path d="M160 146 Q186 120 214 52 Q222 98 228 146Z" fill="#6f3ac0"/>
+    <ellipse cx="192" cy="148" rx="52" ry="13" fill="#5b2da0"/>
+    <path d="M205 96 l4 9 10 1 -8 6 3 10 -9 -6 -9 6 3 -10 -8 -6 10 -1z" fill="#ffd23f" stroke-width="3"/>
+
+    <!-- warrior (centre, front): blue cape, horned silver helmet -->
+    <path d="M70 266 Q72 210 128 206 Q184 210 186 266Z" fill="#2f7fd0"/>
+    <path d="M100 222 Q128 238 156 222 L150 266 H106Z" fill="#c9362f" stroke-width="5"/>
+    <path d="M92 132 Q66 120 60 82 Q84 96 104 118Z" fill="#fff5e0"/>
+    <path d="M164 132 Q190 120 196 82 Q172 96 152 118Z" fill="#fff5e0"/>
+    <circle cx="128" cy="160" r="48" fill="#f4ad7a"/>
+    <path d="M80 158 Q78 108 128 106 Q178 108 176 158 Q152 144 128 144 Q104 144 80 158Z" fill="#b8bfcc"/>
+    <path d="M128 106 V144" stroke-width="5" fill="none"/>
+    <path d="M90 128 Q128 116 166 128" stroke="#e7ecf2" stroke-width="5" fill="none"/>
+    <ellipse cx="112" cy="172" rx="6" ry="8" fill="#16121f" stroke="none"/>
+    <ellipse cx="144" cy="172" rx="6" ry="8" fill="#16121f" stroke="none"/>
+    <circle cx="114" cy="169" r="2.4" fill="#fff" stroke="none"/>
+    <circle cx="146" cy="169" r="2.4" fill="#fff" stroke="none"/>
+    <ellipse cx="100" cy="188" rx="8" ry="5" fill="#ff8f8f" stroke="none" opacity=".7"/>
+    <ellipse cx="156" cy="188" rx="8" ry="5" fill="#ff8f8f" stroke="none" opacity=".7"/>
+    <path d="M120 190 Q128 198 136 190" fill="none" stroke-width="5"/>
+  </g>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="none" stroke="#16121f" stroke-width="10"/>
+</svg>

@@ -141,16 +141,12 @@ static func save_relics(game: Node) -> void:
 	Meta.relics = keys
 	Meta.save()
 
+## Merges only use what is in the bag: equipped gear is never a merge material.
 static func _count_key(game: Node, k: String) -> int:
 	var n := 0
 	for x in game.inventory:
 		if merge_key(x) == k:
 			n += 1
-	for h in game.heroes:
-		for slot in h.equipment:
-			var x = h.equipment[slot]
-			if x and x["key"] == k:
-				n += 1
 	return n
 
 static func _completes_merge(game: Node, e: Dictionary) -> bool:
@@ -166,28 +162,32 @@ static func _outgrown(game: Node, incoming: Dictionary) -> Dictionary:
 	for x in game.inventory:
 		if x["kind"] != "equip" or not Gear.is_family(x["key"]) or tier_of(x) >= g_in:
 			continue
-		if _count_key(game, x["key"]) >= 2:
+		if _count_key(game, merge_key(x)) >= 2:
 			continue
 		if best.is_empty() or tier_of(x) < tier_of(best):
 			best = x
 	return best
 
-## What three of `k` merge into ("" = no merge): family gear climbs one grade forever,
-## uniques / the crown become their transcendent form.
+## What three of merge key `k` become ("" = no merge): a family group climbs one grade forever
+## (the group of the next grade; the family is picked in merge_once), uniques / the crown become
+## their transcendent form.
 static func _merge_result(k: String) -> String:
-	if Gear.is_family(k):
-		return Gear.key(Gear.family_of(k), Gear.grade_of_key(k) + 1)
+	if Gear.is_group(k):
+		return Gear.group(Gear.group_slot(k), Gear.group_grade(k) + 1)
 	var asc := Defs.transcendent_of(k)
 	if asc != "" and int(Defs.item(k).get("tier", 1)) >= 5:
 		return asc
 	return ""
 
+## What an entry merges with: family gear by slot + grade (Gear.group_of), uniques / the crown by exact key.
 static func merge_key(e: Dictionary) -> String:
+	if e["kind"] == "equip" and Gear.is_family(e["key"]):
+		return Gear.group_of(e["key"])
 	if e["kind"] == "equip" or (e["kind"] == "special" and e["key"] == "crown"):
 		return e["key"]
 	return ""
 
-## Auto-merge: 3 identical (inventory + equipped) -> next grade / transcendent. Repeats until stable.
+## Auto-merge: 3 of one merge key in the bag -> next grade / transcendent. Repeats until stable.
 ## Returns the list of produced item names. Instant (no staging) — used when the game has no merge show.
 static func try_merge(game: Node) -> Array:
 	var made := []
@@ -199,7 +199,7 @@ static func try_merge(game: Node) -> Array:
 		game.on_merged(made)
 	return made
 
-## After the bag / equipment changed: hand merges to the game's sequential merge show if it has one
+## After the bag changed: hand merges to the game's sequential merge show if it has one
 ## (it may hold them until incoming loot has landed), otherwise merge instantly.
 static func settle(game: Node) -> void:
 	if game.has_method("queue_merges"):
@@ -207,7 +207,7 @@ static func settle(game: Node) -> void:
 	else:
 		try_merge(game)
 
-## First key that has 3 copies and a merge result ("" = nothing to merge).
+## First key that has 3 copies in the bag and a merge result ("" = nothing to merge).
 static func find_merge(game: Node) -> String:
 	var counts := {}
 	var order := []
@@ -217,39 +217,24 @@ static func find_merge(game: Node) -> String:
 			if not counts.has(k):
 				order.append(k)
 			counts[k] = counts.get(k, 0) + 1
-	for h in game.heroes:
-		for slot in h.equipment:
-			var e = h.equipment[slot]
-			if e:
-				if not counts.has(e["key"]):
-					order.append(e["key"])
-				counts[e["key"]] = counts.get(e["key"], 0) + 1
 	for k in order:
 		if counts[k] >= 3 and _merge_result(k) != "":
 			return k
 	return ""
 
-## Which entries a merge of `key` consumes, in _remove_n's order: {"bag": [bag indices], "heroes": [[hero, slot]]}.
-static func merge_sources(game: Node, key: String, n := 3) -> Dictionary:
+## Bag indices a merge of `key` consumes, in _remove_n's order (from the back of the bag).
+static func merge_sources(game: Node, key: String, n := 3) -> Array:
 	var bag := []
-	var hs := []
 	var i: int = game.inventory.size() - 1
 	while i >= 0 and bag.size() < n:
 		if merge_key(game.inventory[i]) == key:
 			bag.append(i)
 		i -= 1
-	for h in game.heroes:
-		for slot in h.equipment:
-			if bag.size() + hs.size() >= n:
-				break
-			var e = h.equipment[slot]
-			if e and e["key"] == key:
-				hs.append([h, slot])
-	return {"bag": bag, "heroes": hs}
+	return bag
 
-## Bag index the merge result of `key` lands on (the first of its bag sources, else the end of the bag).
+## Bag index the merge result of `key` lands on (the first of its sources).
 static func merge_target(game: Node, key: String) -> int:
-	var bag: Array = merge_sources(game, key)["bag"]
+	var bag := merge_sources(game, key)
 	if bag.is_empty():
 		return game.inventory.size()
 	var m: int = bag[0]
@@ -257,12 +242,17 @@ static func merge_target(game: Node, key: String) -> int:
 		m = mini(m, x)
 	return m
 
-## Performs one merge of `key`; the result takes the slot of its first bag source. Returns the new entry.
+## Performs one merge of `key`; the result takes the slot of its first source. Returns the new entry.
+## A family group's result takes the family of one of its three materials at random.
 static func merge_once(game: Node, key: String, notify := true) -> Dictionary:
 	var at := merge_target(game, key)
 	var result := _merge_result(key)
-	var pw := _remove_n(game, key, 3)
+	var used := _remove_n(game, key, 3)
+	if Gear.is_group(key):
+		var mats: Array = used["keys"]
+		result = Gear.key(Gear.family_of(mats[randi() % mats.size()]), Gear.group_grade(key) + 1)
 	var ne := make("equip", result)
+	var pw: float = used["pw"]
 	if pw > 1.0:
 		ne["pw"] = pw   # a unique keeps the strongest era power of its three sources
 	game.inventory.insert(clampi(at, 0, game.inventory.size()), ne)
@@ -276,30 +266,20 @@ static func label_of(e: Dictionary) -> String:
 		label += " [%s]" % Gear.grade_name(Gear.grade_of_key(e["key"]))
 	return label
 
-## Removes n entries of `key` (bag first, then equipped). Returns the highest era power among them.
-static func _remove_n(game: Node, key: String, n: int) -> float:
+## Removes n bag entries of merge key `key`. Returns {"pw": highest era power among them, "keys": their item keys}.
+static func _remove_n(game: Node, key: String, n: int) -> Dictionary:
 	var left := n
 	var pw := 1.0
+	var keys := []
 	var i: int = game.inventory.size() - 1
 	while i >= 0 and left > 0:
 		if merge_key(game.inventory[i]) == key:
 			pw = maxf(pw, float(game.inventory[i].get("pw", 1.0)))
+			keys.append(game.inventory[i]["key"])
 			game.inventory.remove_at(i)
 			left -= 1
 		i -= 1
-	for h in game.heroes:
-		for slot in h.equipment:
-			if left <= 0:
-				return pw
-			var e = h.equipment[slot]
-			if e and e["key"] == key:
-				pw = maxf(pw, float(e.get("pw", 1.0)))
-				var lost := Stats.g(Stats.entry_stats(e), "hp")
-				h.equipment[slot] = null
-				h.max_hp = maxf(1.0, h.max_hp - lost)
-				h.hp = minf(h.hp, h.max_hp)
-				left -= 1
-	return pw
+	return {"pw": pw, "keys": keys}
 
 ## Equip from inventory onto hero. Previous item returns to inventory.
 static func equip(game: Node, h: Actor, e: Dictionary) -> void:

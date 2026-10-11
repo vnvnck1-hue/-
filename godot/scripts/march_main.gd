@@ -212,9 +212,11 @@ func _process(delta: float) -> void:
 	_phase_t += delta
 	if quit_after > 0.0 and _clock > quit_after:
 		Music.quit()
+	_info_pause_tick()
 	match phase:
 		P.PLACEMENT:
-			_march_tick(delta)
+			if not _info_paused:
+				_march_tick(delta)
 		P.BATTLE, P.SPAWNING:
 			if speed > 0.0 and not get_tree().paused:
 				speed = move_toward(speed, 0.0, delta * BRAKE)
@@ -236,6 +238,10 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 	_merchant_tick()
 	_chest_tick(delta)
+
+## The march itself is live too: an open card stops the party mid-stride.
+func _info_pause_phase() -> bool:
+	return phase == P.PLACEMENT or phase == P.SPAWNING or phase == P.BATTLE
 
 func _march_tick(delta: float) -> void:
 	_ensure_pending()
@@ -968,6 +974,9 @@ func _run_test() -> void:
 	if test_mode == "ui":
 		await _test_ui()
 		return
+	if test_mode == "pause":
+		await _test_pause()
+		return
 	if test_mode == "notice":
 		await _test_notice()
 		return
@@ -1278,6 +1287,38 @@ func _test_notice() -> void:
 	Music.quit()
 
 ## --test=ui: drag slow motion, equipping mid-battle, face tap -> hero info, auto ultimate staging.
+## Item card / hero card open -> march and battle freeze in place; closed -> they pick up again.
+func _test_pause() -> void:
+	Inventory.add(self, Inventory.make("equip", "sword2"))
+	hud.refresh_inventory()
+	await get_tree().create_timer(1.0).timeout
+	var d0 := dist
+	hud.show_tip(inventory[0])
+	await get_tree().create_timer(0.6).timeout
+	var d1 := dist
+	await get_tree().create_timer(0.6).timeout
+	print("[Pause] march tip: paused=", get_tree().paused, " moved=", snappedf(dist - d1, 0.001), " (before ", snappedf(d1 - d0, 0.001), ")")
+	_shot_later(0.0, "pause_tip")
+	await get_tree().create_timer(0.2).timeout
+	hud.close_tip()
+	await get_tree().create_timer(0.6).timeout
+	print("[Pause] tip closed: paused=", get_tree().paused, " moved=", snappedf(dist - d1, 0.001))
+	while phase != P.BATTLE:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.5).timeout
+	hud._on_status_tap("mage")
+	await get_tree().process_frame
+	var t0 := now
+	var hp0 := enemies.map(func(e): return e.hp)
+	await get_tree().create_timer(1.0).timeout
+	print("[Pause] battle hero card: paused=", get_tree().paused, " now+", snappedf(now - t0, 0.001), " enemy hp same=", hp0 == enemies.map(func(e): return e.hp))
+	_shot_later(0.0, "pause_hero")
+	await get_tree().create_timer(0.2).timeout
+	hud._on_status_tap("mage")
+	await get_tree().create_timer(1.0).timeout
+	print("[Pause] hero card closed: paused=", get_tree().paused, " now+", snappedf(now - t0, 0.001), " phase=", phase, " cine=", Cinematic.active, " ts=", Engine.time_scale)
+	Music.quit()
+
 func _test_ui() -> void:
 	Inventory.add(self, Inventory.make("equip", "sword2"))
 	hud.refresh_inventory()

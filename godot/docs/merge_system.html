@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>장비 머지 시스템</title>
+<style>
+:root{
+  --bg:#f6f4fb; --card:#ffffff; --ink:#1f1a33; --dim:#6b6584; --line:#e4e0f0; --soft:#efecf7; --accent:#6a4cff;
+  --g1:#9aa0b2; --g2:#4fbf4a; --g3:#3f95f0; --g4:#9b6bff; --g5:#f59a1b; --g6:#e94bb7; --g7:#1fb892; --g8:#d6a800; --g9:#ef4444;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15121f; --card:#1f1b2e; --ink:#f1eefb; --dim:#a39dbd; --line:#332d48; --soft:#29243b; --accent:#9d87ff;
+    --g1:#c8ccd8; --g2:#7ee07a; --g3:#5fb4ff; --g4:#b98cff; --g5:#ffb43c; --g6:#ff6fd0; --g7:#3fd8b0; --g8:#ffe27a; --g9:#ff5f5f;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15121f; --card:#1f1b2e; --ink:#f1eefb; --dim:#a39dbd; --line:#332d48; --soft:#29243b; --accent:#9d87ff;
+  --g1:#c8ccd8; --g2:#7ee07a; --g3:#5fb4ff; --g4:#b98cff; --g5:#ffb43c; --g6:#ff6fd0; --g7:#3fd8b0; --g8:#ffe27a; --g9:#ff5f5f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;margin:0 0 6px;letter-spacing:-.5px}
+h2{font-size:21px;margin:0 0 4px}
+.lead{color:var(--dim);margin:0 0 28px}
+.sub{color:var(--dim);margin:0 0 18px;font-size:14px}
+section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;margin:0 0 22px}
+code{background:var(--soft);padding:1px 6px;border-radius:6px;font-size:13px}
+.rule{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:18px;background:var(--soft);border-radius:14px;font-size:17px;font-weight:700}
+.chip{--c:var(--g1);display:inline-flex;align-items:center;justify-content:center;flex-direction:column;width:64px;height:64px;border-radius:14px;
+  background:color-mix(in srgb,var(--c) 18%,var(--card));border:3px solid var(--c);font-size:26px;position:relative;flex:none}
+.chip small{font-size:10px;font-weight:700;color:var(--ink);line-height:1;margin-top:2px}
+.chip.sm{width:40px;height:40px;font-size:17px;border-width:2px;border-radius:10px}
+.chip.sm small{display:none}
+.op{font-size:22px;color:var(--dim)}
+/* ladder */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:14px}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ladder{display:flex;flex-direction:column;gap:0}
+.step{display:grid;grid-template-columns:56px 1fr auto;align-items:center;gap:12px;padding:8px 10px;border-radius:12px}
+.step:nth-child(odd){background:var(--soft)}
+.step .name{font-weight:700}
+.step .grade{font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;color:#fff;background:var(--c);margin-left:6px}
+.step .stats{color:var(--dim);font-size:13px}
+.step .need{font-size:12px;color:var(--dim);text-align:right;white-space:nowrap}
+.arrow{display:flex;align-items:center;gap:8px;padding:0 0 0 22px;height:22px;color:var(--dim);font-size:12px}
+.arrow::before{content:"";width:2px;height:100%;background:var(--line)}
+/* pyramid */
+.pyr{display:flex;flex-direction:column;align-items:center;gap:10px;overflow-x:auto;padding:6px 0}
+.row{display:flex;gap:14px;justify-content:center}
+.trip{display:flex;gap:3px;padding:4px;border-radius:10px;border:1px dashed var(--line)}
+.pyr .chip.sm{width:30px;height:30px;font-size:13px}
+.pyr-lbl{font-size:12px;color:var(--dim);text-align:center}
+/* sandbox */
+.sbx-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.btn{border:0;border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;color:#fff;background:var(--c,var(--accent))}
+.btn.ghost{background:var(--soft);color:var(--ink)}
+.heroes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.hero{background:var(--soft);border-radius:12px;padding:8px;text-align:center;font-size:13px}
+.hero .slot{margin:6px auto 0;width:52px;height:52px;border-radius:12px;border:2px dashed var(--line);display:flex;align-items:center;justify-content:center}
+.bag{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;padding:12px;background:var(--soft);border-radius:14px}
+.cell{aspect-ratio:1;border-radius:12px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;min-width:0}
+.cell .chip{width:86%;height:86%;font-size:clamp(14px,3vw,24px)}
+.cell .chip small{font-size:9px}
+.cell .chip.pulse{animation:pulse .5s ease}
+.cell .chip.gone{animation:gone .45s ease forwards}
+.cell .chip.born{animation:born .55s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pulse{50%{transform:translateY(-8px) rotate(-8deg)}}
+@keyframes gone{to{transform:scale(.2) translateY(-20px);opacity:0}}
+@keyframes born{0%{transform:scale(.3);filter:brightness(3)}100%{transform:scale(1)}}
+.log{margin-top:12px;font-size:13px;color:var(--dim);min-height:22px}
+.log b{color:var(--ink)}
+/* tables */
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-size:12px;color:var(--dim);font-weight:700}
+.tblwrap{overflow-x:auto}
+.bar{display:flex;height:22px;border-radius:6px;overflow:hidden;min-width:220px}
+.bar span{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1b1630}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:6px 0 12px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.box{background:var(--soft);border-radius:14px;padding:14px 16px}
+.box h3{margin:0 0 6px;font-size:15px}
+.box p{margin:0;font-size:14px;color:var(--dim)}
+.uniq{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.uniq:last-child{border-bottom:0}
+.uniq .n{font-weight:700}
+.tag{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--dim);font-weight:700}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;counter-reset:f}
+.flow div{background:var(--soft);border-radius:14px;padding:12px;font-size:13px;position:relative}
+.flow div::before{counter-increment:f;content:counter(f);display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;font-size:12px;align-items:center;justify-content:center;margin-bottom:6px}
+.no{opacity:.75}
+@media (max-width:720px){
+  .grid2,.flow{grid-template-columns:1fr}
+  .bag{grid-template-columns:repeat(5,1fr)}
+  .step{grid-template-columns:44px 1fr}
+  .step .need{grid-column:2;text-align:left}
+  .step .chip{width:44px;height:44px;font-size:19px}
+  h1{font-size:25px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>장비 머지 시스템</h1>
+  <p class="lead">끝없는 행군 기준 · 코드: <code>scripts/gear.gd</code> · <code>scripts/inventory.gd</code> · <code>scripts/chest_loot.gd</code></p>
+
+  <section>
+    <h2>핵심 규칙 하나</h2>
+    <p class="sub"><b>같은 부위(무기·방어구·장신구) + 같은 등급</b> 장비 3개가 모이면 자동으로 합쳐져 한 등급 위 장비 1개가 됩니다. 계열(검·도끼·활…)은 달라도 되고, 결과물의 계열은 <b>재료 3개 중 하나가 랜덤</b>으로 정해집니다. 등급 상한은 없습니다.</p>
+    <div class="tblwrap" style="margin-bottom:14px"><table><thead><tr><th>부위</th><th>함께 합성되는 계열</th></tr></thead><tbody><tr><td><b>무기</b></td><td>🗡️ 검 · 🪓 도끼 · 🏹 활 · 🪄 지팡이</td></tr><tr><td><b>방어구</b></td><td>🛡️ 방패 · ⛑️ 투구</td></tr><tr><td><b>장신구</b></td><td>💍 반지 · 📿 목걸이</td></tr></tbody></table></div>
+    <div class="rule" id="ruleDemo"></div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="box"><h3>어디 있는 것까지 세나?</h3><p><b>가방에 있는 장비만</b> 셉니다. 영웅이 장착 중인 장비는 합성 재료가 되지 않습니다. 장착을 바꿔 예전 장비가 가방으로 돌아오면 다시 재료로 쓰입니다.</p></div>
+      <div class="box"><h3>결과물은 어디로?</h3><p>재료 중 가방에서 가장 앞 칸에 들어갑니다. 결과물로 다시 3개가 맞으면 <b>연쇄 합성</b>이 한 단계씩 이어집니다.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>등급 사다리</h2>
+    <p class="sub">일반 계열 장비 8종 (검·도끼·활·지팡이·방패·투구·반지·목걸이). 1~4등급은 직접 만든 아이템이고, 5등급부터는 4등급을 바탕으로 자동 생성됩니다 (공격력·체력 등급당 ×1.75, % 능력치는 조금씩 오르다가 상한).</p>
+    <div class="tabs" id="famTabs"></div>
+    <div class="ladder" id="ladder"></div>
+  </section>
+
+  <section>
+    <h2>얼마나 모아야 하나</h2>
+    <p class="sub">3개씩 묶이니 한 등급 올라갈 때마다 필요한 1등급 개수가 3배가 됩니다 (아래는 반지·목걸이를 섞어 만든 장신구 예). 실제로는 드롭이 지역마다 높은 등급에서 나오므로 전부 1등급부터 쌓을 일은 없습니다.</p>
+    <div class="pyr" id="pyr"></div>
+  </section>
+
+  <section>
+    <h2>직접 해보기</h2>
+    <p class="sub">버튼으로 장비를 넣어 보세요. 게임과 같은 규칙으로 합성됩니다 (부위+등급 기준, 결과 계열은 재료 중 랜덤, 가방만 집계 — 장착품은 제외, 연쇄 합성).</p>
+    <div class="sbx-ctrl" id="sbxCtrl"></div>
+    <div class="heroes" id="heroes"></div>
+    <div class="bag" id="bag"></div>
+    <div class="log" id="log">장비를 넣어 보세요.</div>
+  </section>
+
+  <section>
+    <h2>지역별 드롭 창 — 합성이 끊기지 않게</h2>
+    <p class="sub">무리 k가 속한 지역 r = (k−1)/10, 그 지역의 <b>기준 등급 B = r + 1</b>. 드롭 등급은 B에서의 오프셋으로 굴리고, 지역 첫 무리 → 중간보스로 갈수록 가중치가 위로 이동합니다. 그래서 각 지역에서 B−1 ×3 → B를 만들고, 다음 지역은 딱 그 등급에서 시작합니다.</p>
+    <div class="legend"><span><i style="background:var(--g1)"></i>B−2 잔재료</span><span><i style="background:var(--g3)"></i>B−1 합성 재료</span><span><i style="background:var(--g2)"></i>B 바로 쓰는 장비</span><span><i style="background:var(--g5)"></i>B+1 대박</span></div>
+    <div class="tblwrap"><table>
+      <thead><tr><th>시점</th><th>드롭 등급 비율</th></tr></thead>
+      <tbody>
+        <tr><td>지역 첫 무리</td><td><div class="bar"><span style="width:10%;background:var(--g1)">10</span><span style="width:50%;background:var(--g3)">50%</span><span style="width:36%;background:var(--g2)">36%</span><span style="width:4%;background:var(--g5)"></span></div></td></tr>
+        <tr><td>중간보스 직전</td><td><div class="bar"><span style="width:6%;background:var(--g1)"></span><span style="width:30%;background:var(--g3)">30%</span><span style="width:48%;background:var(--g2)">48%</span><span style="width:16%;background:var(--g5)">16</span></div></td></tr>
+        <tr><td>우두머리 · 중간보스</td><td style="font-size:13px;color:var(--dim)">창 전체가 한 칸 위로 (B+1 중심). 중간보스는 장비 <b>2개 확정</b> = 지역 졸업 선물</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tblwrap" style="margin-top:16px"><table id="regions">
+      <thead><tr><th>지역</th><th>무리</th><th>주로 하는 합성</th><th>특산 계열 (드롭 ×3.5)</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="sub" style="margin:10px 0 0">2회차(61무리~)부터는 지역 순서는 같고 기준 등급만 계속 올라갑니다: 고대 → 태초 → 초월 ★1, ★2 …</p>
+  </section>
+
+  <section>
+    <h2>합성을 도와주는 장치</h2>
+    <div class="grid2">
+      <div class="box"><h3>합성 유도 드롭 22% (+최대 25%)</h3><p>장비 드롭 일부는 "지금 2개 가진 부위·등급의 3번째"로 바뀝니다 (B−2 ~ B+1 범위, 계열은 지역 가중치로). 가방이 찰수록 확률이 올라 최대 47%.</p></div>
+      <div class="box"><h3>떠돌이 상인</h3><p>2개 가진 부위·등급이 있으면 그 3번째를 항상 한 칸 진열합니다. 사면 즉시 합성.</p></div>
+      <div class="box"><h3>보물 상자</h3><p>첫 아이템은 상자 등급만큼 +0~3등급. 나머지는 합성 유도 45%로 굴려, 3번째 조각이면 "합성 완성!" 표시가 붙습니다.</p></div>
+      <div class="box"><h3>가방이 꽉 찼을 때</h3><p>들어오는 아이템이 합성을 완성하면 그대로 들어가 합성. 아니면 짝 없고 등급 낮은 계열 장비를 대신 팔고, 그것도 없으면 들어온 아이템을 팝니다.</p></div>
+      <div class="box"><h3>초반 드롭 보정</h3><p>적이 적은 1~3지역은 처치당 장비 드롭 확률 +35% / +18% / +10%.</p></div>
+      <div class="box"><h3>합성 연출 순서</h3><p>전리품이 가방으로 날아오는 동안은 합성을 보류하고, 마지막 아이템이 들어온 0.25초 뒤 하나씩 재생합니다.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>유니크 장비 → 초월</h2>
+    <p class="sub">전설 효과 장비·궁극 장비·전설의 왕관은 부위 묶음에 끼지 않고 <b>정확히 같은 것 3개 → 초월 버전 1개</b>로 끝납니다 (초월 버전은 더 이상 합성 안 됨). 늦게 얻은 유니크는 시대 보정(×1.75^차이)이 붙고, 합성 시 셋 중 가장 높은 보정을 유지합니다.</p>
+    <div id="uniq"></div>
+  </section>
+
+  <section>
+    <h2>합성 연출 (한 번에 약 1초)</h2>
+    <div class="flow">
+      <div>재료 3개가 가방 칸에서 떠오르며 흔들림</div>
+      <div>호를 그리며 회전하면서 결과 칸으로 모임</div>
+      <div>흰 섬광 + 등급색 링·스파클 + 별 3개</div>
+      <div>결과 아이템이 찌그러졌다 튀어나옴 + 새 등급색 오라. 연쇄될수록 효과음이 조금씩 높아짐</div>
+    </div>
+  </section>
+
+  <section class="no">
+    <h2>합성되지 않는 것</h2>
+    <p class="sub" style="margin:0">유물(핏빛 성배 등) · 스킬북 · 소모품(부활의 깃털, 여신의 축복 등) · 이미 초월한 유니크. 왕관은 소모품 칸에 있어도 장비로 취급해 합성됩니다.</p>
+  </section>
+</div>
+
+<script>
+const GROWTH = 1.75, STAR_FROM = 8;
+const GNAME = {1:"일반",2:"고급",3:"희귀",4:"영웅",5:"전설",6:"신화",7:"고대",8:"태초"};
+const gname = g => g > STAR_FROM ? `초월 ★${g - STAR_FROM}` : GNAME[g];
+const gcol = g => `var(--g${Math.min(g, 9)})`;
+const FAM = {
+  sword:  {ko:"검",   icon:"🗡️", items:[["낡은 검",{atk:5}],["강철검",{atk:12}],["미스릴검",{atk:25}],["영웅의 검",{atk:50,critChance:.15}]], high:["용살자의 대검","성광의 검","고대 왕의 검","태초의 검"]},
+  axe:    {ko:"도끼", icon:"🪓", items:[["손도끼",{atk:7}],["전투도끼",{atk:15}],["처형자의 도끼",{atk:30,critChance:.10}],["심판의 도끼",{atk:55,critChance:.25}]], high:["화산 파쇄 도끼","천둥 군주의 도끼","거인족의 대도끼","태초의 도끼"]},
+  bow:    {ko:"활",   icon:"🏹", items:[["단궁",{atk:4,range:1}],["장궁",{atk:10,range:1}],["정밀 석궁",{atk:20,range:2}],["바람의 활",{atk:35,range:2,atkSpeedBonus:.20}]], high:["매의 눈 장궁","별빛 사냥활","고대 정령의 활","태초의 활"]},
+  staff:  {ko:"지팡이",icon:"🪄", items:[["나무 지팡이",{atk:3,dmgBonus:.05}],["마법 지팡이",{atk:8,dmgBonus:.12}],["대마법사의 지팡이",{atk:15,dmgBonus:.25}],["아크메이지 스태프",{atk:25,dmgBonus:.40,explosionChance:.20}]], high:["용암 마력봉","별의 홀","고대 현자의 지팡이","태초의 지팡이"]},
+  shield: {ko:"방패", icon:"🛡️", items:[["나무 방패",{hp:15,dmgReduce:.05}],["철 방패",{hp:35,dmgReduce:.10}],["수호자의 방패",{hp:60,dmgReduce:.18}],["불멸의 방패",{hp:100,dmgReduce:.30,counterChance:.20}]], high:["용비늘 방패","성역의 방패","고대 성벽 방패","태초의 방패"]},
+  helmet: {ko:"투구", icon:"⛑️", items:[["가죽 모자",{hp:10}],["철 투구",{hp:25}],["강철 투구",{hp:50,dmgReduce:.08}],["용의 투구",{hp:80,dmgReduce:.15,atk:15}]], high:["그리폰 투구","신화의 투구","고대 왕관 투구","태초의 투구"]},
+  ring:   {ko:"반지", icon:"💍", items:[["구리 반지",{atkSpeedBonus:.08}],["은 반지",{atkSpeedBonus:.15}],["민첩의 반지",{atkSpeedBonus:.25,atk:8}],["폭풍의 반지",{atkSpeedBonus:.40,atk:20,critChance:.10}]], high:["질풍의 반지","성운의 반지","고대 시간의 반지","태초의 반지"]},
+  amulet: {ko:"목걸이",icon:"📿", items:[["나무 목걸이",{hp:12}],["은 목걸이",{hp:30}],["생명의 목걸이",{hp:55,dmgReduce:.08}],["불사의 목걸이",{hp:90,dmgReduce:.15,atk:10}]], high:["불사조 목걸이","달의 눈물","고대 심장석","태초의 목걸이"]},
+};
+const PCT = {critChance:[.02,.45],dmgReduce:[.015,.42],atkSpeedBonus:[.025,.6],dmgBonus:[.06,1.6],explosionChance:[.02,.4],counterChance:[.02,.4]};
+const SLABEL = {atk:"공격력",hp:"체력",critChance:"치명",dmgReduce:"피해감소",atkSpeedBonus:"공속",dmgBonus:"주는 피해",explosionChance:"폭발",counterChance:"반격",range:"사거리"};
+const nice = v => v < 100 ? Math.round(v) : v < 1000 ? Math.round(v / 5) * 5 : Math.round(v / 10) * 10;
+
+function itemDef(f, g){
+  const F = FAM[f];
+  if (g <= 4) return {name:F.items[g-1][0], stats:F.items[g-1][1]};
+  const base = F.items[3][1], up = g - 4, stats = {};
+  for (const s in base){
+    const v = base[s];
+    if (PCT[s]) stats[s] = Math.min(PCT[s][1], Math.round((v + PCT[s][0]*up)*100)/100);
+    else if (s === "range") stats[s] = v;
+    else stats[s] = nice(v * Math.pow(GROWTH, up));
+  }
+  let name = F.high[Math.min(g, STAR_FROM) - 5];
+  if (g > STAR_FROM) name += ` ★${g - STAR_FROM}`;
+  return {name, stats};
+}
+const statText = st => Object.entries(st).map(([k,v]) => `${SLABEL[k]} ${PCT[k] ? "+" + Math.round(v*100) + "%" : (k==="range" ? "+"+v : v)}`).join(" · ");
+const chip = (f, g, cls = "") => `<span class="chip ${cls}" style="--c:${gcol(g)}">${FAM[f].icon}<small>${gname(g)}</small></span>`;
+
+// rule demo
+document.getElementById("ruleDemo").innerHTML =
+  `${chip("sword",1)}${chip("axe",1)}${chip("bow",1)}<span class="op">→</span><span class="chip" style="--c:${gcol(2)}">❔<small>고급 무기</small></span><span style="font-size:14px;font-weight:400;color:var(--dim)">낡은 검 + 손도끼 + 단궁 → 강철검 / 전투도끼 / 장궁 중 하나</span>`;
+
+// ladder
+let fam = "sword";
+const tabs = document.getElementById("famTabs");
+tabs.innerHTML = Object.entries(FAM).map(([k,F]) => `<button data-f="${k}">${F.icon} ${F.ko}</button>`).join("");
+tabs.onclick = e => { const b = e.target.closest("button"); if (b){ fam = b.dataset.f; drawLadder(); } };
+function drawLadder(){
+  [...tabs.children].forEach(b => b.classList.toggle("on", b.dataset.f === fam));
+  let h = "";
+  for (let g = 1; g <= 11; g++){
+    const d = itemDef(fam, g);
+    if (g > 1) h += `<div class="arrow">↓ 같은 부위·등급 3개 (계열 섞여도 됨, 결과 계열은 재료 중 랜덤)</div>`;
+    h += `<div class="step" style="--c:${gcol(g)}">${chip(fam,g)}<div><span class="name">${d.name}</span><span class="grade">${g} · ${gname(g)}</span><div class="stats">${statText(d.stats)}</div></div><div class="need">1등급 ${Math.pow(3,g-1).toLocaleString()}개분</div></div>`;
+  }
+  h += `<div class="arrow">↓ … 끝없이 (★4, ★5, …)</div>`;
+  document.getElementById("ladder").innerHTML = h;
+}
+drawLadder();
+
+// pyramid: one 희귀 from 9 일반
+(function(){
+  document.getElementById("pyr").innerHTML =
+    `<div class="row">${chip("ring",3)}</div><div class="pyr-lbl">희귀 1개 =</div>
+     <div class="row"><div class="trip">${chip("ring",2,"sm")}${chip("amulet",2,"sm")}${chip("ring",2,"sm")}</div></div><div class="pyr-lbl">고급 3개 =</div>
+     <div class="row"><div class="trip">${chip("ring",1,"sm")}${chip("amulet",1,"sm")}${chip("ring",1,"sm")}</div><div class="trip">${chip("amulet",1,"sm")}${chip("amulet",1,"sm")}${chip("ring",1,"sm")}</div><div class="trip">${chip("ring",1,"sm")}${chip("ring",1,"sm")}${chip("amulet",1,"sm")}</div></div><div class="pyr-lbl">일반 9개</div>`;
+})();
+
+// sandbox
+const CAP = 14;
+let bag = [], equip = {warrior:null, ranger:null, mage:null}, busy = false;
+const HEROES = [["warrior","전사"],["ranger","궁수"],["mage","마법사"]];
+const ctrl = document.getElementById("sbxCtrl");
+const ADD = [["sword",1],["axe",1],["bow",1],["shield",2],["helmet",2],["ring",1],["amulet",1]];
+ctrl.innerHTML = ADD.map(([f,g],i) => `<button class="btn" style="--c:${gcol(g)}" data-i="${i}">+ ${FAM[f].icon} ${itemDef(f,g).name}</button>`).join("")
+  + `<button class="btn ghost" data-a="eq">맨 앞 장비를 전사에게 장착</button><button class="btn ghost" data-a="reset">비우기</button>`;
+ctrl.onclick = e => {
+  const b = e.target.closest("button"); if (!b || (busy && b.dataset.a)) return;
+  if (b.dataset.a === "reset"){ bag = []; equip = {warrior:null, ranger:null, mage:null}; log("비웠습니다."); return draw(); }
+  if (b.dataset.a === "eq"){
+    if (!bag.length) return;
+    const it = bag.shift(), old = equip.warrior; equip.warrior = it; if (old) bag.push(old);
+    log(`<b>${itemDef(it.f,it.g).name}</b>을(를) 전사에게 장착 — 장착한 장비는 합성 재료로 쓰이지 않습니다.`);
+    draw(); return settle();
+  }
+  const [f,g] = ADD[+b.dataset.i];
+  if (bag.length >= CAP){ log("가방이 꽉 찼습니다 (게임에서는 합성 완성 아이템이면 들어가고, 아니면 판매)."); return; }
+  bag.push({f,g});
+  if (!busy){ draw(); settle(); }   // 연출 중이면 진행 중인 합성 루프가 이어서 처리
+};
+const SLOT = {sword:"무기",axe:"무기",bow:"무기",staff:"무기",shield:"방어구",helmet:"방어구",ring:"장신구",amulet:"장신구"};
+const key = it => SLOT[it.f] + "#" + it.g;
+function draw(newIdx = -1, goneIdx = []){
+  document.getElementById("heroes").innerHTML = HEROES.map(([k,n]) =>
+    `<div class="hero">${n}<div class="slot">${equip[k] ? chip(equip[k].f, equip[k].g, goneIdx.includes(k) ? "sm gone" : "sm") : ""}</div></div>`).join("");
+  let h = "";
+  for (let i = 0; i < CAP; i++){
+    const it = bag[i];
+    h += `<div class="cell">${it ? chip(it.f, it.g, i === newIdx ? "born" : goneIdx.includes(i) ? "gone" : "") : ""}</div>`;
+  }
+  document.getElementById("bag").innerHTML = h;
+}
+function log(s){ document.getElementById("log").innerHTML = s; }
+function findMerge(){
+  const counts = {}, order = [];
+  for (const it of bag){   // 장착품은 합성 재료가 아님
+    const k = key(it); if (!(k in counts)) order.push(k); counts[k] = (counts[k] || 0) + 1;
+  }
+  return order.find(k => counts[k] >= 3);
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function settle(){
+  busy = true;
+  let k, chain = 0;
+  while ((k = findMerge())){
+    // sources: bag from the back (same order as Inventory._remove_n); equipped gear never counts
+    const bagIdx = [];
+    for (let i = bag.length - 1; i >= 0 && bagIdx.length < 3; i--) if (key(bag[i]) === k) bagIdx.push(i);
+    const mats = bagIdx.map(i => bag[i]);
+    const src = mats[Math.floor(Math.random() * mats.length)];   // 결과 계열 = 재료 중 랜덤
+    draw(-1, bagIdx);
+    await wait(460);
+    const at = Math.min(...bagIdx);
+    bagIdx.sort((a,b) => b - a).forEach(i => bag.splice(i, 1));
+    const ne = {f:src.f, g:src.g + 1};
+    const pos = Math.min(at, bag.length);
+    bag.splice(pos, 0, ne);
+    chain++;
+    log(`${chain > 1 ? `<b>연속 ${chain}번째 합성!</b> ` : ""}${mats.map(m => itemDef(m.f,m.g).name).join(" + ")} → <b style="color:${gcol(ne.g)}">${itemDef(ne.f,ne.g).name} [${gname(ne.g)}]</b>`);
+    draw(pos);
+    await wait(650);
+  }
+  busy = false;
+  draw();
+}
+draw();
+
+// regions
+const REG = [
+  ["햇살 왕국","1–10",1,["sword","shield","helmet"]],
+  ["거목의 숲","11–20",2,["bow","staff","amulet"]],
+  ["황금 모래톱","21–30",3,["axe","ring","helmet"]],
+  ["불꽃 화산","31–40",4,["axe","sword","shield"]],
+  ["황혼 광산","41–50",5,["staff","ring","amulet"]],
+  ["서리 봉우리","51–60",6,["bow","shield","amulet"]],
+];
+document.querySelector("#regions tbody").innerHTML = REG.map(([n,k,B,fs]) => {
+  const from = Math.max(1, B - 1), to = B;
+  const merge = B === 1 ? `${chip("sword",1,"sm")} → ${chip("sword",2,"sm")} <span style="font-size:12px;color:var(--dim)">(고급 맛보기)</span>`
+    : `<span style="display:inline-flex;align-items:center;gap:6px">${chip(fs[0],from,"sm")}×3 → ${chip(fs[0],to,"sm")}</span> <span style="font-size:12px;color:var(--dim)">${gname(from)} → ${gname(to)}</span>`;
+  return `<tr><td><b>${n}</b></td><td>${k}</td><td>${merge}</td><td>${fs.map(f => FAM[f].icon + " " + FAM[f].ko).join(" · ")}</td></tr>`;
+}).join("");
+
+// uniques
+const UNIQ = [
+  ["공명의 오브","초월한 공명의 오브","전설"],["영혼 착취자","초월한 영혼 착취자","전설"],["폭풍의 주먹","초월한 폭풍의 주먹","전설"],
+  ["차원의 거울","초월한 차원의 거울","전설"],["천둥의 심장","초월한 천둥의 심장","전설"],["전설의 왕관","초월한 왕관","왕관"],
+  ["일식검","초월한 일식검","궁극"],["세계수의 씨앗","초월한 세계수의 씨앗","궁극"],["공허의 닻","초월한 공허의 닻","궁극"],
+  ["크로노스의 모래시계","초월한 크로노스의 모래시계","궁극"],["왕의 칙령","초월한 왕의 칙령","궁극"],
+];
+document.getElementById("uniq").innerHTML = UNIQ.map(([a,b,t]) =>
+  `<div class="uniq"><span class="tag">${t}</span><span class="n" style="color:${t==="궁극"?"var(--g6)":"var(--g5)"}">${a}</span><span style="color:var(--dim)">×3 →</span><span class="n" style="color:var(--g9)">${b}</span></div>`).join("");
+</script>
+</body>
+</html>

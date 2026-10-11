@@ -1,10 +1,10 @@
 extends Node3D
-## Mode select lobby: a slowly turning toy diorama (the trio + a teaser of both March themes)
-## and two mode cards — Classic Defense (6x8 board waves) and Endless March.
-## Dev: --mode=classic|march jumps straight into a mode; --autoplay / --test=... default to classic.
+## Lobby: a slowly turning toy diorama (the trio + a teaser of both March themes)
+## and the Endless March card (the classic 6x8 board mode was retired from the lobby).
+## Dev: --mode=march jumps straight in; --autoplay / --test=... default to march.
 
 var INK: Color = UiTheme.ink()
-const SCENES := {"classic": "res://scenes/Main.tscn", "march": "res://scenes/March.tscn"}
+const SCENES := {"march": "res://scenes/March.tscn"}
 
 var font: Font
 var root: Control
@@ -13,6 +13,8 @@ var cam3d: Camera3D
 var _trio: Array = []
 var _t := 0.0
 var _leaving := false
+var _settings: Control      # 설정 창(열려 있을 때만)
+var _preview_ms := 0        # 효과음 미리듣기 간격 제한
 
 func _ready() -> void:
 	var mode := ""
@@ -29,7 +31,7 @@ func _ready() -> void:
 		Meta.path = "user://trio_save_test.json"
 	Meta.load_save()
 	if mode == "" and dev:
-		mode = "classic"
+		mode = "march"
 	if SCENES.has(mode):
 		get_tree().change_scene_to_file.call_deferred(SCENES[mode])
 		return
@@ -57,7 +59,10 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
-		Music.quit()
+		if _settings:
+			_close_settings()
+		else:
+			Music.quit()
 	elif ev is InputEventKey and ev.pressed and ev.keycode == KEY_F2:
 		_toggle_preset()
 
@@ -156,11 +161,11 @@ func _build_ui() -> void:
 	gem.size = Vector2(200, 54)
 	pill.add_child(gem)
 
-	_mode_card("classic", "클래식 디펜스", "6×8 보드에서 몰려오는 웨이브를 막아내세요", Color("3fa9f5"), -560, false)
-	_mode_card("march", "끝없는 행군", "구불구불한 길을 따라 끝없이 전진!\n10무리마다 중간 보스가 기다립니다", Color("4cb860"), -330, true)
+	_mode_card("march", "끝없는 행군", "구불구불한 길을 따라 끝없이 전진!\n10무리마다 중간 보스가 기다립니다", Color("4cb860"), -330, false)
 	var hint := _label("Esc: 종료", 22, Color(1, 1, 1, 0.8), 6)
 	root.add_child(_place(hint, Vector2(0.5, 1), Vector2(-200, -70), Vector2(400, 40)))
 	_preset_button()
+	_settings_button()
 
 ## UI 프리셋 전환(뚜까펫 ⇄ 클래식). 누르면 저장하고 로비를 다시 지어 바로 비교할 수 있다.
 ## 게임 화면(HUD·팝업)은 다음에 모드에 들어갈 때 이 프리셋으로 만들어진다. 단축키 F2.
@@ -183,6 +188,169 @@ func _preset_button() -> void:
 	b.add_theme_constant_override("outline_size", 8)
 	root.add_child(_place(b, Vector2(0, 0), Vector2(16, 16), sz))
 	b.pressed.connect(_toggle_preset)
+
+## 설정(톱니) 버튼: 크리스탈 알약 왼쪽. 누르면 음량 설정 창.
+func _settings_button() -> void:
+	var tt := UiTheme.tt()
+	var sz := Vector2(64, 58)
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = "설정"
+	for st in ["normal", "hover", "pressed"]:
+		if tt:
+			b.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.NAVY.lightened(0.08 if st == "hover" else 0.0), 18, st == "pressed"))
+		else:
+			b.add_theme_stylebox_override(st, _box(Color("6f6cf0").lightened(0.1 if st == "hover" else 0.0), 22, 5))
+	root.add_child(_place(b, Vector2(1, 0), Vector2(-216 - 12 - sz.x, 16), sz))
+	var g := GearIcon.new()
+	g.ink = INK
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.position = Vector2(sz.x * 0.5, sz.y * 0.5 - (4.0 if tt else 0.0))   # 뚜까펫 버튼은 아래 턱만큼 위로
+	b.add_child(g)
+	b.button_down.connect(func(): g.create_tween().tween_property(g, "rotation", g.rotation + PI / 4.0, 0.25).set_trans(Tween.TRANS_BACK))
+	b.pressed.connect(_open_settings)
+
+func _open_settings() -> void:
+	if _leaving or _settings:
+		return
+	Sfx.play("click", -6.0)
+	var tt := UiTheme.tt()
+	var dim := ColorRect.new()
+	dim.color = Color(0.05, 0.03, 0.12, 0.0)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP   # 뒤의 모드 카드 클릭을 막는다
+	dim.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			_close_settings())
+	var layer := CanvasLayer.new()   # 말풍선(z_index 1)보다 위에 그리도록 별도 층
+	layer.layer = 5
+	add_child(layer)
+	layer.add_child(dim)
+	dim.create_tween().tween_property(dim, "color:a", 0.6, 0.2)
+	_settings = dim
+
+	var sz := Vector2(600, 600)
+	var card := Panel.new()
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	card.add_theme_stylebox_override("panel", UiTheme.night_card() if tt else _box(Color("5a57c8"), 30, 6))
+	dim.add_child(_place(card, Vector2(0.5, 0.5), -sz * 0.5, sz))
+	var title := _label("설정", 56, UiTheme.TXT_YELLOW if tt else Color("ffd23f"), 12)
+	title.position = Vector2(0, 30)
+	title.size = Vector2(sz.x, 70)
+	card.add_child(title)
+
+	var cols := {"master": UiTheme.YELLOW, "music": UiTheme.GREEN, "sfx": UiTheme.ORANGE}
+	var y := 120.0
+	for ch in Music.CHANNELS:
+		var nm := _label(Music.CHANNEL_NAME[ch], 32, Color.WHITE, 8)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		nm.position = Vector2(56, y)
+		nm.size = Vector2(300, 48)
+		card.add_child(nm)
+		var pct := _label("", 30, UiTheme.TXT_VALUE if tt else Color("fff2b0"), 8)
+		pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		pct.position = Vector2(sz.x - 56 - 160, y)
+		pct.size = Vector2(160, 48)
+		card.add_child(pct)
+		var s := _slider(cols[ch])
+		s.position = Vector2(56, y + 54)
+		s.size = Vector2(sz.x - 112, 48)
+		card.add_child(s)
+		s.value = Music.get_volume(ch)
+		pct.text = _pct(s.value)
+		s.value_changed.connect(func(v: float):
+			Music.set_volume(ch, v)
+			pct.text = _pct(v)
+			if ch != "music" and Time.get_ticks_msec() - _preview_ms > 110:   # 배경음악은 지금 들리니 미리듣기 불필요
+				_preview_ms = Time.get_ticks_msec()
+				Sfx.play("pop", -8.0))
+		s.drag_ended.connect(func(_changed: bool): Music.save_volumes())
+		y += 130.0
+
+	var close := Button.new()
+	close.focus_mode = Control.FOCUS_NONE
+	close.text = "닫기"
+	close.add_theme_font_override("font", font)
+	close.add_theme_font_size_override("font_size", 32)
+	var txt := Color("3a2400") if tt else Color.WHITE
+	for st in ["normal", "hover", "pressed"]:
+		if tt:
+			close.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.YELLOW.lightened(0.08 if st == "hover" else 0.0), 20, st == "pressed"))
+		else:
+			close.add_theme_stylebox_override(st, _box(Color("ff9f1c").lightened(0.1 if st == "hover" else 0.0), 24, 5))
+	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
+		close.add_theme_color_override(k, txt)
+	if not tt:
+		close.add_theme_color_override("font_outline_color", INK)
+		close.add_theme_constant_override("outline_size", 8)
+	close.position = Vector2(sz.x * 0.5 - 120, sz.y - 112)
+	close.size = Vector2(240, 76)
+	card.add_child(close)
+	close.pressed.connect(_close_settings)
+	_pop(card, 0.0)
+
+func _close_settings() -> void:
+	if _settings == null:
+		return
+	Music.save_volumes()
+	Sfx.play("click", -6.0)
+	var dim := _settings
+	_settings = null
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := dim.create_tween()
+	tw.tween_property(dim, "modulate:a", 0.0, 0.15)
+	tw.tween_callback(dim.get_parent().queue_free)
+
+func _pct(v: float) -> String:
+	return "끔" if v <= 0.001 else "%d%%" % roundi(v * 100.0)
+
+## 음량 슬라이더: 어두운 홈 + 채널 색으로 차오르는 막대 + 흰 동그라미 손잡이.
+func _slider(col: Color) -> HSlider:
+	var s := HSlider.new()
+	s.min_value = 0.0
+	s.max_value = 1.0
+	s.step = 0.01
+	s.focus_mode = Control.FOCUS_NONE
+	var track := UiTheme.flat(UiTheme.BAR_TRACK, 12, 3, INK)
+	var fill := UiTheme.flat(col, 12, 3, INK)
+	for sb in [track, fill]:
+		sb.content_margin_top = 9
+		sb.content_margin_bottom = 9
+	s.add_theme_stylebox_override("slider", track)
+	s.add_theme_stylebox_override("grabber_area", fill)
+	s.add_theme_stylebox_override("grabber_area_highlight", fill)
+	var knob := _knob_tex(Color.WHITE)
+	for k in ["grabber", "grabber_highlight", "grabber_disabled"]:
+		s.add_theme_icon_override(k, knob)
+	return s
+
+func _knob_tex(c: Color) -> ImageTexture:
+	var d := 44
+	var img := Image.create(d, d, false, Image.FORMAT_RGBA8)
+	var ctr := Vector2(d, d) * 0.5
+	for yy in d:
+		for xx in d:
+			var r := Vector2(xx + 0.5, yy + 0.5).distance_to(ctr)
+			var outer := clampf(d * 0.5 - r, 0.0, 1.0)          # 외곽선 원
+			var inner := clampf(d * 0.5 - 5.0 - r, 0.0, 1.0)    # 안쪽 흰 원
+			var px := INK.lerp(c, inner)
+			px.a = outer
+			img.set_pixel(xx, yy, px)
+	return ImageTexture.create_from_image(img)
+
+## 톱니바퀴 아이콘(글꼴에 ⚙가 없는 웹 빌드도 있어 직접 그린다). (0,0)이 중심.
+class GearIcon extends Control:
+	var ink := Color.BLACK
+	func _draw() -> void:
+		draw_colored_polygon(_gear(19.0, 14.5), ink)
+		draw_colored_polygon(_gear(16.0, 11.5), Color.WHITE)
+		draw_circle(Vector2.ZERO, 7.5, ink)
+	func _gear(r_out: float, r_in: float) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for j in 64:   # 톱니 8개: 8칸 주기 중 앞 4칸이 이빨
+			var r := r_out if j % 8 < 4 else r_in
+			pts.append(Vector2.from_angle(TAU * (j + 0.5) / 64.0) * r)
+		return pts
 
 func _toggle_preset() -> void:
 	if _leaving:
@@ -216,7 +384,7 @@ func _mode_card(mode: String, title: String, desc: String, col: Color, y: float,
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	b.add_child(d)
 	var best := int(Meta.best.get(mode, 0))
-	var unit := "웨이브" if mode == "classic" else "무리"
+	var unit := "무리"
 	var r := _label("최고 기록\n%s" % ("%s %d" % [unit, best] if best > 0 else "-"), 24, UiTheme.TXT_VALUE if tt else Color("fff2b0"), 8)
 	r.position = Vector2(470, 100)
 	r.size = Vector2(150, 80)
@@ -250,7 +418,7 @@ func _mode_card(mode: String, title: String, desc: String, col: Color, y: float,
 	b.button_up.connect(func():
 		b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
 	b.pressed.connect(func(): _go(mode))
-	_pop(b, 0.2 if mode == "classic" else 0.3)
+	_pop(b, 0.2)
 
 ## 뚜까펫 스테이지 카드: 검정 턱 → 모드 색 테두리 → 청록 선 → 남보라 본문.
 func _ttukka_card(c: Color) -> StyleBox:

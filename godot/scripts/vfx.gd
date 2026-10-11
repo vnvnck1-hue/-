@@ -390,22 +390,30 @@ static func loot_drop(pos: Vector3, col: Color, tier: int) -> Node3D:
 	gem.material_override = Mats.glow(col.lightened(0.4), 1.8)
 	gem.position = Vector3(0, 0.15, -0.115)
 	body.add_child(gem)
-	# light beam (taller / brighter for higher tiers) + ground glow
-	var beam := MeshInstance3D.new()
-	var c := CylinderMesh.new()
-	c.top_radius = 0.06
-	c.bottom_radius = 0.2
-	var h := 1.0 + 0.35 * mini(tier, 6)
-	c.height = h
-	c.cap_top = false
-	c.cap_bottom = false
-	beam.mesh = c
-	var bmat := Mats.fx(Color(col.r * 1.5, col.g * 1.5, col.b * 1.5, 0.0), true)
-	beam.material_override = bmat
-	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	beam.position.y = h * 0.5
+	# light beam (taller / brighter for higher tiers): a soft halo column around a thin white-hot core,
+	# both fading out upward with faint streaks drifting up + ground glow
+	var h := 1.6 + 0.4 * mini(tier, 6)
+	var beam := Node3D.new()
 	beam.name = "Beam"
 	n.add_child(beam)
+	var bmats: Array[ShaderMaterial] = []
+	for layer in [[0.22, 0.3, col, 0.6], [0.06, 0.08, col.lerp(WHITE, 0.45), 0.7]]:
+		var mi := MeshInstance3D.new()
+		var c := CylinderMesh.new()
+		c.bottom_radius = layer[0]
+		c.top_radius = layer[1]
+		c.height = h
+		c.radial_segments = 20
+		c.rings = 1
+		c.cap_top = false
+		c.cap_bottom = false
+		mi.mesh = c
+		var m := _beam_mat(layer[2], layer[3] * (0.75 + 0.06 * mini(tier, 6)), h)
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position.y = h * 0.5
+		beam.add_child(mi)
+		bmats.append(m)
 	var glow := MeshInstance3D.new()
 	var q := PlaneMesh.new()
 	q.size = Vector2(1, 1)
@@ -439,14 +447,54 @@ static func loot_drop(pos: Vector3, col: Color, tier: int) -> Node3D:
 	tw.tween_callback(func():
 		sparks(land + Vector3(0, 0.3, 0), col, 8 + tier * 2, 2.4, 0.7, "star5", 0.15, 1.0, Vector3.UP, 30.0)
 		Sfx.play("chime", -10.0, 1.2 + tier * 0.08))
-	tw.parallel().tween_property(bmat, "albedo_color:a", 0.25 + 0.06 * mini(tier, 6), 0.3)
-	tw.parallel().tween_property(gmat, "albedo_color:a", 0.55, 0.3)
-	# idle: beam pulse + gentle bob
-	var idle := n.create_tween().set_loops()
-	idle.tween_interval(0.9)
-	idle.tween_property(beam, "scale", Vector3(1.25, 1.0, 1.25), 0.6).set_trans(Tween.TRANS_SINE)
-	idle.tween_property(beam, "scale", Vector3.ONE, 0.6).set_trans(Tween.TRANS_SINE)
+	# the beam rises out of the box (no pop), the glow spreads under it; the shader handles the idle shimmer
+	for m in bmats:
+		tw.parallel().tween_method(func(v: float): m.set_shader_parameter("grow", v), 0.0, 1.0, 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(gmat, "albedo_color:a", 0.5, 0.5)
 	return n
+
+const BEAM_SHADER := """
+shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
+uniform vec4 tint : source_color = vec4(1.0);
+uniform float strength = 0.6;
+uniform float height = 2.0;
+uniform float grow = 0.0;   // 0..1: how far up the column has risen
+uniform float seed = 0.0;
+varying float t;            // 0 at the ground .. 1 at the top
+void vertex() {
+	t = VERTEX.y / height + 0.5;
+}
+void fragment() {
+	// soft sides: brightest where the column faces the camera, nothing at the silhouette
+	float facing = abs(dot(normalize(NORMAL), VIEW));
+	float side = facing * facing;
+	// fades in just above the ground, then dies off smoothly toward the top
+	float vert = smoothstep(0.0, 0.05, t) * pow(1.0 - t, 1.7);
+	vert *= 1.0 + 0.8 * exp(-t * 9.0);   // hot spot where it leaves the box
+	// faint wisps drifting up, and a slow breathing of the whole column
+	float w = sin(UV.x * 18.85 + seed) * 0.5 + 0.5;
+	float drift = sin(t * 9.0 - TIME * 2.2 + w * 3.0 + seed) * 0.5 + 0.5;
+	float shimmer = 0.82 + 0.18 * drift;
+	float breathe = 0.88 + 0.12 * sin(TIME * 1.7 + seed);
+	float reveal = 1.0 - smoothstep(grow * 1.25 - 0.25, grow * 1.25, t);
+	ALBEDO = tint.rgb;
+	ALPHA = clamp(strength * side * vert * shimmer * breathe * reveal, 0.0, 1.0);
+}
+"""
+static var _beam_shader: Shader
+
+static func _beam_mat(col: Color, strength: float, h: float) -> ShaderMaterial:
+	if _beam_shader == null:
+		_beam_shader = Shader.new()
+		_beam_shader.code = BEAM_SHADER
+	var m := ShaderMaterial.new()
+	m.shader = _beam_shader
+	m.set_shader_parameter("tint", col)
+	m.set_shader_parameter("strength", strength)
+	m.set_shader_parameter("height", h)
+	m.set_shader_parameter("seed", randf() * TAU)
+	return m
 
 ## Loot beam + rarity-coloured sparkle when an item drops.
 static func item_drop(pos: Vector3, col: Color) -> void:

@@ -40,6 +40,7 @@ var _sub_pending := false
 var _last_start := -10.0
 var _returning := false
 var _phase_t := 0.0
+var _info_paused := false   # this side froze the field for an open item / hero card
 
 # input
 var press_hero: Actor
@@ -657,6 +658,7 @@ func _process(delta: float) -> void:
 	_phase_t += delta
 	if quit_after > 0.0 and _clock > quit_after:
 		Music.quit()
+	_info_pause_tick()
 	match phase:
 		P.PLACEMENT:
 			if autoplay and _phase_t > 1.6 and not hud.has_overlay():
@@ -668,6 +670,22 @@ func _process(delta: float) -> void:
 				_battle_tick(delta)
 				if autoplay:
 					_auto_ult()
+
+## Reading an item card or a hero card freezes the field where it stands. Other pausers (chest, map, shop,
+## skill aim, ult intro) keep working underneath: on close the pause goes back to whoever still needs it.
+func _info_pause_tick() -> void:
+	if hud.panels.info_open() and _info_pause_phase():
+		_info_paused = true
+		if not get_tree().paused:
+			get_tree().paused = true
+	elif _info_paused and (not hud.has_overlay() or phase == P.GAMEOVER):
+		_info_paused = false
+		if phase != P.GAMEOVER:
+			get_tree().paused = Cinematic.active or Skills.aiming
+
+## Phases where the field runs on its own clock (placement just waits for the player).
+func _info_pause_phase() -> bool:
+	return phase == P.SPAWNING or phase == P.BATTLE
 
 func _battle_tick(delta: float) -> void:
 	if gimmick_tick():
@@ -1205,6 +1223,7 @@ func buy_merchant(i: int) -> bool:
 
 # ---------------------------------------------------------------- treasure chests (ChestLoot rules, ChestGacha screen)
 static var _chest_hinted := false   # "tap the badge" hint once per session
+const CHEST_MUSIC_FADE := 1.8       # field <-> chest screen BGM crossfade (s)
 
 ## A chest joins the pile on the bag badge, flying there from screen point `from` (instant when from is INF).
 func give_chest(t: int, from := Vector2.INF) -> void:
@@ -1230,8 +1249,10 @@ func open_chests() -> void:
 	g.hud = hud
 	g.game = self
 	g.start(chest_take())
+	Music.play("gacha", CHEST_MUSIC_FADE)   # the field track keeps its place and resumes there on close
 	hud.overlay_closed.connect(func():
 		if is_inside_tree():
+			Music.play(music_track(), CHEST_MUSIC_FADE, true)
 			if phase != P.GAMEOVER:
 				get_tree().paused = was
 			_loot_landed(), CONNECT_ONE_SHOT)

@@ -219,11 +219,11 @@ const ITEMS := {
 
 ## effects: sharedMana, killMana, knockback, swap, lightning
 const LEGENDARY := {
-	"resonanceOrb": {"name": "공명의 오브", "slot": "accessory", "tier": 5, "stats": {"hp": 30}, "effects": ["sharedMana"], "desc": "아군 공격 시 마나를 함께 얻습니다."},
-	"soulReaper": {"name": "영혼 착취자", "slot": "weapon", "tier": 5, "stats": {"atk": 35}, "effects": ["killMana"], "desc": "적 처치 시 마나가 가득 찹니다."},
-	"stormFist": {"name": "폭풍의 주먹", "slot": "weapon", "tier": 5, "stats": {"atk": 30}, "effects": ["knockback"], "desc": "공격이 적을 밀어냅니다."},
-	"dimensionMirror": {"name": "차원의 거울", "slot": "accessory", "tier": 5, "stats": {"hp": 20, "atkSpeedBonus": 0.15}, "effects": ["swap"], "desc": "공격한 적과 위치를 바꿉니다."},
-	"thunderHeart": {"name": "천둥의 심장", "slot": "accessory", "tier": 5, "stats": {"atk": 15, "critChance": 0.10}, "effects": ["lightning"], "desc": "3번째 공격마다 번개가 튑니다."},
+	"resonanceOrb": {"name": "공명의 오브", "slot": "accessory", "tier": 5, "stats": {"hp": 30}, "effects": ["sharedMana"]},
+	"soulReaper": {"name": "영혼 착취자", "slot": "weapon", "tier": 5, "stats": {"atk": 35}, "effects": ["killMana"]},
+	"stormFist": {"name": "폭풍의 주먹", "slot": "weapon", "tier": 5, "stats": {"atk": 30}, "effects": ["knockback"]},
+	"dimensionMirror": {"name": "차원의 거울", "slot": "accessory", "tier": 5, "stats": {"hp": 20, "atkSpeedBonus": 0.15}, "effects": ["swap"]},
+	"thunderHeart": {"name": "천둥의 심장", "slot": "accessory", "tier": 5, "stats": {"atk": 15, "critChance": 0.10}, "effects": ["lightning"]},
 	"eclipseBlade": {"name": "일식검", "slot": "weapon", "tier": 6, "ultra": true, "price": 5200, "stats": {"atk": 90, "critChance": 0.35, "dmgBonus": 0.25}, "effects": ["lightning", "killMana"]},
 	"worldTreeSeed": {"name": "세계수의 씨앗", "slot": "accessory", "tier": 6, "ultra": true, "price": 5400, "stats": {"hp": 280, "dmgReduce": 0.28, "atkSpeedBonus": 0.25}, "effects": ["sharedMana"]},
 	"voidAnchor": {"name": "공허의 닻", "slot": "armor", "tier": 6, "ultra": true, "price": 5600, "stats": {"hp": 360, "atk": 35, "dmgReduce": 0.42}, "effects": ["knockback"]},
@@ -262,7 +262,7 @@ const SPECIAL := {
 	"massKill": {"name": "심판의 번개", "price": 800, "desc": "전투 중 모든 적을 즉시 제거"},
 	"inventoryExpand": {"name": "공간 확장 키트", "price": 900, "desc": "인벤토리 칸 +3"},
 	"crown": {"name": "전설의 왕관", "price": 1500, "equip": true, "slot": "accessory", "tier": 5,
-		"stats": {"atk": 50, "hp": 150, "atkSpeedBonus": 0.30, "critChance": 0.20, "dmgReduce": 0.20}, "desc": "모든 능력치가 크게 오르는 왕관"},
+		"stats": {"atk": 50, "hp": 150, "atkSpeedBonus": 0.30, "critChance": 0.20, "dmgReduce": 0.20}},
 }
 
 ## Returns a unified item definition for an equipment key (normal / legendary / transcendent / crown).
