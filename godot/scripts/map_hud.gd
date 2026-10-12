@@ -30,6 +30,7 @@ var _plaques: Array = []
 var _busy := false            # a cloud transition is running
 var _pending_unlock := false  # a region was reached that the map has not shown yet
 var _badge: Panel
+var _sky_tw: Tween            # the field camera's sky lift / settle (one at a time)
 
 func build() -> void:
 	chip = hud.panel(Color(0.1, 0.08, 0.2, 0.5), Rect2(0, 0, 196, 62), 22, 0)
@@ -138,15 +139,14 @@ func open_map(p_unlock := false) -> void:
 		_map = null
 		_root = null
 		_plaques.clear()
-		if not _busy and game.cam.sky_k > 0.0:   # closed without the cloud pass (Esc): settle back down
-			game.cam.create_tween().tween_method(_sky, game.cam.sky_k, 0.0, 0.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		if not _busy:   # closed without the cloud pass (Esc): settle back down
+			_settle_sky(0.4)
 		# don't restore a pause captured at open time: an ult intro / skill aim that paused the field may have
 		# ended (and unpaused) while the map was up, and restoring it would freeze the battle for good
 		if is_inside_tree():
 			get_tree().paused = Cinematic.active or Skills.aiming)
 	# the field camera pulls back and up toward the sky; the clouds roll in just before it gets there
-	var lift: Tween = game.cam.create_tween()
-	lift.tween_method(_sky, 0.0, 1.0, LIFT).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	_tween_sky(0.0, 1.0, LIFT).set_ease(Tween.EASE_IN)
 	await get_tree().create_timer(LIFT * 0.55, true, false, true).timeout
 	Sfx.play("whoosh", -6.0, 0.55)
 	var fly := CloudFly.new()
@@ -159,13 +159,27 @@ func open_map(p_unlock := false) -> void:
 			Sfx.play("poof", -10.0, 0.8))
 	fly.queue_free()
 	_busy = false
-	if p_unlock and is_instance_valid(root):
+	if not is_instance_valid(root):   # closed (Esc) while the clouds rolled in: the camera was left up in the sky
+		_settle_sky(0.4)
+	elif p_unlock:
 		_play_unlock(r)
 
 ## Field camera pulled up into the sky (0..1) with the fog melting the far ground into the sky.
 func _sky(k: float) -> void:
 	game.cam.sky_k = k
 	game.mw.set_sky_fade(k)
+
+## Tween the sky lift from -> to (cubic; replaces a lift / settle still running). Callers pick the easing.
+func _tween_sky(from: float, to: float, dur: float) -> MethodTweener:
+	if _sky_tw and _sky_tw.is_valid():
+		_sky_tw.kill()
+	_sky_tw = game.cam.create_tween()
+	return _sky_tw.tween_method(_sky, from, to, dur).set_trans(Tween.TRANS_CUBIC)
+
+## Ease the camera back down from wherever the lift is (no-op when it is already down / leaving the scene).
+func _settle_sky(dur: float) -> void:
+	if game.cam.sky_k > 0.0 and game.cam.is_inside_tree():
+		_tween_sky(game.cam.sky_k, 0.0, dur).set_ease(Tween.EASE_OUT)
 
 func close_map() -> void:
 	if _busy or _root == null or not hud.has_overlay():
@@ -179,7 +193,7 @@ func close_map() -> void:
 		hud.close_overlays()
 		# coming back down out of the sky while the clouds clear
 		_sky(1.0)
-		game.cam.create_tween().tween_method(_sky, 1.0, 0.0, LIFT * 1.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT))
+		_tween_sky(1.0, 0.0, LIFT * 1.6).set_ease(Tween.EASE_OUT))
 	fly.queue_free()
 	_busy = false
 

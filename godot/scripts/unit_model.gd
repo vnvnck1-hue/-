@@ -29,6 +29,10 @@ var quad_legs: Array[Node3D] = []   # four-legged bodies: FL, FR, BL, BR (diagon
 var hover := 0.0                    # floaters (eye bat, abyss lord) bob above their shadow
 var _wiggles: Array = []            # secondary motion: tails, ears, wings, tentacles, banners
 var _spins: Array = []              # constantly turning parts (rune crowns, vortex)
+var _hit_k := 0.0                   # flinch blend 0..1 (play_hit)
+var _hit_amp := 0.0                 # strength of the flinch in progress
+var _hit_dir := Vector2.ZERO        # blow direction in model space (x = side, y = back)
+var _hit_tween: Tween
 
 func build(p_kind: String, p_team: int) -> UnitModel:
 	kind = p_kind
@@ -54,6 +58,9 @@ func build(p_kind: String, p_team: int) -> UnitModel:
 		"hydra": _build_hydra()
 		"illusionist", "illusion": _build_illusionist()
 		"tut_easy", "tut_tough": _build_dummy()
+		"slinger": _build_slinger()
+		"crossbow": _build_crossbow()
+		"shaman": _build_shaman()
 		# march field creatures (beasts / monsters) and their mid-bosses
 		"wolf": _build_wolf()
 		"hornbunny": _build_hornbunny()
@@ -96,52 +103,74 @@ func _mesh(parent: Node3D, mesh: Mesh, color: Color, pos: Vector3, scl := Vector
 	parent.add_child(mi)
 	return mi
 
+# Part meshes are shared between every model (keyed by their exact dimensions, which are all code
+# constants), so spawning a wave no longer rebuilds hundreds of identical primitive meshes.
+static func _sphere_mesh(r: float, segs := 24, rings := 12) -> Mesh:
+	return Mats.shared("um/s%.4f/%d/%d" % [r, segs, rings], func() -> Mesh:
+		var s := SphereMesh.new()
+		s.radius = r
+		s.height = r * 2.0
+		s.radial_segments = segs
+		s.rings = rings
+		return s)
+
 func _sphere(parent: Node3D, r: float, color: Color, pos: Vector3, scl := Vector3.ONE) -> MeshInstance3D:
-	var s := SphereMesh.new()
-	s.radius = r
-	s.height = r * 2.0
-	s.radial_segments = 24
-	s.rings = 12
-	return _mesh(parent, s, color, pos, scl)
+	return _mesh(parent, _sphere_mesh(r), color, pos, scl)
 
 func _hemi(parent: Node3D, r: float, color: Color, pos: Vector3, scl := Vector3.ONE) -> MeshInstance3D:
-	var s := SphereMesh.new()
-	s.radius = r
-	s.height = r
-	s.is_hemisphere = true
-	s.radial_segments = 24
-	s.rings = 8
-	return _mesh(parent, s, color, pos, scl)
+	var m: Mesh = Mats.shared("um/h%.4f" % r, func() -> Mesh:
+		var s := SphereMesh.new()
+		s.radius = r
+		s.height = r
+		s.is_hemisphere = true
+		s.radial_segments = 24
+		s.rings = 8
+		return s)
+	return _mesh(parent, m, color, pos, scl)
 
 func _capsule(parent: Node3D, r: float, h: float, color: Color, pos: Vector3, rot := Vector3.ZERO, scl := Vector3.ONE) -> MeshInstance3D:
-	var c := CapsuleMesh.new()
-	c.radius = r
-	c.height = maxf(h, r * 2.0)
-	c.radial_segments = 16
-	c.rings = 6
-	return _mesh(parent, c, color, pos, scl, rot)
+	var m: Mesh = Mats.shared("um/c%.4f/%.4f" % [r, h], func() -> Mesh:
+		var c := CapsuleMesh.new()
+		c.radius = r
+		c.height = maxf(h, r * 2.0)
+		c.radial_segments = 16
+		c.rings = 6
+		return c)
+	return _mesh(parent, m, color, pos, scl, rot)
 
 func _cyl(parent: Node3D, rt: float, rb: float, h: float, color: Color, pos: Vector3, rot := Vector3.ZERO, scl := Vector3.ONE) -> MeshInstance3D:
-	var c := CylinderMesh.new()
-	c.top_radius = rt
-	c.bottom_radius = rb
-	c.height = h
-	c.radial_segments = 20
-	c.rings = 1
-	return _mesh(parent, c, color, pos, scl, rot)
+	var m: Mesh = Mats.shared("um/y%.4f/%.4f/%.4f" % [rt, rb, h], func() -> Mesh:
+		var c := CylinderMesh.new()
+		c.top_radius = rt
+		c.bottom_radius = rb
+		c.height = h
+		c.radial_segments = 20
+		c.rings = 1
+		return c)
+	return _mesh(parent, m, color, pos, scl, rot)
+
+static func _box_mesh(size: Vector3) -> Mesh:
+	return Mats.shared("um/b%.4f/%.4f/%.4f" % [size.x, size.y, size.z], func() -> Mesh:
+		var b := BoxMesh.new()
+		b.size = size
+		return b)
 
 func _box(parent: Node3D, size: Vector3, color: Color, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
-	var b := BoxMesh.new()
-	b.size = size
-	return _mesh(parent, b, color, pos, Vector3.ONE, rot)
+	return _mesh(parent, _box_mesh(size), color, pos, Vector3.ONE, rot)
 
 func _torus(parent: Node3D, ri: float, ro: float, color: Color, pos: Vector3, rot := Vector3.ZERO, scl := Vector3.ONE) -> MeshInstance3D:
-	var t := TorusMesh.new()
-	t.inner_radius = ri
-	t.outer_radius = ro
-	t.rings = 24
-	t.ring_segments = 10
-	return _mesh(parent, t, color, pos, scl, rot)
+	var m: Mesh = Mats.shared("um/t%.4f/%.4f" % [ri, ro], func() -> Mesh:
+		var t := TorusMesh.new()
+		t.inner_radius = ri
+		t.outer_radius = ro
+		t.rings = 24
+		t.ring_segments = 10
+		return t)
+	return _mesh(parent, m, color, pos, scl, rot)
+
+## Unlit glow material, shared per colour / energy (glow parts never flash, tint or fade).
+static func _glow_mat(col: Color, energy: float) -> Material:
+	return Mats.shared("um/g%s/%.2f" % [col, energy], func() -> Material: return Mats.glow(col, energy))
 
 func _team_col() -> Color:
 	return Defs.COL_HERO if team == Defs.TEAM_HERO else Defs.COL_ENEMY
@@ -256,11 +285,8 @@ func _build_wizard() -> void:
 	_cyl(head, 0.0, 0.17, 0.36, Color("6f3ac0"), Vector3(0, 0.3, 0.04), Vector3(-0.25, 0, 0))
 	# fire orb
 	var orb := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.07
-	s.height = 0.14
-	orb.mesh = s
-	orb.material_override = Mats.glow(Color("ffb13b"), 2.2)
+	orb.mesh = _sphere_mesh(0.07, 64, 32)
+	orb.material_override = _glow_mat(Color("ffb13b"), 2.2)
 	orb.position = Vector3(0, 0.05, -0.02)
 	weapon.add_child(orb)
 
@@ -383,11 +409,8 @@ func _build_golem() -> void:
 	_capsule(head, 0.03, 0.14, Color("4a4e58"), Vector3(-0.08, 0.08, -0.17), Vector3(0, 0, 1.4))
 	_capsule(head, 0.03, 0.14, Color("4a4e58"), Vector3(0.08, 0.08, -0.17), Vector3(0, 0, -1.4))
 	var gem := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.06
-	s.height = 0.12
-	gem.mesh = s
-	gem.material_override = Mats.glow(Color("ff5f6a"), 1.8)
+	gem.mesh = _sphere_mesh(0.06, 64, 32)
+	gem.material_override = _glow_mat(Color("ff5f6a"), 1.8)
 	gem.position = Vector3(0, 0.3, -0.21)
 	torso.add_child(gem)
 
@@ -451,14 +474,9 @@ func _build_hydra() -> void:
 
 ## Unlit glowing bit (eyes, cores, runes): never flashes or tints.
 func _glow(parent: Node3D, r: float, col: Color, energy: float, pos: Vector3, scl := Vector3.ONE) -> MeshInstance3D:
-	var s := SphereMesh.new()
-	s.radius = r
-	s.height = r * 2.0
-	s.radial_segments = 16
-	s.rings = 8
 	var mi := MeshInstance3D.new()
-	mi.mesh = s
-	mi.material_override = Mats.glow(col, energy)
+	mi.mesh = _sphere_mesh(r, 16, 8)
+	mi.material_override = _glow_mat(col, energy)
 	mi.position = pos
 	mi.scale = scl
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -466,11 +484,9 @@ func _glow(parent: Node3D, r: float, col: Color, energy: float, pos: Vector3, sc
 	return mi
 
 func _glow_box(parent: Node3D, size: Vector3, col: Color, energy: float, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
-	var b := BoxMesh.new()
-	b.size = size
 	var mi := MeshInstance3D.new()
-	mi.mesh = b
-	mi.material_override = Mats.glow(col, energy)
+	mi.mesh = _box_mesh(size)
+	mi.material_override = _glow_mat(col, energy)
 	mi.position = pos
 	mi.rotation = rot
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -496,6 +512,70 @@ func _quad_legs(col: Color, paw: Color, hx: float, fz: float, bz: float, r: floa
 func _brows(parent: Node3D, x: float, y: float, z: float, col: Color, len := 0.1, r := 0.022) -> void:
 	_capsule(parent, r, len, col, Vector3(-x, y, z), Vector3(0, 0, 1.25))
 	_capsule(parent, r, len, col, Vector3(x, y, z), Vector3(0, 0, -1.25))
+
+## --- ranged support (원거리) -----------------------------------------------------
+## Slinger goblin: little green rascal in a leather cap, a pouch of stones on the hip, sling twirled overhead.
+func _build_slinger() -> void:
+	var skin := Color("9ad458")
+	var leather := Color("8a5a34")
+	_base(Color("a8743e"), skin, 0.16, 0.2, Color("5a3a20"), 0.065)
+	for sx in [-1.0, 1.0]:
+		_cyl(head, 0.0, 0.065, 0.22, skin, Vector3(sx * 0.22, 0.04, 0), Vector3(0, 0, -sx * 1.25))   # long ears
+	_sphere(head, 0.06, skin.darkened(0.1), Vector3(0, -0.05, -0.2), Vector3(1, 0.8, 1))   # nose
+	_hemi(head, 0.19, leather, Vector3(0, 0.07, 0.01))   # leather cap
+	_cyl(head, 0.0, 0.04, 0.1, _team_col(), Vector3(0, 0.25, 0.02), Vector3(-0.3, 0, 0))   # cap tuft
+	_sphere(torso, 0.07, leather.darkened(0.15), Vector3(-0.17, 0.17, -0.05), Vector3(1, 1.1, 0.9))   # stone pouch
+	for i in 2:
+		_sphere(torso, 0.03, Color("8f8478"), Vector3(-0.17 + i * 0.03, 0.24, -0.06))
+	# sling: cord hanging from the fist, stone cradle at the end, swinging
+	var sling := _node(weapon, Vector3.ZERO)
+	_capsule(sling, 0.012, 0.3, Color("d8c09a"), Vector3(0, 0.15, 0))
+	_sphere(sling, 0.05, leather, Vector3(0, 0.3, 0), Vector3(1, 0.6, 1))
+	_sphere(sling, 0.035, Color("8f8478"), Vector3(0, 0.33, 0))
+	_wiggle(sling, Vector3(0, 0, 1), 0.5, 9.0, 0.3)
+
+## Crossbow sniper: hooded marksman with a single brass scope-goggle, scarf mask and a heavy crossbow.
+func _build_crossbow() -> void:
+	var cloak := Color("3e5a5a")
+	_base(Color("4e6e64"), SKIN, 0.17, 0.2, Color("2e3e3a"))
+	_sphere(head, 0.215, cloak, Vector3(0, 0.04, 0.05), Vector3(1.05, 1.03, 1.05))   # hood
+	_cyl(head, 0.0, 0.07, 0.16, cloak, Vector3(0, 0.12, 0.22), Vector3(-1.8, 0, 0))   # hood tip
+	_box(head, Vector3(0.3, 0.07, 0.04), _team_col(), Vector3(0, -0.07, -0.18))   # scarf mask
+	_cyl(head, 0.045, 0.045, 0.06, Color("c8a040"), Vector3(0.07, 0.03, -0.19), Vector3(PI * 0.5, 0, 0))   # scope goggle
+	_glow(head, 0.03, Color("ff5a3a"), 1.6, Vector3(0.07, 0.03, -0.225), Vector3(1, 1, 0.4))
+	_cyl(torso, 0.05, 0.05, 0.26, Color("5a3a24"), Vector3(-0.08, 0.36, 0.17), Vector3(0.4, 0, 0.3))   # bolt case
+	for i in 3:
+		_box(torso, Vector3(0.05, 0.01, 0.04), Defs.COL_ENEMY, Vector3(-0.12 + i * 0.03, 0.5, 0.21))
+	# crossbow: stock forward, limbs across the front
+	_box(weapon, Vector3(0.05, 0.05, 0.36), Color("6b4428"), Vector3(0, 0.02, -0.12))
+	_torus(weapon, 0.15, 0.18, Color("5a5a66"), Vector3(0, 0.02, -0.27), Vector3.ZERO, Vector3(1, 0.4, 0.45))
+	_box(weapon, Vector3(0.3, 0.008, 0.008), Color("e8e0d0"), Vector3(0, 0.02, -0.22))   # string
+
+## Fire shaman: bone-masked caster in a flame-red robe with a feather crest and a skull staff that burns violet.
+func _build_shaman() -> void:
+	var robe := Color("b0402e")
+	var bone := Color("f0e6cc")
+	_base(robe, Color("c88a5a"), 0.19, 0.2, robe.darkened(0.35), 0.07, false)
+	_cyl(torso, 0.13, 0.25, 0.3, robe.darkened(0.08), Vector3(0, 0.17, 0))   # robe skirt
+	for i in 5:   # hem tassels
+		var a := -1.2 + i * 0.6
+		_box(torso, Vector3(0.05, 0.06, 0.02), Defs.COL_GOLD, Vector3(sin(a) * 0.24, 0.04, -cos(a) * 0.24), Vector3(0, a, 0))
+	_sphere(head, 0.17, bone, Vector3(0, 0.0, -0.08), Vector3(1.05, 1.1, 0.7))   # bone mask
+	for sx in [-1.0, 1.0]:
+		_glow(head, 0.03, Color("ff6a2a"), 2.0, Vector3(sx * 0.07, 0.03, -0.2), Vector3(1, 1.2, 0.4))
+		_cyl(head, 0.0, 0.035, 0.12, bone, Vector3(sx * 0.14, 0.14, -0.05), Vector3(0, 0, -sx * 0.5))   # mask horns
+	_box(head, Vector3(0.1, 0.02, 0.02), Color("5a2a20"), Vector3(0, -0.08, -0.205))
+	for i in 5:   # feather crest
+		var f := _node(head, Vector3((i - 2) * 0.06, 0.17, 0.06))
+		f.rotation = Vector3(-0.35, 0, (i - 2) * -0.28)
+		_capsule(f, 0.028, 0.2, [_team_col(), Defs.COL_GOLD, Color("ff8a2a")][i % 3], Vector3(0, 0.1, 0), Vector3.ZERO, Vector3(1, 1, 0.4))
+		_wiggle(f, Vector3(1, 0, 0), 0.06, 4.0, 0.2)
+	# skull staff
+	_capsule(weapon, 0.022, 0.55, Color("5a3a24"), Vector3(0, 0.14, 0))
+	_sphere(weapon, 0.065, bone, Vector3(0, 0.44, 0), Vector3(1, 0.95, 1.1))
+	_glow(weapon, 0.085, Color("c27aff"), 2.0, Vector3(0, 0.5, 0))
+	for sx in [-1.0, 1.0]:
+		_sphere(weapon, 0.016, Color("1a0d1a"), Vector3(sx * 0.025, 0.45, -0.055))
 
 ## --- beasts (동물형) ------------------------------------------------------------
 ## Grey wolf: lean four-legged hunter, pale ruff, yellow eyes, red team collar, wagging tail.
@@ -891,7 +971,7 @@ func _build_abyss() -> void:
 		_glow_box(crown, Vector3(0.05, 0.08, 0.02), violet, 2.0, Vector3(cos(a) * 0.2, sin(a * 2.0) * 0.015, sin(a) * 0.2), Vector3(0, -a, 0.785))
 	_spin(crown, 1.4)
 	var halo := _torus(head, 0.25, 0.27, violet, Vector3(0, 0.12, 0.13), Vector3(PI * 0.5, 0, 0))
-	halo.material_override = Mats.glow(violet, 1.5)
+	halo.material_override = _glow_mat(violet, 1.5)
 	arm_l = _node(torso, Vector3(-0.38, 0.72, 0))
 	arm_r = _node(torso, Vector3(0.38, 0.72, 0))
 	for arm in [arm_l, arm_r]:
@@ -916,14 +996,22 @@ func _process(delta: float) -> void:
 	emphasis = lerpf(emphasis, emphasis_target, 1.0 - exp(-delta * 16.0))
 	squash.scale = Vector3(sx, sy, sx) * emphasis
 	squash.position.y = hop_offset
-	squash.rotation.x = -walk * 0.18 - attack_lean
-	squash.rotation.z = sin(_t * 6.0 + _phase) * 0.06 * walk
+	var hk := _hit_k * _hit_amp
+	squash.rotation.x = -walk * 0.18 - attack_lean + _hit_dir.y * hk * 0.42
+	squash.rotation.z = sin(_t * 6.0 + _phase) * 0.06 * walk - _hit_dir.x * hk * 0.42
+	# flinch: knocked back off the feet a touch, plus a quick decaying jitter
+	var jit := sin(_t * 90.0) * 0.035 * hk
+	squash.position.x = _hit_dir.x * hk * 0.07 + jit
+	squash.position.z = _hit_dir.y * hk * 0.07
 	if leg_l:
 		leg_l.rotation.x = sin(_t * 12.0 + _phase) * 0.7 * walk
 		leg_r.rotation.x = -sin(_t * 12.0 + _phase) * 0.7 * walk
 	if arm_l and not _arm_busy:
 		arm_l.rotation.x = -sin(_t * 12.0 + _phase) * 0.6 * walk + sin(_t * 5.0 + _phase) * 0.05
 		arm_r.rotation.x = sin(_t * 12.0 + _phase) * 0.6 * walk - sin(_t * 5.0 + _phase) * 0.05
+		if hk > 0.001:   # arms jerk up in front, guarding
+			arm_l.rotation.x -= hk * 1.0
+			arm_r.rotation.x -= hk * 1.0
 	for i in quad_legs.size():
 		var sgn := 1.0 if i == 0 or i == 3 else -1.0
 		quad_legs[i].rotation.x = sin(_t * 12.0 + _phase) * 0.65 * walk * sgn
@@ -996,6 +1084,27 @@ func play_attack(style: String) -> float:
 	if style != "spin":
 		punch_scale(0.9, 1.12, 0.4)
 	return wind + strike
+
+## Hit reaction: snap away from the blow (world-space `away`), then sway back upright with a small overshoot.
+## strength 1 = ordinary flinch, >1 knockback stagger, <1 the barely-there rock of a heavy body. A weaker hit
+## never cuts short a stronger flinch still in progress.
+func play_hit(away: Vector3, strength := 1.0) -> void:
+	if _hit_k * _hit_amp > strength:
+		return
+	var local := Vector3.BACK
+	if away.length() > 0.001:
+		local = (global_transform.basis.orthonormalized().inverse() * away)
+	var d := Vector2(local.x, local.z)
+	_hit_dir = d.normalized() if d.length() > 0.001 else Vector2(0, 1)
+	_hit_amp = strength
+	if _hit_tween:
+		_hit_tween.kill()
+	_hit_tween = create_tween()
+	_hit_tween.tween_property(self, "_hit_k", 1.0, 0.05).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	_hit_tween.tween_interval(0.06 * strength)
+	_hit_tween.tween_property(self, "_hit_k", 0.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if strength > 1.0:   # knockback: a harder squash on top of the hit punch
+		punch_scale(1.32, 0.68, 0.42)
 
 ## Limbless body slam (slime / hydra): crouch, lunge forward, spring back.
 func _play_bounce() -> float:

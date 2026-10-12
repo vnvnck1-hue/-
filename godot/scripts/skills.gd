@@ -12,7 +12,6 @@ static var aiming := false
 static var aim_point := Vector3.ZERO
 static var aim_root: Node3D
 static var _preview: Node3D
-static var _markers: Array = []
 
 static func base_damage(game: Node, h: Actor, mult: float) -> float:
 	return maxf(1.0, floorf(Stats.attack_power(game, h) * mult))
@@ -90,8 +89,7 @@ static func _jump_slam(game: Node, h: Actor, def: Dictionary) -> void:
 		var near: bool = Actor._flat(e.global_position - h.global_position).length() <= 1.4 + e.body_r - Actor.RADIUS
 		if on_target:
 			extra += floorf(e.max_hp * def["impact_hp"]) + floorf(ap * def["impact_atk"])
-			if not e.knockback_immune:
-				e.knock += Actor._flat(e.global_position - h.global_position).normalized() * 6.0
+			e.knock_back(h.global_position, 6.0)
 		if near:
 			extra += base
 		if extra > 0.0:
@@ -114,12 +112,12 @@ static func _multi_shot(game: Node, h: Actor, def: Dictionary) -> void:
 	for i in mini(int(def["count"]), targets.size()):
 		var t: Actor = targets[i]
 		game.after(i * 0.1, func():
-			if not h.alive or not game.in_battle() or not is_instance_valid(t) or not t.alive:
+			if not Combat._live(h) or not Combat._in_battle(game) or not Combat._live(t):
 				return
 			h.model.play_attack("arrow")
 			Sfx.play("whoosh", -8.0, 1.5)
 			var on_hit := func(_p: Vector3) -> void:
-				if is_instance_valid(t) and t.alive:
+				if Combat._live(t) and is_instance_valid(h):
 					Vfx.hit_spark(t.global_position + Vector3(0, 0.4, 0), Color("ff8ad8"), true)
 					Combat.skill_damage(game, h, t, dmg)
 			Vfx.projectile("arrow", h.global_position + Vector3(0, 0.5, 0), t, on_hit, 0.0, 0.15))
@@ -155,7 +153,7 @@ static func _absolute_zero(game: Node, h: Actor, def: Dictionary) -> void:
 	Sfx.play("whoosh", -3.0, 0.5)
 	var dmg := base_damage(game, h, def["mult"])
 	game.after(0.3, func():
-		if not h.alive or not game.in_battle():
+		if not Combat._live(h) or not Combat._in_battle(game):
 			return
 		Sfx.play("boom", -6.0, 1.6)
 		var until: float = game.now + def["freeze"] / 1000.0
@@ -233,7 +231,6 @@ static func _exit_aim(game: Node) -> void:
 	if _preview and is_instance_valid(_preview):
 		_preview.queue_free()
 	_preview = null
-	_markers.clear()
 	game.hud.hide_aim()
 
 # ================================================================ ultimates: preview
@@ -247,10 +244,9 @@ static func _update_preview(game: Node) -> void:
 	match h.cls:
 		"warrior":
 			var ring := MeshInstance3D.new()
-			var q := PlaneMesh.new()
-			q.size = Vector2(1, 1)
-			ring.mesh = q
-			ring.material_override = Mats.ground("ring", Color(1.3, 1.0, 0.45, 0.6), true)
+			ring.mesh = Vfx._unit_plane()
+			ring.material_override = Mats.shared("skills/aim_ring", func() -> Material:
+				return Mats.ground("ring", Color(1.3, 1.0, 0.45, 0.6), true))
 			ring.scale = Vector3.ONE * 3.2
 			_preview.add_child(ring)
 			ring.global_position = h.global_position + Vector3(0, 0.05, 0)
@@ -270,13 +266,17 @@ static func _update_preview(game: Node) -> void:
 				_preview.add_child(_beam(prev, p))
 				prev = p
 			hit = path
-	for e in hit:
-		var m := MeshInstance3D.new()
+	# the preview is rebuilt on every pointer move: its meshes / materials are shared, only nodes are new
+	var mark_mesh: Mesh = Mats.shared("skills/aim_mark", func() -> Mesh:
 		var tq := TorusMesh.new()
 		tq.inner_radius = 0.34
 		tq.outer_radius = 0.44
-		m.mesh = tq
-		m.material_override = Mats.glow(Color("ff4a5a"), 1.6)
+		return tq)
+	var mark_mat: Material = Mats.shared("skills/aim_mark_mat", func() -> Material: return Mats.glow(Color("ff4a5a"), 1.6))
+	for e in hit:
+		var m := MeshInstance3D.new()
+		m.mesh = mark_mesh
+		m.material_override = mark_mat
 		m.scale = Vector3(1, 0.3, 1) * (e.body_r / Actor.RADIUS)
 		_preview.add_child(m)
 		m.global_position = e.global_position + Vector3(0, 0.06, 0)
@@ -284,13 +284,12 @@ static func _update_preview(game: Node) -> void:
 
 static func _beam(a: Vector3, b: Vector3) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	var bx := BoxMesh.new()
-	bx.size = Vector3(0.07, 0.07, a.distance_to(b))
-	mi.mesh = bx
-	mi.material_override = Mats.glow(Color(0.6, 0.9, 1.6), 1.4)
+	mi.mesh = Vfx._unit_box()
+	mi.material_override = Mats.shared("skills/aim_beam", func() -> Material: return Mats.glow(Color(0.6, 0.9, 1.6), 1.4))
 	mi.position = (a + b) * 0.5
 	if a.distance_to(b) > 0.01:
 		mi.look_at_from_position((a + b) * 0.5, b, Vector3.UP)
+	mi.scale = Vector3(0.07, 0.07, maxf(a.distance_to(b), 0.001))   # after look_at, which resets the basis
 	return mi
 
 static func _aim_yaw(from: Vector3, to: Vector3) -> float:
@@ -369,8 +368,7 @@ static func cast_ultimate(game: Node, h: Actor, aim: Vector3) -> void:
 			for e in game.alive_enemies():
 				if not Combat.is_immune(game, e):
 					e.stun_until = maxf(e.stun_until, game.now + u["stun"] / 1000.0)
-					if not e.knockback_immune:
-						e.knock += Actor._flat(e.global_position - h.global_position).normalized() * 6.0
+					e.knock_back(h.global_position, 6.0)
 				Combat.skill_damage(game, h, e, ult_dmg)
 		"chain":
 			var path := chain_path(game, h)
@@ -381,12 +379,14 @@ static func cast_ultimate(game: Node, h: Actor, aim: Vector3) -> void:
 				var from := prev
 				prev = e.global_position + Vector3(0, 0.5, 0)
 				game.after(i * 0.1, func():
-					if not is_instance_valid(e):
+					if not is_instance_valid(e) or not is_instance_valid(game):
 						return
 					Vfx.lightning(from, e.global_position + Vector3(0, 0.5, 0), 0.11)
 					Sfx.play("thud", -6.0, 1.8)
-					Vfx.cam.add_trauma(0.12)
-					game.after(0.05, func(): Combat.skill_damage(game, h, e, ult_dmg)))
+					Vfx._shake(0.12)
+					game.after(0.05, func():
+						if is_instance_valid(h) and is_instance_valid(game):
+							Combat.skill_damage(game, h, e, ult_dmg)))
 			if Meta.has_flag("magFinal") and randf() < 0.1:
 				Meta.add_crystals(1)
 				game.hud.set_crystals(Meta.crystals)

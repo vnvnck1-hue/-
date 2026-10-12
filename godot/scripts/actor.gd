@@ -11,6 +11,11 @@ static var BOARD_X := 2.95   # arena half extents (March mode widens them for bo
 static var BOARD_Z := 3.95
 static var clamp_fn := Callable()   # March mode: keep units on the winding field instead of the board rectangle
 const RANGE_PAD := 0.15
+## Hit stagger (monsters): a flinch halts the unit in place this long; after it ends the next ordinary hit can't
+## re-stagger for HITSTUN_GAP, so fast hero attacks can't pin a monster down for good. Knockback always staggers.
+const HITSTUN := 0.26
+const HITSTUN_GAP := 0.45
+const HITSTUN_KNOCK := 0.42
 
 var kind := ""
 var cls := ""             # hero class, "" for enemies
@@ -54,6 +59,8 @@ var attacking := false
 var busy := false          # leaping / channeling: no AI
 var knock := Vector3.ZERO
 var stun_until := 0.0
+var hitstun_until := 0.0   # flinch halt (game clock): no moving / no new swing
+var _restagger_at := 0.0
 var slow_until := 0.0
 var frozen_until := 0.0
 var guard_until := 0.0
@@ -89,21 +96,25 @@ func color() -> Color:
 	return Defs.COL_HERO if is_hero() else Defs.COL_ENEMY
 
 func _build_visual() -> void:
+	# shadow blob / ring meshes and the blob material are shared; ring_mat stays per unit (selection tint)
 	blob = MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(0.9, 0.9)
-	blob.mesh = pm
-	blob.material_override = Mats.ground("blob", Color(0.23, 0.2, 0.44, 0.45), false)
+	blob.mesh = Mats.shared("actor/blob", func() -> Mesh:
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(0.9, 0.9)
+		return pm)
+	blob.material_override = Mats.shared("actor/blob_mat", func() -> Material:
+		return Mats.ground("blob", Color(0.23, 0.2, 0.44, 0.45), false))
 	blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	blob.position.y = 0.015
 	add_child(blob)
 	ring = MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.3
-	tm.outer_radius = 0.37
-	tm.rings = 32
-	tm.ring_segments = 6
-	ring.mesh = tm
+	ring.mesh = Mats.shared("actor/ring", func() -> Mesh:
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.3
+		tm.outer_radius = 0.37
+		tm.rings = 32
+		tm.ring_segments = 6
+		return tm)
 	ring_mat = Mats.glow(color(), 1.15)
 	ring.material_override = ring_mat
 	ring.position.y = 0.03
@@ -187,12 +198,16 @@ func _process(delta: float) -> void:
 func _make_stun_fx() -> void:
 	stun_fx = Node3D.new()
 	add_child(stun_fx)
+	var q: Mesh = Mats.shared("actor/stun_star", func() -> Mesh:
+		var qm := QuadMesh.new()
+		qm.size = Vector2(0.22, 0.22)
+		return qm)
+	var mat: Material = Mats.shared("actor/stun_mat", func() -> Material:
+		return Mats.sprite("star5", Color(1.6, 1.4, 0.4), true))
 	for i in 3:
 		var mi := MeshInstance3D.new()
-		var q := QuadMesh.new()
-		q.size = Vector2(0.22, 0.22)
 		mi.mesh = q
-		mi.material_override = Mats.sprite("star5", Color(1.6, 1.4, 0.4), true)
+		mi.material_override = mat
 		var a := TAU * i / 3.0
 		mi.position = Vector3(cos(a) * 0.28, 0, sin(a) * 0.28)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -250,8 +265,8 @@ func battle_tick(delta: float) -> void:
 		_clamp()
 	if busy:
 		return
-	if game.now < stun_until:
-		model.walk = lerpf(model.walk, 0.0, 1.0 - exp(-delta * 12.0))
+	if game.now < stun_until or game.now < hitstun_until:
+		model.walk = lerpf(model.walk, 0.0, 1.0 - exp(-delta * (24.0 if game.now < hitstun_until else 12.0)))
 		return
 	retarget_t -= delta
 	if target == null or not target.alive or retarget_t <= 0.0:
@@ -311,7 +326,8 @@ func _attack() -> void:
 		await Combat.hero_attack(game, self, t)
 	else:
 		await Combat.enemy_attack(game, self, t)
-	if not is_instance_valid(self):
+	if not is_inside_tree():   # removed mid-swing (wave cleared / scene left)
+		attacking = false
 		return
 	await get_tree().create_timer(0.1, false).timeout
 	attacking = false
@@ -324,12 +340,43 @@ func apply_damage(amount: float, from: Actor, crit := false, show := true, push 
 	hp -= amount
 	model.flash()
 	model.punch_scale(1.22, 0.78, 0.35)
+	var away := _flat(global_position - from.global_position).normalized() if from else Vector3.ZERO
 	if from and push > 0.0 and not knockback_immune:
-		var away := _flat(global_position - from.global_position).normalized()
 		knock += away * 1.0 * push
+	if hp > 0.0:
+		flinch(away)
 	if show:
 		game.hud.damage_number(global_position + Vector3(0, 0.9 * model.scale.y / MODEL_SCALE * 1.2, 0), amount, team, crit)
 	return hp <= 0.0
+
+## Big bodies (2x2 mid-bosses, boss-role chiefs) don't stagger on ordinary hits — only knockback halts them.
+func is_heavy() -> bool:
+	return body_r > RADIUS or Defs.role(kind) == "boss"
+
+## Monster hit reaction: flinch animation away from the blow + a brief halt in place. Heavy monsters only
+## rock a little on ordinary hits and keep going; a knockback (knock_back) staggers everyone.
+func flinch(away: Vector3, knockback := false) -> void:
+	if is_hero() or not alive or game == null:
+		return
+	var heavy := is_heavy()
+	if heavy and not knockback:
+		model.play_hit(away, 0.3)
+		return
+	model.play_hit(away, 1.25 if knockback else 1.0)
+	var now: float = game.now
+	if knockback or now >= _restagger_at:
+		var dur := HITSTUN_KNOCK if knockback else HITSTUN
+		hitstun_until = maxf(hitstun_until, now + dur)
+		_restagger_at = hitstun_until + HITSTUN_GAP
+
+## Knockback blow from a hero at `from`: shoves (unless immune) and always staggers, even big bodies.
+func knock_back(from: Vector3, force: float) -> void:
+	if not alive:
+		return
+	var away := _flat(global_position - from).normalized()
+	if not knockback_immune:
+		knock += away * force
+	flinch(away, true)
 
 func heal(amount: float, show := false) -> void:
 	if not alive or amount <= 0.0:
@@ -388,6 +435,8 @@ func reset_status() -> void:
 	busy = false
 	knock = Vector3.ZERO
 	stun_until = 0.0
+	hitstun_until = 0.0
+	_restagger_at = 0.0
 	slow_until = 0.0
 	frozen_until = 0.0
 	guard_until = 0.0

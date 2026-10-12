@@ -50,7 +50,7 @@ func refresh(gained := false) -> void:
 	if gained:
 		hud.bump(btn, 1.25)
 		hud.bump(count_label, 1.5)
-		var tw := _icon.create_tween()
+		var tw := Hud.retween(_icon, "spin_tw")
 		tw.tween_property(_icon, "rotation", TAU, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tw.tween_callback(func(): _icon.rotation = 0.0)
 	if is_open():
@@ -85,7 +85,8 @@ func _open() -> void:
 		var ra: int = order[Defs.PERKS[a]["rarity"]]
 		var rb: int = order[Defs.PERKS[b]["rarity"]]
 		return ra < rb if ra != rb else idx[a] < idx[b])
-	var body_h := maxf(ROW_H, minf(LIST_MAX_H, ids.size() * (ROW_H + 6.0)))
+	var relics: Array = game.relics   # worn in the lobby: listed under the perks
+	var body_h := maxf(ROW_H, minf(LIST_MAX_H, (ids.size() + relics.size()) * (ROW_H + 6.0)))
 	var h := 58.0 + body_h + 14.0
 	var card := hud.panel(Color.WHITE, Rect2(0, 0, LIST_W, h), 22, 0)
 	card.add_theme_stylebox_override("panel", UiTheme.deck_panel(22, 50.0) if UiTheme.tt() else hud.box(Color(0.1, 0.08, 0.2, 0.92), 22, 4, Color("3a2f66")))
@@ -93,7 +94,7 @@ func _open() -> void:
 	hud.root.add_child(hud.place(card, Vector2(1, 0), Vector2(-LIST_W - 16, _y + H + 8), Vector2(LIST_W, h)))
 	card.pivot_offset = Vector2(LIST_W - W * 0.5, 0)
 	_list = card
-	var title := hud.label("누적 특성 %d개" % ids.size(), 24, Color("fff4e0"), 8)
+	var title := hud.label("누적 특성 %d개%s" % [ids.size(), (" · 유물 %d" % relics.size()) if not relics.is_empty() else ""], 24, Color("fff4e0"), 8)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.position = Vector2(20, 6)
 	title.size = Vector2(LIST_W - 80, 40)
@@ -101,7 +102,7 @@ func _open() -> void:
 	var x := hud.juicy_button("X", Color("ff6b8a"), Rect2(LIST_W - 56, 6, 44, 40), 22)
 	x.pressed.connect(_close)
 	card.add_child(x)
-	if ids.is_empty():
+	if ids.is_empty() and relics.is_empty():
 		var when := "중간 보스를 처치하면" if game.mode_id() == "march" else "3웨이브마다"
 		var e := hud.label("아직 특성이 없어요.\n%s 룰렛이 돌아가요!" % when, 20, Color("d8d2f0"), 6)
 		e.position = Vector2(0, 58)
@@ -119,6 +120,8 @@ func _open() -> void:
 		sc.add_child(col)
 		for id in ids:
 			col.add_child(_row(id))
+		for e in relics:
+			col.add_child(_relic_row(e))
 	card.scale = Vector2(1.0, 0.05)
 	var tw := card.create_tween().set_ignore_time_scale(true)
 	tw.tween_property(card, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -140,6 +143,32 @@ func _row(id: String) -> Control:
 	nm.size = Vector2(LIST_W - 120, 32)
 	row.add_child(nm)
 	var ds := hud.label(p["desc"], 16, Color("e8e2ff"), 5)
+	ds.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ds.position = Vector2(82, 32)
+	ds.size = Vector2(LIST_W - 120, 30)
+	ds.clip_text = true
+	row.add_child(ds)
+	return row
+
+## A relic worn in the lobby (★ and its ★-scaled effect).
+func _relic_row(e: Dictionary) -> Control:
+	var star := int(e.get("star", 1))
+	var rc: Color = Defs.RARITY_COL[Defs.RELICS[e["key"]]["rarity"]]
+	var row := hud.panel(Color.WHITE, Rect2(0, 0, LIST_W - 24, ROW_H), 14, 0)
+	row.add_theme_stylebox_override("panel", hud.box(UiTheme.inset(), 14, 0))
+	row.custom_minimum_size = Vector2(LIST_W - 24, ROW_H)
+	var strip := hud.panel(rc, Rect2(0, 0, 70, ROW_H), 14, 3)
+	row.add_child(strip)
+	var ic := ItemIcon.new(e)
+	ic.position = Vector2(8, 4)
+	ic.size = Vector2(54, ROW_H - 8)
+	strip.add_child(ic)
+	var nm := hud.label("%s  %s" % [Defs.RELICS[e["key"]]["name"], "★".repeat(star)], 22, rc.lightened(0.2), 7)
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	nm.position = Vector2(82, 2)
+	nm.size = Vector2(LIST_W - 120, 32)
+	row.add_child(nm)
+	var ds := hud.label(Defs.relic_desc(e["key"], star), 16, Color("e8e2ff"), 5)
 	ds.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	ds.position = Vector2(82, 32)
 	ds.size = Vector2(LIST_W - 120, 30)

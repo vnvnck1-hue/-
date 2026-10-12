@@ -1,6 +1,7 @@
 class_name Meta
 extends RefCounted
-## Permanent progression: time crystals, talent tree levels, legendary relics kept across runs,
+## Permanent progression: time crystals, talent tree levels, the relic collection (lobby [유물]: worn relics apply
+## to every run, three of the same relic at the same ★ merge into the next ★),
 ## and the Habby-style gear meta: banked gold and 강화석, permanent gear (storage + each hero's loadout),
 ## slot levels, and the expedition chapters cleared. Saved to user://trio_save.json on every change.
 ##
@@ -11,7 +12,8 @@ static var path := "user://trio_save.json"
 
 static var crystals := 0
 static var talents := {}          # id -> level
-static var relics: Array = []     # legendary relic keys
+static var relic_bag: Array = []  # relics owned but not worn: {id, kind "relic", key, star}
+static var relic_slots: Array = []  # Defs.RELIC_SLOTS worn relics (entry or null): active in every run
 static var tutorial_done := false
 static var best := {}             # mode -> best wave / group reached
 static var gold := 0              # banked gold (lobby: slot upgrades)
@@ -24,64 +26,109 @@ static var cleared := 0           # expedition chapters cleared (chapter c is op
 static var chapter := 0           # chapter picked in the lobby
 static var expedition := true    # lobby choice for the March scene: chapter expedition (true) or endless march
 static var _loaded := false
+static var _fx_cache := {}       # cls -> fx(cls) result; cleared whenever the talents change
 
 const SLOTS := ["weapon", "armor", "accessory"]
 ## A fresh save starts each hero with a plain 일반 weapon.
 const STARTER := {"warrior": "sword1", "ranger": "bow1", "mage": "staff1"}
+const TMP_SUFFIX := ".tmp"
 
 static func load_save() -> void:
 	if _loaded:
 		return
 	_loaded = true
 	_defaults()
-	if not FileAccess.file_exists(path):
+	var d := _read_save(path)
+	if d.is_empty():
+		d = _read_save(path + TMP_SUFFIX)   # a save interrupted between writing the temp file and the swap
+	if d.is_empty():
 		return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		return
-	var d = JSON.parse_string(f.get_as_text())
-	if typeof(d) != TYPE_DICTIONARY:
-		return
-	crystals = maxi(0, int(d.get("crystals", 0)))
-	var t: Dictionary = d.get("talents", {})
-	for id in t:
-		var def := Defs.talent(id)
-		if not def.is_empty():
-			talents[id] = clampi(int(t[id]), 0, def["max"])
-	relics = []
-	for k in d.get("relics", []):
-		if Defs.RELICS.has(k) and Defs.RELICS[k]["rarity"] == "legendary":
-			relics.append(k)
-	tutorial_done = bool(d.get("tutorial_done", false))
-	gold = maxi(0, int(d.get("gold", 0)))
-	stones = maxi(0, int(d.get("stones", 0)))
-	cleared = maxi(0, int(d.get("cleared", 0)))
-	chapter = clampi(int(d.get("chapter", 0)), 0, cleared)
+	crystals = maxi(0, _int(d.get("crystals", 0)))
+	var t = d.get("talents", {})
+	if typeof(t) == TYPE_DICTIONARY:
+		for id in t:
+			var def := Defs.talent(str(id))
+			if not def.is_empty():
+				talents[str(id)] = clampi(_int(t[id]), 0, def["max"])
+	var rs = d.get("relic_slots", null)
+	for i in mini(_arr(rs).size(), Defs.RELIC_SLOTS):
+		if _valid_relic(rs[i]):
+			relic_slots[i] = _relic_from(rs[i])
+	for x in _arr(d.get("relic_bag", [])):
+		if _valid_relic(x):
+			relic_bag.append(_relic_from(x))
+	if typeof(rs) != TYPE_ARRAY:   # older save: the legendary relics that rode along in every run's bag are now worn
+		for k in _arr(d.get("relics", [])):
+			if Defs.RELICS.has(str(k)):
+				var e := add_relic(str(k), 1, false)
+				wear_relic(e, -1, false)
+	tutorial_done = typeof(d.get("tutorial_done")) == TYPE_BOOL and d["tutorial_done"]
+	gold = maxi(0, _int(d.get("gold", 0)))
+	stones = maxi(0, _int(d.get("stones", 0)))
+	cleared = maxi(0, _int(d.get("cleared", 0)))
+	chapter = clampi(_int(d.get("chapter", 0)), 0, cleared)
 	storage = []
-	for x in d.get("storage", []):
-		if typeof(x) == TYPE_DICTIONARY and not Defs.item(str(x.get("key", ""))).is_empty():
-			storage.append(Inventory.from_save(x))
-	for x in d.get("run_gear", []):   # a run that never ended (quit / crash): its bag gear is kept
-		if typeof(x) == TYPE_DICTIONARY and not Defs.item(str(x.get("key", ""))).is_empty():
+	for x in _arr(d.get("storage", [])) + _arr(d.get("run_gear", [])):   # run_gear: a run that never ended (quit / crash) keeps its bag gear
+		if _valid_gear(x):
 			storage.append(Inventory.from_save(x))
 	run_gear = []
 	var lo = d.get("loadout", null)
 	var sl = d.get("slot_lv", {})
 	for cls in Defs.HERO_ORDER:
-		loadout[cls] = {}
-		slot_lv[cls] = {}
+		var lo_c := _dict(_dict(lo).get(cls, {}))
+		var sl_c := _dict(_dict(sl).get(cls, {}))
 		for slot in SLOTS:
-			var x = lo.get(cls, {}).get(slot, null) if typeof(lo) == TYPE_DICTIONARY else null
-			loadout[cls][slot] = Inventory.from_save(x) if typeof(x) == TYPE_DICTIONARY and not Defs.item(str(x.get("key", ""))).is_empty() else null
-			slot_lv[cls][slot] = maxi(0, int(sl.get(cls, {}).get(slot, 0))) if typeof(sl) == TYPE_DICTIONARY else 0
+			var x = lo_c.get(slot, null)
+			loadout[cls][slot] = Inventory.from_save(x) if _valid_gear(x) else null
+			slot_lv[cls][slot] = maxi(0, _int(sl_c.get(slot, 0)))
 	if typeof(lo) != TYPE_DICTIONARY:
 		_starter_kit()
 	var b = d.get("best", {})
 	if typeof(b) == TYPE_DICTIONARY:
 		for m in b:
-			best[str(m)] = int(b[m])
+			best[str(m)] = _int(b[m])
+
+## The parsed save at `p`, or {} when it is missing / unreadable / not a JSON object.
+static func _read_save(p: String) -> Dictionary:
+	if not FileAccess.file_exists(p):
+		return {}
+	var f := FileAccess.open(p, FileAccess.READ)
+	if f == null:
+		return {}
+	var d = JSON.parse_string(f.get_as_text())
+	f.close()
+	return d if typeof(d) == TYPE_DICTIONARY else {}
+
+# Save-file field coercion: a hand-edited / older / corrupt save never crashes the load.
+static func _int(v) -> int:
+	return int(v) if typeof(v) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL, TYPE_STRING] else 0
+
+static func _arr(v) -> Array:
+	return v if typeof(v) == TYPE_ARRAY else []
+
+static func _dict(v) -> Dictionary:
+	return v if typeof(v) == TYPE_DICTIONARY else {}
+
+static func _valid_gear(x) -> bool:
+	return typeof(x) == TYPE_DICTIONARY and not Defs.item(str(x.get("key", ""))).is_empty()
+
+static func _valid_relic(x) -> bool:
+	return typeof(x) == TYPE_DICTIONARY and Defs.RELICS.has(str(x.get("key", "")))
+
+static func _relic_from(x: Dictionary) -> Dictionary:
+	return Inventory.make_relic(str(x["key"]), clampi(_int(x.get("star", 1)), 1, Defs.RELIC_MAX_STAR))
+
+static func _relic_save(e) -> Variant:
+	return {"key": e["key"], "star": int(e.get("star", 1))} if e else null
 
 static func _defaults() -> void:
+	crystals = 0
+	talents = {}
+	relic_bag = []
+	relic_slots = []
+	relic_slots.resize(Defs.RELIC_SLOTS)
+	tutorial_done = false
+	best = {}
 	gold = 0
 	stones = 0
 	storage = []
@@ -90,6 +137,7 @@ static func _defaults() -> void:
 	chapter = 0
 	loadout = {}
 	slot_lv = {}
+	_fx_cache.clear()
 	for cls in Defs.HERO_ORDER:
 		loadout[cls] = {}
 		slot_lv[cls] = {}
@@ -103,8 +151,10 @@ static func _starter_kit() -> void:
 		if loadout.has(cls) and loadout[cls].get("weapon") == null:
 			loadout[cls]["weapon"] = Inventory.make("equip", STARTER[cls])
 
+## Written to a temp file first and swapped in, so a crash / power loss mid-write never leaves a truncated save.
 static func save() -> void:
-	var f := FileAccess.open(path, FileAccess.WRITE)
+	var tmp := path + TMP_SUFFIX
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		return
 	var lo := {}
@@ -113,9 +163,13 @@ static func save() -> void:
 		for slot in loadout[cls]:
 			var e = loadout[cls][slot]
 			lo[cls][slot] = Inventory.to_save(e) if e else null
-	f.store_string(JSON.stringify({"crystals": crystals, "talents": talents, "relics": relics, "tutorial_done": tutorial_done,
+	f.store_string(JSON.stringify({"crystals": crystals, "talents": talents, "relic_slots": relic_slots.map(_relic_save), "relic_bag": relic_bag.map(_relic_save), "tutorial_done": tutorial_done,
 		"best": best, "gold": gold, "stones": stones, "cleared": cleared, "chapter": chapter, "slot_lv": slot_lv, "loadout": lo,
 		"storage": storage.map(Inventory.to_save), "run_gear": run_gear.map(Inventory.to_save)}))
+	var ok := f.get_error() == OK
+	f.close()
+	if ok:
+		DirAccess.rename_absolute(tmp, path)
 
 static func record_best(mode: String, value: int) -> void:
 	if value > int(best.get(mode, 0)):
@@ -152,11 +206,15 @@ static func buy(id: String) -> bool:
 	var def := Defs.talent(id)
 	crystals -= int(def["costs"][level(id)])
 	talents[id] = level(id) + 1
+	_fx_cache.clear()
 	save()
 	return true
 
 ## Sum of talent effects. cls == "" -> nodes without a class; otherwise only that class's nodes.
+## Cached (Stats asks for it several times per unit per frame) and read-only: callers copy before changing it.
 static func fx(cls: String) -> Dictionary:
+	if _fx_cache.has(cls):
+		return _fx_cache[cls]
 	var out := {}
 	for t in Defs.TALENTS:
 		if not t.has("fx"):
@@ -168,6 +226,8 @@ static func fx(cls: String) -> Dictionary:
 			continue
 		for k in t["fx"]:
 			out[k] = out.get(k, 0.0) + t["fx"][k] * lv
+	out.make_read_only()
+	_fx_cache[cls] = out
 	return out
 
 # ---------------------------------------------------------------- permanent gear
@@ -227,7 +287,7 @@ static func upgrade(cls: String, slot: String) -> bool:
 
 ## Merge every group of 3 in the storage (same rules as the old bag merge: family gear by slot + grade climbs
 ## one grade, the family taken from one of the three materials; uniques need 3 of the exact item). Worn
-## gear is never material. Returns the produced entries.
+## gear is never material. Returns the merge steps in order: {"in": [3 materials], "out": result} (MergeFx plays them).
 static func merge_all() -> Array:
 	var made := []
 	var k := _find_merge()
@@ -257,15 +317,15 @@ static func _find_merge() -> String:
 		if mk != "":
 			counts[mk] = counts.get(mk, 0) + 1
 	# lowest grade first so a chain (3 일반 -> 고급 that completes 3 고급) resolves in one press
-	var best := ""
-	var best_g := 999
+	var pick := ""
+	var pick_g := 999
 	for mk in counts:
 		if counts[mk] >= 3 and Inventory.merge_result(mk) != "":
 			var g := Gear.group_grade(mk) if Gear.is_group(mk) else 50
-			if g < best_g:
-				best_g = g
-				best = mk
-	return best
+			if g < pick_g:
+				pick_g = g
+				pick = mk
+	return pick
 
 static func _merge_once(mk: String) -> Dictionary:
 	var used := []
@@ -284,7 +344,7 @@ static func _merge_once(mk: String) -> Dictionary:
 	if pw > 1.0:
 		ne["pw"] = pw
 	storage.append(ne)
-	return ne
+	return {"in": used, "out": ne}
 
 ## Sell a storage piece for banked gold.
 static func sell(e: Dictionary) -> int:
@@ -292,6 +352,111 @@ static func sell(e: Dictionary) -> int:
 		return 0
 	var price := int(Inventory.sell_price(null, e))
 	storage.erase(e)
+	gold += price
+	save()
+	return price
+
+# ---------------------------------------------------------------- relics
+## A relic found in a run (or anywhere) goes straight into the collection. Returns the new entry.
+static func add_relic(key: String, star := 1, do_save := true) -> Dictionary:
+	var e := Inventory.make_relic(key, star)
+	relic_bag.append(e)
+	if do_save:
+		save()
+	return e
+
+## Worn relics (the run applies these).
+static func worn_relics() -> Array:
+	return relic_slots.filter(func(e): return e != null)
+
+## Wear a collection relic in slot i (-1: the slot already holding the same relic, else the first empty one).
+## The relic it replaces goes back to the collection. Returns the slot used, or -1 when every slot is taken.
+static func wear_relic(e: Dictionary, i := -1, do_save := true) -> int:
+	if not relic_bag.has(e):
+		return -1
+	if i < 0:
+		for j in relic_slots.size():   # the same relic is never worn twice: a stronger copy swaps in
+			if relic_slots[j] and relic_slots[j]["key"] == e["key"]:
+				i = j
+				break
+	if i < 0:
+		i = relic_slots.find(null)
+	if i < 0:
+		return -1
+	for j in relic_slots.size():
+		if j != i and relic_slots[j] and relic_slots[j]["key"] == e["key"]:
+			return -1
+	relic_bag.erase(e)
+	if relic_slots[i]:
+		relic_bag.append(relic_slots[i])
+	relic_slots[i] = e
+	if do_save:
+		save()
+	return i
+
+static func take_off_relic(i: int) -> void:
+	if i < 0 or i >= relic_slots.size() or relic_slots[i] == null:
+		return
+	relic_bag.append(relic_slots[i])
+	relic_slots[i] = null
+	save()
+
+static func _relic_mk(e: Dictionary) -> String:
+	var st := int(e.get("star", 1))
+	return "%s#%d" % [e["key"], st] if st < Defs.RELIC_MAX_STAR else ""
+
+## Groups of 3 (same relic, same ★) in the collection right now. Worn relics are never material.
+static func relic_merge_ready() -> int:
+	var counts := {}
+	for e in relic_bag:
+		var mk := _relic_mk(e)
+		if mk != "":
+			counts[mk] = counts.get(mk, 0) + 1
+	var n := 0
+	for mk in counts:
+		n += int(counts[mk] / 3)
+	return n
+
+## Merge every group of 3 in the collection (lowest ★ first, so chains resolve in one press).
+## Returns the merge steps in order: {"in": [3 materials], "out": result}.
+static func merge_all_relics() -> Array:
+	var made := []
+	while true:
+		var counts := {}
+		for e in relic_bag:
+			var mk := _relic_mk(e)
+			if mk != "":
+				counts[mk] = counts.get(mk, 0) + 1
+		var pick := ""
+		var pick_s := 999
+		for mk in counts:
+			var st := int(mk.get_slice("#", 1))
+			if counts[mk] >= 3 and st < pick_s:
+				pick_s = st
+				pick = mk
+		if pick == "":
+			break
+		var used := []
+		for e in relic_bag:
+			if _relic_mk(e) == pick and used.size() < 3:
+				used.append(e)
+		for e in used:
+			relic_bag.erase(e)
+		var ne := Inventory.make_relic(pick.get_slice("#", 0), pick_s + 1)
+		relic_bag.append(ne)
+		made.append({"in": used, "out": ne})
+	if not made.is_empty():
+		save()
+	return made
+
+static func relic_sell_price(e: Dictionary) -> int:
+	return int(Defs.RELICS[e["key"]]["price"] * 0.25 * Defs.relic_mult(int(e.get("star", 1))))
+
+static func sell_relic(e: Dictionary) -> int:
+	if not relic_bag.has(e):
+		return 0
+	var price := relic_sell_price(e)
+	relic_bag.erase(e)
 	gold += price
 	save()
 	return price
@@ -323,7 +488,7 @@ static func chapter_first_group(c: int) -> int:
 
 static func chapter_name(c: int) -> String:
 	var r: Dictionary = Regions.info(c)
-	var lap := c / Regions.LIST.size()
+	var lap := Regions.lap(c)
 	return "%d. %s%s" % [c + 1, r["name"], "" if lap == 0 else " (%d회차)" % (lap + 1)]
 
 static func on_chapter_cleared(c: int) -> bool:

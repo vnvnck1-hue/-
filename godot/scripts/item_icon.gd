@@ -130,7 +130,6 @@ func _draw() -> void:
 		"helmet":
 			draw_circle(P.call(0.5, 0.55), s * 0.31, INK)
 			draw_circle(P.call(0.5, 0.55), s * 0.28, METAL)
-			draw_rect(Rect2(P.call(0.18, 0.6), Vector2(s * 0.64, s * 0.3)), Color(0, 0, 0, 0))
 			_line(P.call(0.3, 0.58), P.call(0.7, 0.58), INK, w * 0.4)
 			_line(P.call(0.5, 0.3), P.call(0.5, 0.22), Color("e04a5a"), w)
 		"ring":
@@ -176,17 +175,13 @@ func _draw() -> void:
 			draw_arc(P.call(0.5, 0.38), s * 0.14, PI, TAU, 10, INK, 6.0, true)
 			_line(P.call(0.5, 0.52), P.call(0.5, 0.72), Color.WHITE, 3.5)
 			_line(P.call(0.4, 0.62), P.call(0.6, 0.62), Color.WHITE, 3.5)
-	if entry.get("kind", "") == "skillbook":
-		# whose book it is (class gem, top-left) and its grade (pips along the bottom)
-		var bd := Defs.book(entry.get("skill", ""))
-		if not bd.is_empty():
-			_circ(o + Vector2(s * 0.2, s * 0.2), s * 0.11, CLASS_GEM.get(bd["cls"], GOLD))
-			if show_tier:
-				var gn: int = bd["grade"]
-				for i in gn:
-					var gc := o + Vector2(s * 0.5 + (i - (gn - 1) * 0.5) * s * 0.13, s * 0.95)
-					draw_circle(gc, s * 0.055, INK)
-					draw_circle(gc, s * 0.035, tint.lightened(0.2))
+	if entry.get("kind", "") == "skillbook" and show_tier:
+		# its grade: pips along the bottom
+		var gn := Inventory.book_grade(entry)
+		for i in gn:
+			var gc := o + Vector2(s * 0.5 + (i - (gn - 1) * 0.5) * s * 0.13, s * 0.95)
+			draw_circle(gc, s * 0.055, INK)
+			draw_circle(gc, s * 0.035, tint.lightened(0.2))
 	if show_tier and entry.get("kind", "") == "equip":
 		var tier := Inventory.tier_of(entry)
 		if Gear.is_family(entry["key"]) and tier > Gear.STAR_FROM:

@@ -381,7 +381,7 @@ const SPECIAL_DETAIL := {
 	"revive": "가장 먼저 쓰러진 동료 1명을 체력 100%로 되살립니다.\n배치 중에는 원래 칸에서, 전투 중에는 쓰러진 자리에서 일어납니다.\n쓰러진 동료가 없으면 쓸 수 없습니다. 언제든 사용 가능.",
 	"fullHeal": "살아 있는 모든 영웅의 체력을 즉시 최대치까지 회복합니다.\n전투 중에도 사용할 수 있어 위기 탈출에 좋습니다.",
 	"massKill": "전투 중에만 사용 가능. 필드의 모든 적을 즉시 없앱니다.\n단, 골드·경험치·아이템·결정 보상은 전혀 없습니다(히드라 포함).",
-	"inventoryExpand": "가방을 3칸 늘립니다(이번 런 동안 유지).\n웨이브 20 이후 적에게서 4% 확률로 떨어집니다.",
+	"inventoryExpand": "가방을 3칸 늘립니다(이번 런 동안 유지).\n상인에게서 살 수 있습니다.",
 	"crown": "무기·방어구와 별개로 장신구 칸에 장착합니다.\n같은 왕관 3개를 모으면 '초월한 왕관'으로 자동 합성됩니다."}
 const SLOT_KO := {"weapon": "무기", "armor": "방어구", "accessory": "장신구"}
 
@@ -391,6 +391,14 @@ func rarity_box(rarity: String, radius := 14, border := 4) -> StyleBoxFlat:
 	return hud.box(c.lightened(0.08), radius, border, UiTheme.ink())
 const SLOT_W := 82.0
 const SLOT_H := 74.0
+var _slot_boxes := {}   # "<rarity>|<theme>" -> StyleBoxFlat shared by the bag slots ("" rarity = empty slot)
+
+## Bag slot style for a rarity ("" = empty), built once instead of on every bag refresh.
+func _slot_box(rarity: String) -> StyleBoxFlat:
+	var key := "%s|%s" % [rarity, UiTheme.tt()]
+	if not _slot_boxes.has(key):
+		_slot_boxes[key] = UiTheme.empty_slot(14) if rarity == "" else rarity_box(rarity)
+	return _slot_boxes[key]
 
 var inv_panel: Panel
 var inv_title: Label
@@ -571,24 +579,103 @@ func refresh_inventory(highlight_id := -1) -> void:
 		sp.visible = i < cap and r < scroll_rows
 		sp.position = Vector2(14 + c * (SLOT_W + gap), 50 + r * (SLOT_H + 8))
 		var e: Dictionary = game.inventory[i] if i < game.inventory.size() else {}
-		if e.is_empty():
-			sp.add_theme_stylebox_override("panel", UiTheme.empty_slot(14))
-		else:
-			sp.add_theme_stylebox_override("panel", rarity_box(Inventory.rarity_of(e)))
+		sp.add_theme_stylebox_override("panel", _slot_box("" if e.is_empty() else Inventory.rarity_of(e)))
 		(sp.get_child(0) as ItemIcon).set_entry(e)
 		if highlight_id >= 0 and not e.is_empty() and e["id"] == highlight_id:
 			hud.bump(sp, 1.35)
 	if cap > 14:
 		inv_title.text += "  (+%d칸)" % (cap - 14)
 
-# ---------------------------------------------------------------- merge show
-## Screen centre of bag slot i (the bag title when that slot is hidden / past the visible rows).
+# ---------------------------------------------------------------- skill book merge show (in the bag)
+## Defs.BOOK_MERGE books of grade g lift out of their slots, rush together onto the first one's slot, flash, and
+## the next-grade book pops in (Inventory.merge_books_once -> Main.on_book_merged). Awaited one by one.
+func play_merge(g: int, chain := 0) -> void:
+	if inv_panel == null or not is_inside_tree():
+		var ne0 := Inventory.merge_books_once(game, g)
+		if not ne0.is_empty():
+			game.on_book_merged(ne0)
+		return
+	var src := Inventory.book_sources(game, g)
+	if src.size() < Defs.BOOK_MERGE:
+		return
+	var dest := slot_center(src.min())
+	var froms: Array[Vector2] = []
+	var mats: Array = []
+	for i in src:
+		mats.append(game.inventory[i])
+		froms.append(slot_center(i))
+		var sp := inv_slots[i] if i < inv_slots.size() else null
+		if sp:   # the copy leaves its slot
+			sp.add_theme_stylebox_override("panel", UiTheme.empty_slot(14))
+			(sp.get_child(0) as ItemIcon).set_entry({})
+	var rc: Color = Defs.RARITY_COL[Defs.book_rarity(g)]
+	var vivid := Hud._vivid(rc)
+	var layer := hud._fly_root()
+	var ghosts: Array[Control] = []
+	for fi in froms.size():
+		var gh := _merge_ghost(mats[fi], rc)
+		layer.add_child(gh)
+		gh.position = froms[fi] - gh.size * 0.5
+		ghosts.append(gh)
+	Sfx.play("whoosh", -9.0, 1.1 + 0.06 * chain)
+	# 1) lift out of the slots and wobble
+	var lift := create_tween().set_parallel(true).set_ignore_time_scale(true)
+	for i in ghosts.size():
+		var gh := ghosts[i]
+		gh.scale = Vector2(0.75, 0.75)
+		lift.tween_property(gh, "scale", Vector2(1.3, 1.3), 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(0.05 * i)
+		lift.tween_property(gh, "position:y", gh.position.y - 34.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT).set_delay(0.05 * i)
+		lift.tween_property(gh, "rotation", (0.22 if i % 2 == 0 else -0.22), 0.2).set_delay(0.05 * i)
+	await lift.finished
+	# 2) rush together onto the target slot (slight arc, spinning in, shrinking)
+	var rush := create_tween().set_parallel(true).set_ignore_time_scale(true)
+	for i in ghosts.size():
+		var gh := ghosts[i]
+		var a := gh.position + gh.size * 0.5
+		var side := (float(i) - (ghosts.size() - 1) * 0.5) * 70.0
+		var ctrl := a.lerp(dest, 0.5) + Vector2(side, -70.0)
+		var step := func(k: float) -> void:
+			var p := a.lerp(ctrl, k).lerp(ctrl.lerp(dest, k), k)
+			gh.position = p - gh.size * 0.5
+		rush.tween_method(step, 0.0, 1.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN).set_delay(0.03 * i)
+		rush.tween_property(gh, "rotation", gh.rotation + TAU * (1.0 if i % 2 == 0 else -1.0), 0.3).set_delay(0.03 * i)
+		rush.tween_property(gh, "scale", Vector2(0.8, 0.8), 0.3).set_delay(0.03 * i)
+	await rush.finished
+	for gh in ghosts:
+		gh.queue_free()
+	# 3) impact: white flash disc, grade ring + sparkle dots, corner stars
+	var nvivid := Hud._vivid(Defs.RARITY_COL[Defs.book_rarity(g + 1)])
+	_merge_impact(dest, nvivid)
+	Sfx.play("pop", -3.0, 0.8 + 0.08 * chain)
+	var ne := Inventory.merge_books_once(game, g)
+	if ne.is_empty():   # a copy was read / sold mid-show
+		refresh_inventory()
+		return
+	game.on_book_merged(ne)
+	# 4) the merged book pops into its slot (squash & stretch, white shine, a grade aura)
+	var at: int = game.inventory.find(ne)
+	if at >= 0 and at < inv_slots.size() and inv_slots[at].visible:
+		var sp := inv_slots[at]
+		sp.pivot_offset = sp.size * 0.5
+		sp.scale = Vector2(0.2, 0.2)
+		sp.modulate = Color(2.2, 2.2, 2.2)
+		sp.z_index = 2
+		var pop := create_tween().set_ignore_time_scale(true)
+		pop.tween_property(sp, "scale", Vector2(1.55, 1.3), 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		pop.parallel().tween_property(sp, "modulate", Color.WHITE, 0.35)
+		pop.tween_property(sp, "scale", Vector2(0.92, 1.08), 0.08)
+		pop.tween_property(sp, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+		pop.tween_callback(func(): sp.z_index = 0)
+		_merge_aura(sp, nvivid)
+	await get_tree().create_timer(0.38, true, false, true).timeout
+
+## Screen centre of bag slot i (or the bag title when that slot is hidden).
 func slot_center(i: int) -> Vector2:
 	if i >= 0 and i < inv_slots.size() and inv_slots[i].visible:
 		return inv_slots[i].get_global_rect().get_center()
 	return inv_title.get_global_rect().get_center()
 
-## Flying copy of a merge source: icon with a rarity outline + dark drop shadow (like loot fly-ins).
+## Flying copy of a merge source: icon with a grade outline + dark drop shadow (like loot fly-ins).
 func _merge_ghost(e: Dictionary, rc: Color) -> Control:
 	var holder := Control.new()
 	holder.size = Vector2(64, 64)
@@ -605,6 +692,20 @@ func _merge_ghost(e: Dictionary, rc: Color) -> Control:
 	holder.add_child(ic)
 	return holder
 
+## Soft grade glow that blooms behind a freshly merged slot and fades out.
+func _merge_aura(sp: Control, vivid: Color) -> void:
+	var aura := hud._fly_burst("aura", vivid, 58.0, sp.size * 0.5)
+	aura.show_behind_parent = true
+	aura.modulate.a = 0.0
+	aura.scale = Vector2(0.5, 0.5)
+	sp.add_child(aura)
+	var tw := aura.create_tween().set_ignore_time_scale(true)
+	tw.tween_property(aura, "modulate:a", 1.0, 0.08)
+	tw.parallel().tween_property(aura, "scale", Vector2(1.2, 1.2), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(aura, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(aura.queue_free)
+
+# ---------------------------------------------------------------- arrival impact
 func _merge_impact(at: Vector2, vivid: Color) -> void:
 	var fx := Control.new()
 	fx.size = Vector2(64, 64)
@@ -630,19 +731,6 @@ func _merge_impact(at: Vector2, vivid: Color) -> void:
 	tw.tween_property(ring, "t", 1.0, 0.5).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 	tw.chain().tween_interval(0.25)
 	tw.chain().tween_callback(fx.queue_free)
-
-## Soft rarity glow that blooms behind a freshly merged slot and fades out.
-func _merge_aura(sp: Control, vivid: Color) -> void:
-	var aura := hud._fly_burst("aura", vivid, 58.0, sp.size * 0.5)
-	aura.show_behind_parent = true
-	aura.modulate.a = 0.0
-	aura.scale = Vector2(0.5, 0.5)
-	sp.add_child(aura)
-	var tw := aura.create_tween().set_ignore_time_scale(true)
-	tw.tween_property(aura, "modulate:a", 1.0, 0.08)
-	tw.parallel().tween_property(aura, "scale", Vector2(1.2, 1.2), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(aura, "modulate:a", 0.0, 0.5)
-	tw.tween_callback(aura.queue_free)
 
 ## Screen centre of the slot the next added item will occupy (or the bag title when full).
 func next_slot_center(offset := 0) -> Vector2:
@@ -688,14 +776,13 @@ func _hover_slot(i: int, on: bool) -> void:
 	if on and not e.is_empty():
 		_show_tip(e, false)
 		var sp := inv_slots[i]
-		var tw := sp.create_tween()
 		sp.pivot_offset = sp.size * 0.5
-		tw.tween_property(sp, "scale", Vector2(1.1, 1.1), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		Hud.retween(sp).tween_property(sp, "scale", Vector2(1.1, 1.1), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	else:
 		if not tip_pinned:
 			_close_tip()
 		var sp2 := inv_slots[i]
-		sp2.create_tween().tween_property(sp2, "scale", Vector2.ONE, 0.12)
+		Hud.retween(sp2).tween_property(sp2, "scale", Vector2.ONE, 0.12)
 
 func _tap(i: int) -> void:
 	var e := _entry_at(i)
@@ -784,10 +871,9 @@ func describe(e: Dictionary) -> String:
 				return _stat_lines(sd["stats"])
 			return sd["desc"]
 		"relic":
-			return Defs.RELICS[e["key"]]["desc"]
+			return Defs.relic_desc(e["key"], int(e.get("star", 1)))
 		"skillbook":
-			var bd := Inventory.skillbook_def(e)
-			return "%s · 레벨당 %s" % [Defs.HEROES[bd["cls"]]["name"], bd["desc"]]
+			return "읽으면 스킬 %d개 중 하나 · 최대 %s 스킬" % [Defs.BOOK_PICKS, Defs.book_grade_name(Inventory.book_grade(e))]
 		"stone":
 			return "장비 칸 강화 재료 (판이 끝나면 보관)"
 	return ""
@@ -829,27 +915,25 @@ func _card_rows(e: Dictionary) -> Array:
 			else:
 				_text_rows(rows, SPECIAL_DETAIL.get(e["key"], sd["desc"]))
 		"relic":
-			var r: Dictionary = Defs.RELICS[e["key"]]
-			_text_rows(rows, r["desc"], 22)
+			var st := int(e.get("star", 1))
+			_text_rows(rows, "★%d  ·  %s" % [st, Defs.relic_desc(e["key"], st)], 22)
 			rows.append(["", "", 0])
-			_text_rows(rows, "가방에 넣어 두기만 해도 모든 영웅에게 적용 (장착 불가 · 중첩 가능)", 17, META_COL)
-			if r["rarity"] == "legendary":
-				_text_rows(rows, "전설 유물은 다음 런에도 남습니다. 팔면 사라져요.", 17, META_COL)
+			_text_rows(rows, "로비 [유물]에서 장착하면 모든 판에서 파티 전체에 적용됩니다. 같은 유물 3개(같은 ★)를 모으면 합성!", 17, META_COL)
 		"skillbook":
-			var bd := Inventory.skillbook_def(e)
-			var h: Actor = game.hero(bd["cls"]) if game else null
-			var cur := 0
-			if h:
-				var li: int = game.learned_index(h, e["skill"])
-				cur = int(h.learned[li]["level"]) if li >= 0 else 0
-			_text_rows(rows, "%s 전용 · %s 스킬북" % [Defs.HEROES[bd["cls"]]["name"], Defs.book_grade_name(bd["grade"])], 18, META_COL)
-			_text_rows(rows, "레벨당  " + bd["desc"], 21)
-			if cur > 0:
-				_text_rows(rows, "지금 Lv.%d → 사용하면 Lv.%d" % [cur, mini(cur + 1, Defs.BOOK_MAX)] if cur < Defs.BOOK_MAX else "이미 최고 레벨 (Lv.%d)" % cur, 20, "2f78d0")
+			var g := Inventory.book_grade(e)
+			_text_rows(rows, "%s 스킬북 · 모든 영웅" % Defs.book_grade_name(g), 18, META_COL)
+			_text_rows(rows, "[사용]하면 룰렛 %d칸이 돌아 스킬 %d개가 나오고, 그중 하나를 배웁니다" % [Defs.BOOK_PICKS, Defs.BOOK_PICKS], 21)
+			var odds: Array = Defs.BOOK_ROLL.get(g, [1.0])
+			var parts := []
+			for k in odds.size():
+				parts.append("[color=#%s]%s %d%%[/color]" % [Hud._vivid(Defs.RARITY_COL[Defs.book_rarity(k + 1)]).darkened(0.25).to_html(false), Defs.book_grade_name(k + 1), roundi(float(odds[k]) * 100.0)])
+			rows.append(["[color=#%s]등장 확률[/color]  " % BODY_COL + " · ".join(parts), "등장 확률  " + "일반 00% · ".repeat(odds.size()), 20])
+			if g < Defs.BOOK_TOP:
+				_text_rows(rows, "같은 등급 %d권이 모이면 가방에서 자동 합성 → %s 스킬북 (최대 %s 스킬까지)" % [Defs.BOOK_MERGE, Defs.book_grade_name(g + 1), Defs.book_grade_name(g + 1)], 19, "2f78d0")
 			else:
-				_text_rows(rows, "사용하면 새 스킬로 배웁니다 (Lv.1)", 20, "2f78d0")
+				_text_rows(rows, "최고 등급 — 전설 스킬이 나올 수 있어요!", 19, "c87a00")
 			rows.append(["", "", 0])
-			_text_rows(rows, "언제든 [사용] · 같은 책을 또 쓰면 레벨 업 (최대 Lv.%d)\n판이 끝나면 배운 스킬은 사라지고, 남은 책은 강화석이 됩니다" % Defs.BOOK_MAX, 17, META_COL)
+			_text_rows(rows, "아껴 모으면 더 높은 등급으로 · 판이 끝나면 남은 책은 강화석이 됩니다", 17, META_COL)
 		"stone":
 			_text_rows(rows, "로비 [장비]에서 장비 칸을 강화하는 재료입니다.\n판이 끝나면 모은 만큼 보관됩니다.", 20)
 	return rows
@@ -997,41 +1081,6 @@ func _close_tip() -> void:
 	tip = null
 	tip_entry = {}
 	tip_pinned = false
-
-# ---------------------------------------------------------------- skill book: all slots taken
-## The hero already knows Defs.SKILL_SLOTS skills: pick one to forget for the new one (or keep the book).
-func skillbook_choice(e: Dictionary) -> void:
-	var sk := Inventory.skillbook_def(e)
-	var h: Actor = game.hero(sk["cls"])
-	if h == null:
-		return
-	var tt := UiTheme.tt()
-	var n_slots: int = h.learned.size()
-	var card := _modal(Vector2(620, 300 + n_slots * 82), -60, false, 82.0)
-	var t := hud.label("스킬 칸이 가득 찼어요", 40 if tt else 44, Color.WHITE if tt else Color("c84ad8"), 12)
-	t.position = Vector2(0, 8 if tt else 18)
-	t.size = Vector2(620, 70 if tt else 64)
-	card.add_child(t)
-	var n := hud.label("새 스킬: %s (%s)" % [sk["name"], Defs.HEROES[sk["cls"]]["name"]], 28, Defs.RARITY_COL[Inventory.rarity_of(e)].darkened(0.25) if not tt else Color("c84ad8"), 0 if not tt else 9)
-	n.position = Vector2(0, 88)
-	n.size = Vector2(620, 44)
-	card.add_child(n)
-	var q := hud.label("어떤 스킬을 잊고 배울까요? (잊은 스킬의 레벨은 사라져요)", 20, Color("8a6a50"), 0)
-	q.position = Vector2(20, 134)
-	q.size = Vector2(580, 34)
-	card.add_child(q)
-	for i in n_slots:
-		var cur: Dictionary = h.learned[i]
-		var cd := Defs.book(cur["id"])
-		var b := hud.juicy_button("%s  Lv.%d" % [cd.get("name", "?"), int(cur["level"])], Defs.RARITY_COL[Defs.book_rarity(int(cd.get("grade", 1)))].darkened(0.15), Rect2(60, 178 + i * 82, 500, 70), 26)
-		var idx := i
-		b.pressed.connect(func():
-			hud.close_overlays()
-			game.replace_skill_with_book(e, idx))
-		card.add_child(b)
-	var x := hud.juicy_button("그만두기", Color("8a8aa0"), Rect2(210, 190 + n_slots * 82, 200, 56), 24)
-	x.pressed.connect(func(): hud.close_overlays())
-	card.add_child(x)
 
 # ---------------------------------------------------------------- run settlement
 ## End of a run: what is kept forever (gear, gold, 강화석), then [로비로] / the mode's next step.

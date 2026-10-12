@@ -18,6 +18,11 @@ static var active := false        # intro running (blocks other ult inputs)
 
 static func _ensure_stage(game: Node) -> void:
 	if stage == null or not is_instance_valid(stage):
+		# new scene: drop the previous one's state (its tween holds the freed game; stale dim users would keep
+		# the new stage dark for good if that scene was left without a reset())
+		_dim_tw = null
+		_dim_users = 0
+		_dim = 0.0
 		stage = Node3D.new()
 		stage.name = "CinematicStage"
 		stage.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -93,12 +98,16 @@ static func intro(game: Node, h: Actor, ult_name: String, col: Color) -> Diction
 		Vfx.ground_ring(h.global_position, Color(col.r * 1.2, col.g * 1.2, col.b * 1.2, 0.8), 0.3, 2.4, 0.35))
 	Vfx.ground_ring(h.global_position, Color(col.r, col.g, col.b, 0.7), 2.2, 0.4, 0.5, "ring_soft")
 	await tree.create_timer(INTRO_TIME, true, false, true).timeout
+	# a static coroutine keeps running after the scene is gone (lobby / reload mid-intro): touch nothing of it
+	if not is_instance_valid(game):
+		active = false
+		return {"spot": null, "rim": null, "hero": null}
 	# resume the battle (stage stays dark)
 	Vfx.root = old_root
 	old_root.visible = true
 	if is_instance_valid(h):
 		h.process_mode = old_mode
-	game.cam.focus(h.global_position, false)
+	game.cam.focus(Vector3.ZERO, false)   # off: the target is ignored (h may be gone)
 	game.hud.cinema_bars(false, "", "", col)
 	tree.paused = false
 	active = false
@@ -106,18 +115,23 @@ static func intro(game: Node, h: Actor, ult_name: String, col: Color) -> Diction
 
 ## Keep the dark stage for `hold` seconds with the spotlight following the caster, then fade back.
 static func release(game: Node, handle: Dictionary, hold: float) -> void:
-	var spot: SpotLight3D = handle["spot"]
-	var rim: OmniLight3D = handle["rim"]
-	var h: Actor = handle["hero"]
+	if not is_instance_valid(game):
+		return
+	# untyped: reset() may free the lights and the hero may be gone while we wait
+	var spot: Variant = handle["spot"]
+	var rim: Variant = handle["rim"]
+	var h: Variant = handle["hero"]
 	var t := 0.0
 	var tree: SceneTree = game.get_tree()
 	while t < hold:
 		await tree.process_frame
+		if not is_instance_valid(game):   # scene left mid-hold: reset() already cleared the stage state
+			return
 		var dt := tree.root.get_process_delta_time()
 		if tree.paused:
 			continue
 		t += dt
-		if is_instance_valid(h) and is_instance_valid(spot):
+		if is_instance_valid(h) and is_instance_valid(spot) and is_instance_valid(rim):
 			spot.global_position = spot.global_position.lerp(h.global_position + Vector3(0.6, 7.5, 1.2), 0.2)
 			spot.look_at(h.global_position, Vector3.UP)
 			rim.global_position = h.global_position + Vector3(-0.6, 1.0, -0.8)

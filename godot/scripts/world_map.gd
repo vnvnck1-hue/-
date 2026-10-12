@@ -113,6 +113,7 @@ var _here_fx: Node3D          # path dots + camps of the current region (shown a
 var _gray_nodes := {}         # island index -> greyscale island node
 var _color_nodes := {}        # island index -> colour island node
 var _gray_mats := {}
+var _vm: StandardMaterial3D   # shared island material (see _vmat)
 
 const PITCH := 0.84           # ~48 deg looking down
 const ZOOM := 7.6             # visible map width (units)
@@ -269,15 +270,17 @@ func pan(rel: Vector2, vp_w: float) -> void:
 	_apply_cam()
 
 # ---------------------------------------------------------------- mesh helpers
+## Vertex-coloured island material, shared by every island mesh (_grayify leaves vertex-colour materials alone).
 func _vmat() -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.vertex_color_use_as_albedo = true
-	m.vertex_color_is_srgb = true
-	m.roughness = 0.9
-	m.metallic_specular = 0.2
-	m.rim_enabled = true
-	m.rim = 0.2
-	return m
+	if _vm == null:
+		_vm = StandardMaterial3D.new()
+		_vm.vertex_color_use_as_albedo = true
+		_vm.vertex_color_is_srgb = true
+		_vm.roughness = 0.9
+		_vm.metallic_specular = 0.2
+		_vm.rim_enabled = true
+		_vm.rim = 0.2
+	return _vm
 
 func _commit(st: SurfaceTool, parent: Node3D) -> MeshInstance3D:
 	st.generate_normals()
@@ -544,8 +547,7 @@ func _landmark(node: Node3D, i: int) -> void:
 				else:
 					MarchProps.egg_trees(node, p, rng, rng.randf_range(0.18, 0.24))
 		"desert":
-			var pyr := MarchProps._cyl(node, 0.0, 0.62, 0.62, Color("e3a862"), L + Vector3(0, 0.31, 0), Vector3(0, PI * 0.25, 0), 4)
-			pyr.scale = Vector3(1, 1, 1)
+			MarchProps._cyl(node, 0.0, 0.62, 0.62, Color("e3a862"), L + Vector3(0, 0.31, 0), Vector3(0, PI * 0.25, 0), 4)
 			MarchProps._cyl(node, 0.0, 0.1, 0.1, Color("ffd23f"), L + Vector3(0, 0.62, 0), Vector3(0, PI * 0.25, 0), 4)
 			for k in 3:
 				MarchProps.mesa(node, _spot(i, rng, keep, 0.8), rng, rng.randf_range(0.22, 0.3))
@@ -669,7 +671,8 @@ func _house(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator) -> void:
 	n.scale = Vector3.ONE * rng.randf_range(0.8, 1.0)
 	parent.add_child(n)
 	MarchProps._box(n, Vector3(0.24, 0.16, 0.19), Color("f6ecd8"), Vector3(0, 0.08, 0))
-	MarchProps._cyl(n, 0.0, 0.17, 0.27, Color("d0573a"), Vector3(0, 0.22, 0), Vector3(PI * 0.5, 0, 0), 3).scale = Vector3(1, 1, 0.7)
+	var roof := MarchProps._cyl(n, 0.0, 0.17, 0.27, Color("d0573a"), Vector3(0, 0.22, 0), Vector3(PI * 0.5, 0, 0), 3)
+	roof.scale.z *= 0.7   # flattened roof (multiplied: the scale holds the size)
 	MarchProps._box(n, Vector3(0.05, 0.08, 0.01), Color("6a4a30"), Vector3(0, 0.04, 0.1))
 
 ## Cleared region: a planted gold banner at its exit.

@@ -1,7 +1,8 @@
 extends Node3D
 ## Lobby: a slowly turning toy diorama (the trio + a teaser of both March themes), the banked currencies,
 ## the expedition card (pick a chapter: one region of the march, beat its mid-boss to open the next),
-## the endless march card, and the [장비] screen (GearScreen: permanent gear, storage merges, slot levels).
+## the endless march card, the [장비] screen (GearScreen: permanent gear, storage merges, slot levels) and the
+## [유물] screen (RelicScreen: the relic collection, the worn relic slots, ★ merges).
 ## (The classic 6x8 board mode was retired from the lobby.)
 ## Dev: --mode=march jumps straight in; --autoplay / --test=... default to march.
 
@@ -17,6 +18,7 @@ var _t := 0.0
 var _leaving := false
 var _settings: Control      # 설정 창(열려 있을 때만)
 var _gear: GearScreen       # 장비 창(열려 있을 때만)
+var _relic: RelicScreen     # 유물 창(열려 있을 때만)
 var _chapter_l: Label
 var _chapter_s: Label
 var _preview_ms := 0        # 효과음 미리듣기 간격 제한
@@ -68,7 +70,50 @@ func _ready() -> void:
 			await get_tree().create_timer(0.3).timeout
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png(shots + "/gear.png")
+			for k in ["bow1", "staff1", "sword1"]:   # completes a 일반 무기 group (and a chain) for the cutscene
+				Meta.storage.append(Inventory.make("equip", k))
+			await _dev_merge_shots(shots, "gear")
+		if Array(OS.get_cmdline_user_args()).has("--open=relic"):   # dev: the relic screen + its merge cutscene
+			for k in ["vampireChalice", "vampireChalice", "vampireChalice", "luckyCompass", "luckyCompass", "luckyCompass",
+					"guardianIdol", "echoCrystal", "crescendoGear", "crescendoGear"]:
+				Meta.add_relic(k, 1, false)
+			Meta.add_relic("echoCrystal", 3, false)
+			Meta.add_relic("echoCrystal", 3, false)
+			Meta.add_relic("echoCrystal", 3, false)
+			Meta.wear_relic(Meta.relic_bag[7], -1, false)
+			_open_relic()
+			await get_tree().create_timer(0.6).timeout
+			_relic.picked = Meta.relic_bag[0]
+			_relic._rebuild()
+			await get_tree().create_timer(0.3).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(shots + "/relic.png")
+			await _dev_merge_shots(shots, "relic")
 		Music.quit()
+
+## Dev: press the open screen's [모두 합성] and capture the cutscene at its beats.
+func _dev_merge_shots(shots: String, tag: String) -> void:
+	var scr: GearScreen = _gear if tag == "gear" else _relic
+	var steps := Meta.merge_all() if tag == "gear" else Meta.merge_all_relics()
+	if steps.is_empty():
+		return
+	scr._play_merge(steps)
+	var beats := [0.25, 0.65, 0.9, 1.05, 1.8]
+	var t := 0.0
+	for i in beats.size():
+		await get_tree().create_timer(beats[i] - t).timeout
+		t = beats[i]
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/merge_%s_%d.png" % [shots, tag, i])
+	if scr._fx:
+		scr._fx._summary()
+		await get_tree().create_timer(1.2).timeout
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/merge_%s_summary.png" % [shots, tag])
+		scr._fx._close()
+		await get_tree().create_timer(0.4).timeout
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/merge_%s_after.png" % [shots, tag])
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -77,7 +122,7 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
-		if _gear:
+		if _gear or _relic:
 			return
 		if _settings:
 			_close_settings()
@@ -87,7 +132,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		_toggle_preset()
 
 func _go(mode: String, expedition := false) -> void:
-	if _leaving or _gear:
+	if _leaving or _gear or _relic:
 		return
 	Meta.expedition = expedition
 	_leaving = true
@@ -191,6 +236,7 @@ func _build_ui() -> void:
 		pill.add_child(v)
 
 	_gear_button()
+	_relic_button()
 	_expedition_card()
 	_mode_card("march", "끝없는 행군", "1무리부터 끝없이 전진! 최고 기록에 도전", Color("4cb860"), -246, false)
 	var hint := _label("Esc: 종료", 22, Color(1, 1, 1, 0.8), 6)
@@ -201,20 +247,14 @@ func _build_ui() -> void:
 ## UI 프리셋 전환(뚜까펫 ⇄ 클래식). 누르면 저장하고 로비를 다시 지어 바로 비교할 수 있다.
 ## 게임 화면(HUD·팝업)은 다음에 모드에 들어갈 때 이 프리셋으로 만들어진다. 단축키 F2.
 func _preset_button() -> void:
-	var tt := UiTheme.tt()
 	var sz := Vector2(290, 58)
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.text = "UI: %s ⇄ (F2)" % UiTheme.PRESET_NAME[UiTheme.preset]
 	b.add_theme_font_override("font", font)
 	b.add_theme_font_size_override("font_size", 26)
-	for st in ["normal", "hover", "pressed"]:
-		if tt:
-			b.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.NAVY.lightened(0.08 if st == "hover" else 0.0), 18, st == "pressed"))
-		else:
-			b.add_theme_stylebox_override(st, _box(Color("6f6cf0").lightened(0.1 if st == "hover" else 0.0), 22, 5))
-	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
-		b.add_theme_color_override(k, Color.WHITE)
+	_skin_button(b, UiTheme.NAVY, Color("6f6cf0"), 18, 22)
+	_text_color(b, Color.WHITE)
 	b.add_theme_color_override("font_outline_color", INK)
 	b.add_theme_constant_override("outline_size", 8)
 	root.add_child(_place(b, Vector2(0, 0), Vector2(16, 16), sz))
@@ -227,18 +267,14 @@ func _settings_button() -> void:
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = "설정"
-	for st in ["normal", "hover", "pressed"]:
-		if tt:
-			b.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.NAVY.lightened(0.08 if st == "hover" else 0.0), 18, st == "pressed"))
-		else:
-			b.add_theme_stylebox_override(st, _box(Color("6f6cf0").lightened(0.1 if st == "hover" else 0.0), 22, 5))
+	_skin_button(b, UiTheme.NAVY, Color("6f6cf0"), 18, 22)
 	root.add_child(_place(b, Vector2(1, 0), Vector2(-216 - 12 - sz.x, 16), sz))
 	var g := GearIcon.new()
 	g.ink = INK
 	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	g.position = Vector2(sz.x * 0.5, sz.y * 0.5 - (4.0 if tt else 0.0))   # 뚜까펫 버튼은 아래 턱만큼 위로
 	b.add_child(g)
-	b.button_down.connect(func(): g.create_tween().tween_property(g, "rotation", g.rotation + PI / 4.0, 0.25).set_trans(Tween.TRANS_BACK))
+	b.button_down.connect(func(): _press_tween(g).tween_property(g, "rotation", g.rotation + PI / 4.0, 0.25).set_trans(Tween.TRANS_BACK))
 	b.pressed.connect(_open_settings)
 
 func _open_settings() -> void:
@@ -303,17 +339,7 @@ func _open_settings() -> void:
 	close.text = "닫기"
 	close.add_theme_font_override("font", font)
 	close.add_theme_font_size_override("font_size", 32)
-	var txt := Color("3a2400") if tt else Color.WHITE
-	for st in ["normal", "hover", "pressed"]:
-		if tt:
-			close.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.YELLOW.lightened(0.08 if st == "hover" else 0.0), 20, st == "pressed"))
-		else:
-			close.add_theme_stylebox_override(st, _box(Color("ff9f1c").lightened(0.1 if st == "hover" else 0.0), 24, 5))
-	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
-		close.add_theme_color_override(k, txt)
-	if not tt:
-		close.add_theme_color_override("font_outline_color", INK)
-		close.add_theme_constant_override("outline_size", 8)
+	_skin_yellow(close)
 	close.position = Vector2(sz.x * 0.5 - 120, sz.y - 112)
 	close.size = Vector2(240, 76)
 	card.add_child(close)
@@ -355,7 +381,12 @@ func _slider(col: Color) -> HSlider:
 		s.add_theme_icon_override(k, knob)
 	return s
 
+static var _knobs := {}   # "fill/ink" -> texture: the settings panel reopens without repainting pixels
+
 func _knob_tex(c: Color) -> ImageTexture:
+	var key := "%s/%s" % [c.to_html(), INK.to_html()]
+	if _knobs.has(key):
+		return _knobs[key]
 	var d := 44
 	var img := Image.create(d, d, false, Image.FORMAT_RGBA8)
 	var ctr := Vector2(d, d) * 0.5
@@ -367,7 +398,8 @@ func _knob_tex(c: Color) -> ImageTexture:
 			var px := INK.lerp(c, inner)
 			px.a = outer
 			img.set_pixel(xx, yy, px)
-	return ImageTexture.create_from_image(img)
+	_knobs[key] = ImageTexture.create_from_image(img)
+	return _knobs[key]
 
 ## 톱니바퀴 아이콘(글꼴에 ⚙가 없는 웹 빌드도 있어 직접 그린다). (0,0)이 중심.
 class GearIcon extends Control:
@@ -444,10 +476,10 @@ func _mode_card(mode: String, title: String, desc: String, col: Color, y: float,
 		nl.size = Vector2(96, 42)
 		badge.add_child(nl)
 	b.button_down.connect(func():
-		b.create_tween().tween_property(b, "scale", Vector2(0.94, 0.94), 0.06)
+		_press_tween(b).tween_property(b, "scale", Vector2(0.94, 0.94), 0.06)
 		Sfx.play("click", -6.0))
 	b.button_up.connect(func():
-		b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
+		_press_tween(b).tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
 	b.pressed.connect(func(): _go(mode, false))
 	_pop(b, 0.2)
 
@@ -490,16 +522,7 @@ func _expedition_card() -> void:
 	go.text = "출발 ▶"
 	go.add_theme_font_override("font", font)
 	go.add_theme_font_size_override("font_size", 36)
-	for st in ["normal", "hover", "pressed"]:
-		if tt:
-			go.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.YELLOW.lightened(0.08 if st == "hover" else 0.0), 20, st == "pressed"))
-		else:
-			go.add_theme_stylebox_override(st, _box(Color("ff9f1c").lightened(0.1 if st == "hover" else 0.0), 24, 5))
-	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
-		go.add_theme_color_override(k, Color("3a2400") if tt else Color.WHITE)
-	if not tt:
-		go.add_theme_color_override("font_outline_color", INK)
-		go.add_theme_constant_override("outline_size", 8)
+	_skin_yellow(go)
 	go.position = Vector2(424, 118)
 	go.size = Vector2(190, 86)
 	card.add_child(go)
@@ -517,13 +540,8 @@ func _small_button(text: String, r: Rect2) -> Button:
 	b.size = r.size
 	b.add_theme_font_override("font", font)
 	b.add_theme_font_size_override("font_size", 30)
-	for st in ["normal", "hover", "pressed"]:
-		if UiTheme.tt():
-			b.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.NAVY.lightened(0.08 if st == "hover" else 0.0), 18, st == "pressed"))
-		else:
-			b.add_theme_stylebox_override(st, _box(Color("6f6cf0").lightened(0.1 if st == "hover" else 0.0), 20, 5))
-	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
-		b.add_theme_color_override(k, Color.WHITE)
+	_skin_button(b, UiTheme.NAVY, Color("6f6cf0"), 18, 20)
+	_text_color(b, Color.WHITE)
 	return b
 
 func _pick_chapter(step: int) -> void:
@@ -538,23 +556,17 @@ func _pick_chapter(step: int) -> void:
 
 ## [장비]: permanent gear, storage merges and slot upgrades (GearScreen).
 func _gear_button() -> void:
-	var tt := UiTheme.tt()
-	var sz := Vector2(300, 86)
+	var sz := Vector2(290, 86)
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.text = "장비"
 	b.add_theme_font_override("font", font)
 	b.add_theme_font_size_override("font_size", 40)
-	for st in ["normal", "hover", "pressed"]:
-		if tt:
-			b.add_theme_stylebox_override(st, UiTheme.button_box(UiTheme.GREEN.lightened(0.08 if st == "hover" else 0.0), 22, st == "pressed"))
-		else:
-			b.add_theme_stylebox_override(st, _box(Color("27c6b0").lightened(0.1 if st == "hover" else 0.0), 26, 5))
-	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
-		b.add_theme_color_override(k, Color.WHITE)
+	_skin_button(b, UiTheme.GREEN, Color("27c6b0"), 22, 26)
+	_text_color(b, Color.WHITE)
 	b.add_theme_color_override("font_outline_color", INK)
 	b.add_theme_constant_override("outline_size", 9)
-	root.add_child(_place(b, Vector2(0.5, 1), Vector2(-sz.x * 0.5, -630), sz))
+	root.add_child(_place(b, Vector2(0.5, 1), Vector2(-sz.x - 10, -630), sz))
 	if Meta.merge_ready() > 0:
 		var badge := _panel(UiTheme.RED, Vector2(150, 40), 20, 3)
 		badge.position = Vector2(sz.x - 110, -16)
@@ -566,8 +578,52 @@ func _gear_button() -> void:
 	b.pressed.connect(_open_gear)
 	_pop(b, 0.1)
 
+## [유물]: the relic collection, worn slots and ★ merges (RelicScreen).
+func _relic_button() -> void:
+	var sz := Vector2(290, 86)
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.text = "유물"
+	b.add_theme_font_override("font", font)
+	b.add_theme_font_size_override("font_size", 40)
+	_skin_button(b, UiTheme.ORANGE, Color("ff9f1c"), 22, 26)
+	_text_color(b, Color.WHITE)
+	b.add_theme_color_override("font_outline_color", INK)
+	b.add_theme_constant_override("outline_size", 9)
+	root.add_child(_place(b, Vector2(0.5, 1), Vector2(10, -630), sz))
+	var badge_t := ""
+	if Meta.relic_merge_ready() > 0:
+		badge_t = "합성 가능!"
+	elif Meta.worn_relics().size() < Defs.RELIC_SLOTS and not Meta.relic_bag.is_empty():
+		badge_t = "장착 가능!"
+	if badge_t != "":
+		var badge := _panel(UiTheme.RED, Vector2(150, 40), 20, 3)
+		badge.position = Vector2(sz.x - 110, -16)
+		badge.rotation = 0.08
+		b.add_child(badge)
+		var bl := _label(badge_t, 22, Color.WHITE, 6)
+		bl.size = Vector2(150, 40)
+		badge.add_child(bl)
+	b.pressed.connect(_open_relic)
+	_pop(b, 0.14)
+
+func _open_relic() -> void:
+	if _leaving or _gear or _relic or _settings:
+		return
+	Sfx.play("click", -6.0)
+	var layer := CanvasLayer.new()
+	layer.layer = 6
+	add_child(layer)
+	_relic = RelicScreen.new()
+	layer.add_child(_relic)
+	_relic.open(font)
+	_relic.closed.connect(func():
+		_relic = null
+		layer.queue_free()
+		get_tree().reload_current_scene.call_deferred())
+
 func _open_gear() -> void:
-	if _leaving or _gear or _settings:
+	if _leaving or _gear or _relic or _settings:
 		return
 	Sfx.play("click", -6.0)
 	var layer := CanvasLayer.new()
@@ -595,6 +651,29 @@ func _ttukka_card(c: Color) -> StyleBox:
 	return lb
 
 # ---------------------------------------------------------------- style helpers (Hud look)
+## Button look in both presets: 뚜까펫 3D button in tt_col (radius r_tt) / classic flat box in classic_col.
+func _skin_button(b: Button, tt_col: Color, classic_col: Color, r_tt: int, r_classic: int) -> void:
+	var tt := UiTheme.tt()
+	for st in ["normal", "hover", "pressed"]:
+		if tt:
+			b.add_theme_stylebox_override(st, UiTheme.button_box(tt_col.lightened(0.08 if st == "hover" else 0.0), r_tt, st == "pressed"))
+		else:
+			b.add_theme_stylebox_override(st, _box(classic_col.lightened(0.1 if st == "hover" else 0.0), r_classic, 5))
+
+func _text_color(b: Button, c: Color) -> void:
+	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
+		b.add_theme_color_override(k, c)
+
+## Main-action (yellow) button: dark text on 뚜까펫 yellow, outlined white text on classic orange.
+func _skin_yellow(b: Button) -> void:
+	_skin_button(b, UiTheme.YELLOW, Color("ff9f1c"), 20, 24)
+	if UiTheme.tt():
+		_text_color(b, Color("3a2400"))
+	else:
+		_text_color(b, Color.WHITE)
+		b.add_theme_color_override("font_outline_color", INK)
+		b.add_theme_constant_override("outline_size", 8)
+
 func _label(text: String, size: int, color := Color.WHITE, outline := 10) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -640,6 +719,16 @@ func _place(c: Control, anchor: Vector2, pos: Vector2, sz: Vector2) -> Control:
 	c.offset_bottom = pos.y + sz.y
 	c.pivot_offset = sz * 0.5
 	return c
+
+## Fresh tween on c that replaces its previous press tween (rapid clicks would otherwise stack tweens
+## fighting over the same property; the entry _pop tween is a different one and is left alone).
+func _press_tween(c: Control) -> Tween:
+	var old: Tween = c.get_meta("press_tw") if c.has_meta("press_tw") else null
+	if old and old.is_valid():
+		old.kill()
+	var tw := c.create_tween()
+	c.set_meta("press_tw", tw)
+	return tw
 
 func _pop(c: Control, delay: float) -> void:
 	c.scale = Vector2.ZERO

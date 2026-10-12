@@ -72,15 +72,18 @@ func group_focus(nodes: Array, on: bool) -> void:
 
 ## Look point + distance ratio that frames group_nodes from the gameplay viewing direction.
 func _group_frame() -> void:
-	var live: Array = group_nodes.filter(func(n): return is_instance_valid(n))
-	if live.is_empty():
-		return
 	var lo := Vector3(INF, 0, INF)
 	var hi := Vector3(-INF, 0, -INF)
-	for n in live:
+	var live := false
+	for n in group_nodes:   # runs every frame while framing: no filtered copy of the list
+		if not is_instance_valid(n):
+			continue
+		live = true
 		var q: Vector3 = n.global_position
 		lo = Vector3(minf(lo.x, q.x), 0, minf(lo.z, q.z))
 		hi = Vector3(maxf(hi.x, q.x), 0, maxf(hi.z, q.z))
+	if not live:
+		return
 	_group_look = (lo + hi) * 0.5 + Vector3(0, 0.5, 0)
 	var dist := (base_pos - base_look).length()
 	var vp := get_viewport().get_visible_rect().size

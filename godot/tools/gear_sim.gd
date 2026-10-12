@@ -17,6 +17,7 @@ class FakeGame:
 	var inv_cap := Defs.MAX_INVENTORY
 	var gold := 0
 	var perks: Array = []
+	var relics: Array = []
 	var heroes: Array = []
 	var wave := 1
 	var merges := 0

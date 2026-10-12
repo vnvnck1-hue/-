@@ -50,6 +50,10 @@ const LINES := {
 	"eyebat": {"*": ["끼익!", "째릿", "찍찍"], "camp": ["파닥파닥", "끼익~", "두리번"]},
 	"mimic": {"*": ["덜컹!", "와구와구", "짤그랑"], "camp": ["보물 아님", "덜컹…", "쩝쩝"]},
 	"horror": {"*": ["꾸르륵", "철퍽!", "쉬익…"], "camp": ["꿀렁", "꾸륵~", "촉촉"]},
+	# ranged support
+	"slinger": {"*": ["휙휙!", "받아라!", "키키, 명중!", "돌 간다~"], "camp": ["돌 줍줍", "빙글빙글", "이 돌 예쁘다"]},
+	"crossbow": {"*": ["조준…", "철컥!", "놓치지 않아", "피융!"], "camp": ["시위 점검", "……", "바람 체크"]},
+	"shaman": {"*": ["타올라라!", "우가 부가!", "불의 저주!", "화르륵"], "camp": ["불님께 기도", "우가~", "연기 맛있다"]},
 	# mid-bosses
 	"mammoth": {"*": ["뿌우우!", "쿠웅!", "짓밟는다", "부우웅"], "sleep": ["쿠우…", "음머…"]},
 	"abyss": {"*": ["무릎 꿇어라", "크흐흐…", "심연으로", "어리석은 것"], "sleep": ["……", "크흐…"]},
@@ -69,6 +73,9 @@ var _next := {}              # Node3D -> earliest time it may speak again
 var _bubbles: Array = []     # [{node: Control, n: Node3D, h: float, t: float}]
 var _t := 0.0
 var _last := -99.0
+var _purge_at := 0.0
+var _sb: StyleBoxFlat         # bubble look, shared by every bubble
+var _ls: LabelSettings
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -87,8 +94,14 @@ func _process(delta: float) -> void:
 		b["age"] += real
 		_animate(b)
 	_follow()
-	if not provider.is_valid() or cam == null:
+	if not provider.is_valid() or not is_instance_valid(cam):
 		return
+	# forget speakers that are gone (also while no one gets to speak, or _next keeps every dead monster)
+	if _t >= _purge_at:
+		_purge_at = _t + 2.0
+		for k in _next.keys():
+			if not is_instance_valid(k):
+				_next.erase(k)
 	if _bubbles.size() >= MAX_ON_SCREEN or _t - _last < GAP:
 		return
 	var cands: Array = []
@@ -109,10 +122,6 @@ func _process(delta: float) -> void:
 		say(e["n"], e["h"], txt)
 	var busy: bool = e["ctx"] in ["battle", "low"]
 	_next[e["n"]] = _t + (randf_range(10.0, 22.0) if busy else randf_range(8.0, 18.0))
-	# forget speakers that are gone
-	for k in _next.keys():
-		if not is_instance_valid(k):
-			_next.erase(k)
 
 ## Pick a line for kind in context (own context lines, then shared context lines, then the kind's fallback).
 static func line(key: String, ctx: String) -> String:
@@ -146,26 +155,28 @@ func _on_screen(n: Node3D, h: float) -> bool:
 func say(n: Node3D, h: float, txt: String) -> void:
 	var box := PanelContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color.WHITE
-	sb.border_color = INK
-	sb.set_border_width_all(3)
-	sb.set_corner_radius_all(16)
-	sb.content_margin_left = 12
-	sb.content_margin_right = 12
-	sb.content_margin_top = 3
-	sb.content_margin_bottom = 4
-	sb.shadow_color = Color(0, 0, 0, 0.18)
-	sb.shadow_size = 0
-	sb.shadow_offset = Vector2(0, 3)
-	box.add_theme_stylebox_override("panel", sb)
+	if _sb == null:
+		_sb = StyleBoxFlat.new()
+		_sb.bg_color = Color.WHITE
+		_sb.border_color = INK
+		_sb.set_border_width_all(3)
+		_sb.set_corner_radius_all(16)
+		_sb.content_margin_left = 12
+		_sb.content_margin_right = 12
+		_sb.content_margin_top = 3
+		_sb.content_margin_bottom = 4
+		_sb.shadow_color = Color(0, 0, 0, 0.18)
+		_sb.shadow_size = 0
+		_sb.shadow_offset = Vector2(0, 3)
+	box.add_theme_stylebox_override("panel", _sb)
 	var l := Label.new()
 	l.text = txt
-	var ls := LabelSettings.new()
-	ls.font = font
-	ls.font_size = 24
-	ls.font_color = TEXT
-	l.label_settings = ls
+	if _ls == null or _ls.font != font:
+		_ls = LabelSettings.new()
+		_ls.font = font
+		_ls.font_size = 24
+		_ls.font_color = TEXT
+	l.label_settings = _ls
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(l)
 	# tail: white triangle with an ink rim, poking down at the speaker
@@ -227,7 +238,7 @@ func _follow() -> void:
 		if not is_instance_valid(b["n"]) or b["n"].get("alive") == false:
 			_dismiss(b)
 			continue
-		if not is_instance_valid(b["n"]) or not (b["n"] as Node3D).is_visible_in_tree():
+		if not (b["n"] as Node3D).is_visible_in_tree():
 			box.visible = false
 			continue
 		var w: Vector3 = (b["n"] as Node3D).global_position + Vector3(0, b["h"], 0)

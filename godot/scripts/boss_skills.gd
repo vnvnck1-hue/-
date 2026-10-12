@@ -44,7 +44,7 @@ static func _stomp(game: Node, a: Actor) -> void:
 	m.punch_scale(0.88, 1.18, STOMP_WIND)
 	game._shot_later(STOMP_WIND * 0.7, "boss_stomp_warn")
 	await a.get_tree().create_timer(STOMP_WIND, false).timeout
-	if not is_instance_valid(a):
+	if not _present(game, a):
 		return
 	var tw2 := m.create_tween()
 	tw2.tween_property(m, "attack_lean", 0.4, 0.07).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
@@ -53,12 +53,11 @@ static func _stomp(game: Node, a: Actor) -> void:
 		a.busy = false
 		return
 	await a.get_tree().create_timer(0.07, false).timeout
-	if not is_instance_valid(a):
+	if not _present(game, a):
 		return
 	Vfx.slam(at, STOMP_R / 1.2)
 	Vfx.debris(at, 14, Color("7a5236"))
-	if Vfx.cam:
-		Vfx.cam.add_trauma(0.55)
+	Vfx._shake(0.55)
 	Sfx.play("boom", -2.0, 0.55)
 	m.punch_scale(1.3, 0.72, 0.45)
 	game._shot_later(0.06, "boss_stomp_hit")
@@ -68,6 +67,8 @@ static func _stomp(game: Node, a: Actor) -> void:
 			Combat.enemy_hit(game, a, h)
 			if h.alive and d.length() > 0.01:
 				h.knock += d.normalized() * 6.5
+	if not a.is_inside_tree():
+		return
 	await a.get_tree().create_timer(0.35, false).timeout
 	if is_instance_valid(a):
 		a.busy = false
@@ -94,7 +95,7 @@ static func _brand(game: Node, a: Actor) -> void:
 		_warn(p, BRAND_R, Color(0.8, 0.3, 1.0), BRAND_DELAY)
 	game._shot_later(0.5, "boss_brand_warn")
 	await a.get_tree().create_timer(0.55, false).timeout
-	if not is_instance_valid(a):
+	if not _present(game, a):
 		return
 	var down := m.create_tween().set_parallel(true)
 	down.tween_property(m.arm_l, "rotation", Vector3.ZERO, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -102,7 +103,7 @@ static func _brand(game: Node, a: Actor) -> void:
 	down.chain().tween_callback(func(): m._arm_busy = false)
 	a.busy = false
 	await a.get_tree().create_timer(BRAND_DELAY - 0.55, false).timeout
-	if not is_instance_valid(a) or not a.alive or not game.in_battle():
+	if not _present(game, a) or not a.alive or not game.in_battle():
 		return
 	Sfx.play("boom", -3.0, 0.8)
 	game._shot_later(0.06, "boss_brand_hit")
@@ -113,13 +114,15 @@ static func _brand(game: Node, a: Actor) -> void:
 			if Actor._flat(h.global_position - p).length() <= BRAND_R + h.body_r:
 				Combat.enemy_hit(game, a, h)
 
+## Boss and field still exist after an await (these static coroutines outlive a freed boss / left scene).
+static func _present(game: Node, a: Actor) -> bool:
+	return is_instance_valid(game) and is_instance_valid(a) and a.is_inside_tree()
+
 ## Telegraph: a pulsing outline at full size plus a fill that grows to it right as the hit lands.
 static func _warn(pos: Vector3, r: float, col: Color, dur: float) -> void:
 	var make := func(shape: String, c: Color, additive: bool) -> MeshInstance3D:
 		var mi := MeshInstance3D.new()
-		var q := PlaneMesh.new()
-		q.size = Vector2(1, 1)
-		mi.mesh = q
+		mi.mesh = Vfx._unit_plane()
 		mi.material_override = Mats.ground(shape, c, additive)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		Vfx._add(mi, pos + Vector3(0, 0.035, 0))

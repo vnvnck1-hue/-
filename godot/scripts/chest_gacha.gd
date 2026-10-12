@@ -98,6 +98,7 @@ var _lines := 0.0
 var _t := 0.0
 var _idle := true
 var _bg_now: Array = []
+static var _bg_shader: Shader   # compiled once per session, not per chest screen
 
 # ---------------------------------------------------------------- build
 func _tw() -> Tween:
@@ -125,10 +126,11 @@ func _build() -> void:
 	_bg = ColorRect.new()
 	_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sh := Shader.new()
-	sh.code = SHADER
+	if _bg_shader == null:
+		_bg_shader = Shader.new()
+		_bg_shader.code = SHADER
 	_bg_mat = ShaderMaterial.new()
-	_bg_mat.shader = sh
+	_bg_mat.shader = _bg_shader
 	_bg.material = _bg_mat
 	add_child(_bg)
 	_stage = Control.new()
@@ -688,7 +690,7 @@ func _grade_text(e: Dictionary) -> String:
 	if e["kind"] == "equip" and Gear.is_family(e["key"]):
 		return "%s 등급" % Gear.grade_name(Inventory.tier_of(e))
 	if e["kind"] == "skillbook":
-		return "%s 스킬북" % Defs.book_grade_name(int(Inventory.skillbook_def(e).get("grade", 1)))
+		return "%s 스킬북" % Defs.book_grade_name(Inventory.book_grade(e))
 	if e["kind"] == "stone":
 		return "강화 재료"
 	return HudPanels.RARITY_NAME.get(Inventory.rarity_of(e), "")
@@ -696,7 +698,7 @@ func _grade_text(e: Dictionary) -> String:
 ## The best pulls: permanent gear above the stage window's base grade or a unique, 영웅+ skill books.
 func _is_jackpot(e: Dictionary) -> bool:
 	if e["kind"] == "skillbook":
-		return int(Inventory.skillbook_def(e).get("grade", 1)) >= 3
+		return Inventory.book_grade(e) >= 3
 	if e["kind"] == "stone":
 		return false
 	if e["kind"] != "equip":

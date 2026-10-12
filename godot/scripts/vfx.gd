@@ -9,23 +9,103 @@ static var cam: CameraRig
 const WHITE := Color(1, 1, 1)
 const DUST := Color("f4ead6")
 
+## Parents a fresh effect node under the VFX layer. With no live layer (its scene is gone) the node is
+## dropped right away instead of leaking as an orphan.
 static func _add(n: Node3D, pos: Vector3) -> Node3D:
+	if not is_instance_valid(root) or not root.is_inside_tree():
+		n.position = pos
+		n.queue_free()
+		return n
 	root.add_child(n)
 	n.global_position = pos
 	return n
 
 static func _free_later(n: Node, t: float) -> void:
+	if not n.is_inside_tree():
+		return   # never parented (see _add): already queued for deletion
 	n.get_tree().create_timer(t, false).timeout.connect(n.queue_free)
+
+static func _shake(trauma: float) -> void:
+	if is_instance_valid(cam):
+		cam.add_trauma(trauma)
+
+# ---------------------------------------------------------------- shared meshes
+## Unit primitives shared by every effect (the instances scale them); built once.
+static func _unit_sphere() -> Mesh:
+	return Mats.shared("vfx/sphere", func() -> Mesh:
+		var s := SphereMesh.new()
+		s.radius = 0.5
+		s.height = 1.0
+		s.radial_segments = 12
+		s.rings = 6
+		return s)
+
+static func _unit_plane() -> Mesh:
+	return Mats.shared("vfx/plane", func() -> Mesh:
+		var q := PlaneMesh.new()
+		q.size = Vector2(1, 1)
+		return q)
+
+static func _unit_quad() -> Mesh:
+	return Mats.shared("vfx/quad", func() -> Mesh:
+		var q := QuadMesh.new()
+		q.size = Vector2(1, 1)
+		return q)
+
+static func _unit_box() -> Mesh:
+	return Mats.shared("vfx/box", func() -> Mesh: return BoxMesh.new())
+
+## Fixed-size box / sphere (sizes are code constants, so the cache stays small).
+static func _box_mesh(size: Vector3) -> Mesh:
+	return Mats.shared("vfx/box%s" % size, func() -> Mesh:
+		var b := BoxMesh.new()
+		b.size = size
+		return b)
+
+static func _sphere_mesh(r: float) -> Mesh:
+	return Mats.shared("vfx/sph%.3f" % r, func() -> Mesh:
+		var s := SphereMesh.new()
+		s.radius = r
+		s.height = r * 2.0
+		return s)
+
+## Particle quad (size x size) carrying its shared billboard material.
+static func _particle_quad(shape: String, additive: bool, size := Vector2(1, 1)) -> Mesh:
+	return Mats.shared("vfx/pq%s%s%s" % [shape, additive, size], func() -> Mesh:
+		var q := QuadMesh.new()
+		q.size = size
+		q.material = Mats.particle(shape, additive)
+		return q)
+
+## Spark size-over-life curve (same for every burst).
+static func _spark_curve() -> Curve:
+	return Mats.shared("vfx/spark_curve", func() -> Curve:
+		var curve := Curve.new()
+		curve.add_point(Vector2(0, 1))
+		curve.add_point(Vector2(0.6, 0.8))
+		curve.add_point(Vector2(1, 0))
+		return curve)
+
+## White-hot -> colour -> transparent ramp per spark colour. Colours are mostly constants, but the cache
+## is capped so computed colours can't grow it without bound.
+static var _ramps := {}
+static func _spark_ramp(color: Color) -> Gradient:
+	var key := str(color)   # not to_html(): that clamps HDR colours
+	var g: Gradient = _ramps.get(key)
+	if g == null:
+		if _ramps.size() >= 128:
+			_ramps.clear()
+		g = Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(color.r, color.g, color.b, 0))
+		g.add_point(0.25, color)
+		_ramps[key] = g
+	return g
 
 # ---------------------------------------------------------------- primitives
 static func puff(pos: Vector3, color: Color, size: float, drift: Vector3, life := 0.5, delay := 0.0) -> void:
 	var mi := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.5
-	s.height = 1.0
-	s.radial_segments = 12
-	s.rings = 6
-	mi.mesh = s
+	mi.mesh = _unit_sphere()
 	var m := Mats.puff(color)
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -43,9 +123,7 @@ static func puff(pos: Vector3, color: Color, size: float, drift: Vector3, life :
 
 static func ground_ring(pos: Vector3, color: Color, from_s: float, to_s: float, life := 0.35, shape := "ring", additive := true) -> void:
 	var mi := MeshInstance3D.new()
-	var q := PlaneMesh.new()
-	q.size = Vector2(1, 1)
-	mi.mesh = q
+	mi.mesh = _unit_plane()
 	var m := Mats.ground(shape, color, additive)
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -58,9 +136,7 @@ static func ground_ring(pos: Vector3, color: Color, from_s: float, to_s: float, 
 
 static func pop_sprite(pos: Vector3, shape: String, color: Color, size: float, life := 0.18, spin := 0.0) -> void:
 	var mi := MeshInstance3D.new()
-	var q := QuadMesh.new()
-	q.size = Vector2(1, 1)
-	mi.mesh = q
+	mi.mesh = _unit_quad()
 	var m := Mats.sprite(shape, color, true)
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -75,10 +151,7 @@ static func pop_sprite(pos: Vector3, shape: String, color: Color, size: float, l
 
 static func sparks(pos: Vector3, color: Color, amount := 8, speed := 3.0, life := 0.4, shape := "star", size := 0.14, gravity := -6.0, dir := Vector3.UP, spread := 80.0) -> void:
 	var p := CPUParticles3D.new()
-	var q := QuadMesh.new()
-	q.size = Vector2(1, 1)
-	q.material = Mats.particle(shape, true)
-	p.mesh = q
+	p.mesh = _particle_quad(shape, true)
 	p.amount = amount
 	p.lifetime = life
 	p.one_shot = true
@@ -93,16 +166,8 @@ static func sparks(pos: Vector3, color: Color, amount := 8, speed := 3.0, life :
 	p.damping_max = 4.0
 	p.scale_amount_min = size * 0.6
 	p.scale_amount_max = size
-	var curve := Curve.new()
-	curve.add_point(Vector2(0, 1))
-	curve.add_point(Vector2(0.6, 0.8))
-	curve.add_point(Vector2(1, 0))
-	p.scale_amount_curve = curve
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 1))
-	g.set_color(1, Color(color.r, color.g, color.b, 0))
-	g.add_point(0.25, color)
-	p.color_ramp = g
+	p.scale_amount_curve = _spark_curve()
+	p.color_ramp = _spark_ramp(color)
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_add(p, pos)
 	p.emitting = true
@@ -143,8 +208,7 @@ static func explosion(pos: Vector3, color := Color("ff8a2a"), size := 1.0) -> vo
 		puff(pos + Vector3(0, 0.2, 0), Color("fff0d0"), randf_range(0.25, 0.38) * size, d * 0.6 * size, 0.6)
 	puff(pos + Vector3(0, 0.25, 0), Color("ffb13b"), 0.55 * size, Vector3(0, 0.35, 0), 0.35)
 	sparks(pos + Vector3(0, 0.2, 0), color, 14, 5.0, 0.5, "star", 0.16, -8.0)
-	if cam:
-		cam.add_trauma(0.25)
+	_shake(0.25)
 
 static func slam(pos: Vector3, radius: float) -> void:
 	pop_sprite(pos + Vector3(0, 0.2, 0), "soft", Color(2.0, 1.9, 1.5), 2.2, 0.16)
@@ -157,17 +221,17 @@ static func slam(pos: Vector3, radius: float) -> void:
 		puff(pos + d * 0.3, DUST, randf_range(0.26, 0.4), d * radius * 0.9 + Vector3(0, 0.15, 0), 0.6)
 	debris(pos, 10, Color("9a6a3a"))
 	sparks(pos + Vector3(0, 0.2, 0), Defs.COL_GOLD, 16, 6.0, 0.55, "star", 0.18, -10.0)
-	if cam:
+	if is_instance_valid(cam):
 		cam.add_trauma(0.6)
 		cam.hitstop(0.09)
 
 static func debris(pos: Vector3, count: int, color: Color) -> void:
 	for i in count:
 		var mi := MeshInstance3D.new()
-		var b := BoxMesh.new()
-		b.size = Vector3.ONE * randf_range(0.06, 0.12)
-		mi.mesh = b
-		mi.material_override = Mats.prop(color.lightened(randf() * 0.2))
+		mi.mesh = _unit_box()
+		mi.scale = Vector3.ONE * randf_range(0.06, 0.12)
+		# 5 shade steps: Mats.prop caches per colour, a random lightening would mint a new material per chip
+		mi.material_override = Mats.prop(color.lightened(randi_range(0, 4) * 0.05))
 		_add(mi, pos + Vector3(0, 0.1, 0))
 		var a := randf() * TAU
 		var v := Vector3(cos(a) * randf_range(1.0, 2.5), randf_range(2.5, 4.5), sin(a) * randf_range(1.0, 2.5))
@@ -205,9 +269,7 @@ static func upgrade_pillar(pos: Vector3) -> void:
 
 static func spin_slash(pos: Vector3, radius: float, color: Color) -> void:
 	var mi := MeshInstance3D.new()
-	var q := PlaneMesh.new()
-	q.size = Vector2(1, 1)
-	mi.mesh = q
+	mi.mesh = _unit_plane()
 	var m := Mats.ground("ring_soft", Color(1.4, 1.4, 1.4, 0.9), true)
 	mi.material_override = m
 	_add(mi, pos + Vector3(0, 0.3, 0))
@@ -230,11 +292,7 @@ static func confetti(pos: Vector3) -> void:
 	var cols := [Color("ff5f7e"), Color("ffd23f"), Color("3fa9f5"), Color("8fd14f"), Color("c56cf0")]
 	for c in cols:
 		var p := CPUParticles3D.new()
-		var q := QuadMesh.new()
-		q.size = Vector2(0.16, 0.1)
-		var m := Mats.particle("square", false)
-		q.material = m
-		p.mesh = q
+		p.mesh = _particle_quad("square", false, Vector2(0.16, 0.1))
 		p.amount = 24
 		p.lifetime = 2.4
 		p.one_shot = true
@@ -275,8 +333,7 @@ static func frost_wave(center: Vector3, radius: float) -> void:
 	ground_ring(center, Color(0.7, 1.3, 1.9, 1.0), 0.4, radius * 2.2, 0.5)
 	ground_ring(center, Color(1, 1, 1, 0.8), 0.3, radius * 1.6, 0.4, "ring_soft")
 	sparks(center + Vector3(0, 0.3, 0), Color("bff2ff"), 30, 6.0, 0.8, "star5", 0.2, -1.5, Vector3.UP, 90.0)
-	if cam:
-		cam.add_trauma(0.3)
+	_shake(0.3)
 
 ## Zig-zag lightning bolt between two points (white core + cyan rim), fades fast.
 static func lightning(a: Vector3, b: Vector3, width := 0.09) -> void:
@@ -319,20 +376,22 @@ static func lightning(a: Vector3, b: Vector3, width := 0.09) -> void:
 static func coin(pos: Vector3) -> Node3D:
 	var n := Node3D.new()
 	var mi := MeshInstance3D.new()
-	var c := CylinderMesh.new()
-	c.top_radius = 0.13
-	c.bottom_radius = 0.13
-	c.height = 0.04
-	c.radial_segments = 18
-	mi.mesh = c
-	mi.material_override = Mats.glow(Color("ffd23f"), 1.15)
+	mi.mesh = Mats.shared("vfx/coin", func() -> Mesh:
+		var c := CylinderMesh.new()
+		c.top_radius = 0.13
+		c.bottom_radius = 0.13
+		c.height = 0.04
+		c.radial_segments = 18
+		return c)
+	mi.material_override = Mats.shared("vfx/coin_mat", func() -> Material: return Mats.glow(Color("ffd23f"), 1.15))
 	mi.rotation.x = PI * 0.5
 	n.add_child(mi)
 	var rim := MeshInstance3D.new()
-	var t := TorusMesh.new()
-	t.inner_radius = 0.11
-	t.outer_radius = 0.145
-	rim.mesh = t
+	rim.mesh = Mats.shared("vfx/coin_rim", func() -> Mesh:
+		var t := TorusMesh.new()
+		t.inner_radius = 0.11
+		t.outer_radius = 0.145
+		return t)
 	rim.material_override = Mats.prop(Color("e09a1a"))
 	rim.rotation.x = PI * 0.5
 	n.add_child(rim)
@@ -361,32 +420,23 @@ static func loot_drop(pos: Vector3, col: Color, tier: int) -> Node3D:
 	var body := Node3D.new()
 	n.add_child(body)
 	var box := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.3, 0.2, 0.22)
-	box.mesh = bm
+	box.mesh = _box_mesh(Vector3(0.3, 0.2, 0.22))
 	box.material_override = Mats.prop(col.lightened(0.05), 0.5)
 	box.position.y = 0.1
 	body.add_child(box)
 	var lid := MeshInstance3D.new()
-	var lm := BoxMesh.new()
-	lm.size = Vector3(0.32, 0.07, 0.24)
-	lid.mesh = lm
+	lid.mesh = _box_mesh(Vector3(0.32, 0.07, 0.24))
 	lid.material_override = Mats.prop(col.darkened(0.15), 0.5)
 	lid.position.y = 0.23
 	body.add_child(lid)
 	for x in [-0.1, 0.1]:
 		var band := MeshInstance3D.new()
-		var bb := BoxMesh.new()
-		bb.size = Vector3(0.04, 0.29, 0.25)
-		band.mesh = bb
+		band.mesh = _box_mesh(Vector3(0.04, 0.29, 0.25))
 		band.material_override = Mats.prop(Color("ffd23f"), 0.4)
 		band.position = Vector3(x, 0.13, 0)
 		body.add_child(band)
 	var gem := MeshInstance3D.new()
-	var gs := SphereMesh.new()
-	gs.radius = 0.04
-	gs.height = 0.08
-	gem.mesh = gs
+	gem.mesh = _sphere_mesh(0.04)
 	gem.material_override = Mats.glow(col.lightened(0.4), 1.8)
 	gem.position = Vector3(0, 0.15, -0.115)
 	body.add_child(gem)
@@ -415,9 +465,7 @@ static func loot_drop(pos: Vector3, col: Color, tier: int) -> Node3D:
 		beam.add_child(mi)
 		bmats.append(m)
 	var glow := MeshInstance3D.new()
-	var q := PlaneMesh.new()
-	q.size = Vector2(1, 1)
-	glow.mesh = q
+	glow.mesh = _unit_plane()
 	var gmat := Mats.ground("soft", Color(col.r, col.g, col.b, 0.0), true)
 	glow.material_override = gmat
 	glow.position.y = 0.02
@@ -518,19 +566,21 @@ static func item_drop(pos: Vector3, col: Color) -> void:
 	sparks(pos + Vector3(0, 0.4, 0), col, 10, 2.5, 0.8, "star5", 0.16, 1.5, Vector3.UP, 25.0)
 	Sfx.play("chime", -12.0, 1.6)
 
-## Fan-shaped ground decal for the ranger's cone ultimate (aim preview & channel).
+## Fan-shaped ground decal for the ranger's cone ultimate (aim preview & channel). The fan mesh is shared
+## per shape (the aim preview rebuilds on every pointer move); the material is the caller's to fade.
 static func cone_mesh(length: float, half_angle: float, col: Color) -> MeshInstance3D:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var n := 20
-	for i in n:
-		var a0 := -half_angle + 2.0 * half_angle * i / n
-		var a1 := -half_angle + 2.0 * half_angle * (i + 1) / n
-		st.add_vertex(Vector3.ZERO)
-		st.add_vertex(Vector3(sin(a1), 0, -cos(a1)) * length)
-		st.add_vertex(Vector3(sin(a0), 0, -cos(a0)) * length)
 	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
+	mi.mesh = Mats.shared("vfx/cone%.3f/%.3f" % [length, half_angle], func() -> Mesh:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var n := 20
+		for i in n:
+			var a0 := -half_angle + 2.0 * half_angle * i / n
+			var a1 := -half_angle + 2.0 * half_angle * (i + 1) / n
+			st.add_vertex(Vector3.ZERO)
+			st.add_vertex(Vector3(sin(a1), 0, -cos(a1)) * length)
+			st.add_vertex(Vector3(sin(a0), 0, -cos(a0)) * length)
+		return st.commit())
 	mi.material_override = Mats.fx(col, true)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return mi
@@ -541,7 +591,8 @@ static func arrow_rain(pos: Vector3) -> void:
 	_add(dummy, pos + Vector3(0, -0.35, 0))
 	var done := func(_p: Vector3) -> void:
 		hit_spark(pos + Vector3(0, 0.3, 0), Color("ffe08a"))
-		dummy.queue_free()
+		if is_instance_valid(dummy):
+			dummy.queue_free()
 	projectile("arrow", from, dummy, done, 0.0, 0.18)
 
 # ---------------------------------------------------------------- projectiles
@@ -577,67 +628,71 @@ class Projectile extends Node3D:
 		dur = fixed_dur if fixed_dur > 0.0 else clampf(dist / speed, 0.18, 0.8)
 		body = Node3D.new()
 		add_child(body)
+		# meshes / materials are shared by every projectile of a kind (none of them is animated)
 		if kind == "bolt":
 			# homing arcane bolt: white core + violet shell, curving arc
 			arc = 0.5 + dist * 0.1
-			var core := MeshInstance3D.new()
-			var s0 := SphereMesh.new()
-			s0.radius = 0.08
-			s0.height = 0.16
-			core.mesh = s0
-			core.material_override = Mats.glow(Color(1.0, 0.95, 1.0), 2.4)
-			body.add_child(core)
-			var shell0 := MeshInstance3D.new()
-			var s1 := SphereMesh.new()
-			s1.radius = 0.15
-			s1.height = 0.3
-			shell0.mesh = s1
-			shell0.material_override = Mats.fx(Color(0.9, 0.5, 2.0, 0.7), true)
-			body.add_child(shell0)
+			_part(Vfx._sphere_mesh(0.08), Mats.shared("vfx/bolt_core", func() -> Material: return Mats.glow(Color(1.0, 0.95, 1.0), 2.4)))
+			_part(Vfx._sphere_mesh(0.15), Mats.shared("vfx/bolt_shell", func() -> Material: return Mats.fx(Color(0.9, 0.5, 2.0, 0.7), true)))
 		elif kind == "fireball":
 			arc = 0.9 + dist * 0.12
-			var core := MeshInstance3D.new()
-			var s := SphereMesh.new()
-			s.radius = 0.1
-			s.height = 0.2
-			core.mesh = s
-			core.material_override = Mats.glow(Color(1.0, 0.95, 0.8), 2.5)
-			body.add_child(core)
-			var shell := MeshInstance3D.new()
-			var s2 := SphereMesh.new()
-			s2.radius = 0.17
-			s2.height = 0.34
-			shell.mesh = s2
-			shell.material_override = Mats.fx(Color(2.0, 0.9, 0.2, 0.7), true)
-			body.add_child(shell)
+			_part(Vfx._sphere_mesh(0.1), Mats.shared("vfx/fire_core", func() -> Material: return Mats.glow(Color(1.0, 0.95, 0.8), 2.5)))
+			_part(Vfx._sphere_mesh(0.17), Mats.shared("vfx/fire_shell", func() -> Material: return Mats.fx(Color(2.0, 0.9, 0.2, 0.7), true)))
+		elif kind == "rock":
+			# slinger stone: lobbed high
+			arc = 0.7 + dist * 0.14
+			_part(Vfx._sphere_mesh(0.085), Mats.shared("vfx/rock", func() -> Material: return Mats.prop(Color("8f8478"))))
+		elif kind == "hex":
+			# shaman fire hex: violet core in a magenta-orange flame shell
+			arc = 0.6 + dist * 0.1
+			_part(Vfx._sphere_mesh(0.08), Mats.shared("vfx/hex_core", func() -> Material: return Mats.glow(Color(1.0, 0.85, 1.0), 2.4)))
+			_part(Vfx._sphere_mesh(0.16), Mats.shared("vfx/hex_shell", func() -> Material: return Mats.fx(Color(1.8, 0.45, 1.6, 0.7), true)))
+		elif kind == "quarrel":
+			# crossbow bolt: short, heavy, flat and fast
+			arc = 0.08 + dist * 0.02
+			var q := _part(Mats.shared("vfx/quarrel_shaft", func() -> Mesh:
+				var c := CylinderMesh.new()
+				c.top_radius = 0.022
+				c.bottom_radius = 0.022
+				c.height = 0.32
+				return c), Mats.prop(Color("4a3a30")))
+			q.rotation.x = PI * 0.5
+			var qt := _part(Mats.shared("vfx/arrow_tip", func() -> Mesh:
+				var c2 := CylinderMesh.new()
+				c2.top_radius = 0.0
+				c2.bottom_radius = 0.045
+				c2.height = 0.1
+				return c2), Mats.prop(Color("dfe6ee")))
+			qt.rotation.x = -PI * 0.5
+			qt.position.z = -0.2
+			var qf := _part(Vfx._box_mesh(Vector3(0.11, 0.01, 0.08)), Mats.prop(Defs.COL_ENEMY))
+			qf.position.z = 0.13
 		else:
 			arc = 0.35 + dist * 0.08
-			var shaft := MeshInstance3D.new()
-			var c := CylinderMesh.new()
-			c.top_radius = 0.018
-			c.bottom_radius = 0.018
-			c.height = 0.42
-			shaft.mesh = c
-			shaft.material_override = Mats.prop(Color("8a5a2b"))
+			var shaft := _part(Mats.shared("vfx/arrow_shaft", func() -> Mesh:
+				var c := CylinderMesh.new()
+				c.top_radius = 0.018
+				c.bottom_radius = 0.018
+				c.height = 0.42
+				return c), Mats.prop(Color("8a5a2b")))
 			shaft.rotation.x = PI * 0.5
-			body.add_child(shaft)
-			var tip := MeshInstance3D.new()
-			var c2 := CylinderMesh.new()
-			c2.top_radius = 0.0
-			c2.bottom_radius = 0.045
-			c2.height = 0.1
-			tip.mesh = c2
-			tip.material_override = Mats.prop(Color("dfe6ee"))
+			var tip := _part(Mats.shared("vfx/arrow_tip", func() -> Mesh:
+				var c2 := CylinderMesh.new()
+				c2.top_radius = 0.0
+				c2.bottom_radius = 0.045
+				c2.height = 0.1
+				return c2), Mats.prop(Color("dfe6ee")))
 			tip.rotation.x = -PI * 0.5
 			tip.position.z = -0.24
-			body.add_child(tip)
-			var fl := MeshInstance3D.new()
-			var b := BoxMesh.new()
-			b.size = Vector3(0.12, 0.01, 0.1)
-			fl.mesh = b
-			fl.material_override = Mats.prop(Color("ff6fae"))
+			var fl := _part(Vfx._box_mesh(Vector3(0.12, 0.01, 0.1)), Mats.prop(Color("ff6fae")))
 			fl.position.z = 0.18
-			body.add_child(fl)
+
+	func _part(mesh: Mesh, mat: Material) -> MeshInstance3D:
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.material_override = mat
+		body.add_child(mi)
+		return mi
 
 	func _aim() -> Vector3:
 		if is_instance_valid(target):
@@ -652,8 +707,10 @@ class Projectile extends Node3D:
 		var p := start.lerp(end, k) + Vector3(0, sin(k * PI) * arc, 0)
 		var prev := global_position
 		global_position = p
-		if (p - prev).length() > 0.0001:
-			body.look_at(p + (p - prev), Vector3.UP)
+		var move := p - prev
+		if move.length() > 0.0001:
+			# straight up / down flight (arrow rain): look_at needs an up axis that isn't the travel axis
+			body.look_at(p + move, Vector3.UP if absf(move.normalized().y) < 0.99 else Vector3.FORWARD)
 		_trail_acc += delta
 		var step := 0.025 if kind != "arrow" else 0.04
 		while _trail_acc > step:
@@ -662,6 +719,10 @@ class Projectile extends Node3D:
 				Vfx.puff(p, Color(1, 0.97, 0.92), randf_range(0.14, 0.2), Vector3(0, 0.12, 0), 0.55)
 			elif kind == "bolt":
 				Vfx.puff(p, Color(0.93, 0.85, 1.0), randf_range(0.09, 0.13), Vector3(0, 0.08, 0), 0.4)
+			elif kind == "hex":
+				Vfx.puff(p, Color(1.0, 0.8, 0.98), randf_range(0.11, 0.16), Vector3(0, 0.1, 0), 0.45)
+			elif kind == "rock":
+				Vfx.puff(p, Color(0.85, 0.8, 0.72), 0.05, Vector3.ZERO, 0.2)
 			else:
 				Vfx.puff(p, Color(1, 1, 1), 0.06, Vector3.ZERO, 0.22)
 		if t >= 1.0:

@@ -1,10 +1,13 @@
 class_name Inventory
 extends RefCounted
 ## Inventory data ops: entries, random rolls, merge rules, equip, sell (spec §5, §6).
-## Entry kinds: "equip" {key, bonus?, pw?}, "special" {key}, "relic" {key}, "skillbook" {skill},
+## Entry kinds: "equip" {key, bonus?, pw?}, "special" {key}, "relic" {key, star}, "skillbook" {grade},
 ## "stone" {n} (강화석: never stays in the bag — it is counted into game.stones the moment it lands).
+## Relics never stay in the bag either: a found relic goes straight into the lobby collection (Meta.add_relic);
+## the run wears the relics equipped in the lobby (game.relics).
 ## Gear is permanent (Meta storage / loadout) and never merges during a run: merging happens in the lobby
-## storage (Meta.merge_all), using the same merge rules defined here.
+## storage (Meta.merge_all), using the same merge rules defined here. Skill books do merge in the bag:
+## Defs.BOOK_MERGE books of one grade become one book of the next grade (Main.queue_merges, HudPanels.play_merge).
 
 static var _id := 0
 
@@ -17,12 +20,21 @@ static func make(kind: String, key: String) -> Dictionary:
 			e["bonus"] = {"moveSpeedBonus": round((0.05 + randf() * 0.35) * 100.0) / 100.0}
 	return e
 
-## A skill book of the given grade (1 일반 ~ 4 전설) for a random hero (or `cls`).
-static func make_skillbook(grade := 1, cls := "") -> Dictionary:
+## A relic at ★ star (1 ~ Defs.RELIC_MAX_STAR).
+static func make_relic(key: String, star := 1) -> Dictionary:
 	_id += 1
-	var c: String = cls if cls != "" else Defs.HERO_ORDER[randi() % 3]
-	var list := Defs.books_of(c, clampi(grade, 1, 4))
-	return {"id": _id, "kind": "skillbook", "skill": list[randi() % list.size()]}
+	return {"id": _id, "kind": "relic", "key": key, "star": clampi(star, 1, Defs.RELIC_MAX_STAR)}
+
+## A skill book of the given grade (1 일반 ~ Defs.BOOK_TOP 전설): which skills it shows is rolled when it is read.
+static func make_skillbook(grade := 1) -> Dictionary:
+	_id += 1
+	return {"id": _id, "kind": "skillbook", "grade": clampi(grade, 1, Defs.BOOK_TOP)}
+
+## Grade of a skill book entry (old single-skill books carry their skill's grade).
+static func book_grade(e: Dictionary) -> int:
+	if e.has("grade"):
+		return int(e["grade"])
+	return int(Defs.book(e.get("skill", "")).get("grade", 1))
 
 ## A pile of n 강화석 (shown as one loot / card, counted on landing).
 static func make_stone(n: int) -> Dictionary:
@@ -33,10 +45,10 @@ static func make_stone(n: int) -> Dictionary:
 static func from_save(d: Dictionary) -> Dictionary:
 	_id += 1
 	var e := {"id": _id, "kind": "equip", "key": str(d.get("key", ""))}
-	if d.has("pw"):
+	if typeof(d.get("pw")) in [TYPE_INT, TYPE_FLOAT]:
 		e["pw"] = float(d["pw"])
-	if d.has("bonus") and typeof(d["bonus"]) == TYPE_DICTIONARY:
-		e["bonus"] = d["bonus"]
+	if typeof(d.get("bonus")) == TYPE_DICTIONARY:
+		e["bonus"] = d["bonus"].duplicate()
 	return e
 
 static func to_save(e: Dictionary) -> Dictionary:
@@ -44,7 +56,7 @@ static func to_save(e: Dictionary) -> Dictionary:
 	if e.has("pw"):
 		d["pw"] = e["pw"]
 	if e.has("bonus"):
-		d["bonus"] = e["bonus"]
+		d["bonus"] = e["bonus"].duplicate()
 	return d
 
 static func _keys_where(dict: Dictionary, pred: Callable) -> Array:
@@ -89,7 +101,7 @@ static func tier_of(e: Dictionary) -> int:
 		"equip":
 			return int(Defs.item(e["key"]).get("tier", 1))
 		"skillbook":
-			return int(Defs.book(e["skill"]).get("grade", 1)) + 1
+			return book_grade(e) + 1
 		"stone":
 			return 2
 		"relic":
@@ -100,7 +112,7 @@ static func rarity_of(e: Dictionary) -> String:
 	if e["kind"] == "relic":
 		return Defs.RELICS[e["key"]]["rarity"]
 	if e["kind"] == "skillbook":
-		return Defs.book_rarity(int(Defs.book(e["skill"]).get("grade", 1)))
+		return Defs.book_rarity(book_grade(e))
 	if e["kind"] == "stone":
 		return "rare"
 	if e["kind"] == "special":
@@ -118,13 +130,10 @@ static func name_of(e: Dictionary) -> String:
 		"relic":
 			return Defs.RELICS[e["key"]]["name"]
 		"skillbook":
-			return skillbook_def(e).get("name", "스킬북")
+			return "%s 스킬북" % Defs.book_grade_name(book_grade(e))
 		"stone":
 			return "강화석 ×%d" % int(e["n"])
 	return "?"
-
-static func skillbook_def(e: Dictionary) -> Dictionary:
-	return Defs.book(e.get("skill", ""))
 
 const BOOK_SELL := {1: 40, 2: 120, 3: 350, 4: 900}
 
@@ -132,7 +141,7 @@ static func sell_price(game: Node, e: Dictionary) -> int:
 	var gm := Stats.g(Stats.perk_fx(game), "goldMult") if game else 0.0
 	match e["kind"]:
 		"skillbook":
-			return BOOK_SELL.get(int(skillbook_def(e).get("grade", 1)), 40)
+			return BOOK_SELL.get(book_grade(e), 40)
 		"stone":
 			return 0
 		"relic":
@@ -143,14 +152,17 @@ static func sell_price(game: Node, e: Dictionary) -> int:
 		return int(floorf(Gear.sell_price(tier_of(e)) * (1.0 + gm)))
 	return int(floorf(Defs.ITEM_SELL.get(tier_of(e), 10) * float(e.get("pw", 1.0)) * (1.0 + gm)))
 
-## Adds to inventory. 강화석 go straight to the run's stone count. When the bag is full, gear goes to the
+## Adds to inventory. 강화석 go straight to the run's stone count, relics to the lobby collection. When the bag is full, gear goes to the
 ## permanent storage instead (it is never lost) and anything else is sold. Returns "added" | "stone" |
-## "stored" | "sold:<gold>".
+## "relic" | "stored" | "sold:<gold>".
 static func add(game: Node, e: Dictionary) -> String:
 	if e["kind"] == "stone":
 		game.add_stones(int(e["n"]))
 		return "stone"
-	if game.inventory.size() >= game.inv_cap:
+	if e["kind"] == "relic":
+		Meta.add_relic(e["key"], int(e.get("star", 1)))
+		return "relic"
+	if game.inventory.size() >= game.inv_cap and not (e["kind"] == "skillbook" and completes_book_merge(game, e)):
 		if e["kind"] == "equip" and game.has_method("stash_gear"):
 			game.stash_gear(e)
 			return "stored"
@@ -158,18 +170,8 @@ static func add(game: Node, e: Dictionary) -> String:
 		game.gold += g
 		return "sold:%d" % g
 	game.inventory.append(e)
-	if e["kind"] == "relic":
-		save_relics(game)
 	settle(game)
 	return "added"
-
-static func save_relics(game: Node) -> void:
-	var keys := []
-	for e in game.inventory:
-		if e["kind"] == "relic" and Defs.RELICS[e["key"]]["rarity"] == "legendary":
-			keys.append(e["key"])
-	Meta.relics = keys
-	Meta.save()
 
 ## What three of merge key `k` become ("" = no merge): a family group climbs one grade forever
 ## (the group of the next grade; the family is picked from the materials in Meta.merge_all), uniques / the crown become
@@ -190,11 +192,61 @@ static func merge_key(e: Dictionary) -> String:
 		return e["key"]
 	return ""
 
-## After the bag or the heroes' gear changed: no merging during a run any more — the game just writes the
-## permanent gear it holds right now to the save (so quitting mid-run never loses a piece).
+## After the bag or the heroes' gear changed: gear never merges during a run — the game just writes the
+## permanent gear it holds right now to the save (so quitting mid-run never loses a piece) — and skill books
+## of one grade merge (staged one by one in the bag by Main.queue_merges).
 static func settle(game: Node) -> void:
 	if game.has_method("sync_gear"):
 		game.sync_gear()
+	if game.has_method("queue_merges"):
+		game.queue_merges()
+
+# ---------------------------------------------------------------- skill book merge (in the bag)
+## Lowest book grade with Defs.BOOK_MERGE copies in the bag that can still climb (0 = nothing to merge).
+static func book_merge_grade(game: Node) -> int:
+	var counts := {}
+	for e in game.inventory:
+		if e["kind"] == "skillbook":
+			var g := book_grade(e)
+			counts[g] = counts.get(g, 0) + 1
+	for g in range(1, Defs.BOOK_TOP):
+		if counts.get(g, 0) >= Defs.BOOK_MERGE:
+			return g
+	return 0
+
+## A book that would complete a merge may still come into a full bag (the merge frees the room again).
+static func completes_book_merge(game: Node, e: Dictionary) -> bool:
+	var g := book_grade(e)
+	if g >= Defs.BOOK_TOP:
+		return false
+	var n := 0
+	for x in game.inventory:
+		if x["kind"] == "skillbook" and book_grade(x) == g:
+			n += 1
+	return n + 1 >= Defs.BOOK_MERGE
+
+## Bag indices a merge of grade-g books consumes (from the back of the bag).
+static func book_sources(game: Node, g: int) -> Array:
+	var out := []
+	var i: int = game.inventory.size() - 1
+	while i >= 0 and out.size() < Defs.BOOK_MERGE:
+		var e: Dictionary = game.inventory[i]
+		if e["kind"] == "skillbook" and book_grade(e) == g:
+			out.append(i)
+		i -= 1
+	return out
+
+## One book merge: Defs.BOOK_MERGE grade-g books leave the bag and one grade g+1 book takes the slot of the first.
+static func merge_books_once(game: Node, g: int) -> Dictionary:
+	var src := book_sources(game, g)
+	if src.size() < Defs.BOOK_MERGE:
+		return {}
+	var at: int = src.min()
+	for i in src:   # descending, so the earlier indices stay valid
+		game.inventory.remove_at(i)
+	var ne := make_skillbook(g + 1)
+	game.inventory.insert(clampi(at, 0, game.inventory.size()), ne)
+	return ne
 
 static func label_of(e: Dictionary) -> String:
 	var label: String = Defs.item(e["key"])["name"]

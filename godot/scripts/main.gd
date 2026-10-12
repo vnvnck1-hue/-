@@ -8,8 +8,11 @@ const WAVE_HEAL := 50
 const SPAWN_GAP := 0.17
 const SPAWN_SETTLE := 0.42
 const SUBWAVE_DELAY := 0.8
+const SUBWAVE_SAFE_R := [2.8, 2.2, 1.6]   # follow-up waves never drop in closer than this to a hero (tries in order)
+const SUBWAVE_SPACING := 0.8              # ... nor on top of each other
 const TRANSITION_DELAY := 0.7
 const EXP_PER_KILL := 25
+const RESPAWN_TIME := 30.0    # a fallen hero gets back up on its own after this many seconds
 
 var phase := P.PLACEMENT
 var world: World
@@ -22,6 +25,7 @@ var fx_root: Node3D
 var heroes: Array[Actor] = []
 var enemies: Array[Actor] = []
 var dead_order: Array[Actor] = []
+var respawn_left := {}        # fallen hero -> seconds until it gets back up on its own
 var wave := 1
 var sub_wave := 0
 var sub_waves := 1
@@ -35,6 +39,7 @@ var inventory: Array = []
 var chests: Array = []        # unopened treasure chests on the bag badge (their starting tier, ChestLoot)
 var inv_cap := Defs.MAX_INVENTORY
 var relic_tempo := 0
+var relics: Array = []   # relics worn in the lobby (Meta.relic_slots), active for the whole run
 var coins: Array = []
 var revive_used := {}
 var tutorial := 0
@@ -125,6 +130,19 @@ func _ready() -> void:
 	if test_mode != "":
 		_run_test()
 
+## Leaving the tree any way (lobby, scene change, quit): drop the static hook March mode points at this
+## scene — a lambda left in Actor.clamp_fn outlives the scene and crashes the engine on exit.
+## Same for the other statics that point into this scene (retry reloads, quits mid-aim / mid-cinematic).
+func _exit_tree() -> void:
+	Actor.clamp_fn = Callable()
+	Skills.hold_hero = null
+	if Skills.aiming:   # aiming pauses the tree — never hand a paused tree to the next scene
+		Skills.aiming = false
+		get_tree().paused = false
+	Cinematic.active = false
+	Vfx.root = null
+	Vfx.cam = null
+
 const CAM_POS := Vector3(0, 16.0, 9.4)
 const CAM_LOOK := Vector3(0, 0, 0.55)
 
@@ -186,9 +204,7 @@ func _drag_stage(on: bool, e := {}) -> void:
 	_drag_tw = create_tween().set_ignore_time_scale(true).set_parallel(true)
 	_drag_tw.tween_method(world.set_drag_dim, world.dim_drag, DRAG_DIM if on else 0.0, 0.2 if on else 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	for l in _drag_lights:
-		if is_instance_valid(l):
-			l.get_parent().remove_child(l)
-			l.queue_free()
+		_detach_free(l)
 	_drag_lights.clear()
 	for h in heroes:
 		var lit: bool = on and h.alive
@@ -216,6 +232,14 @@ func _drag_stage(on: bool, e := {}) -> void:
 	else:
 		hud.cinema_bars(false, "", "", Color.WHITE)
 
+## Take a key light out of the scene right away (no stale light/geometry pairing for a frame), then free it.
+func _detach_free(n) -> void:
+	if n == null or not is_instance_valid(n):
+		return
+	if n.get_parent():
+		n.get_parent().remove_child(n)
+	n.queue_free()
+
 ## Whether gear can be equipped right now (March mode: any time).
 func can_equip() -> bool:
 	return can_edit()
@@ -227,12 +251,16 @@ func go_lobby() -> void:
 	Actor.clamp_fn = Callable()
 	Skills.cancel(self)
 	Cinematic.reset(self)
+	_reset_field_time()
+	get_tree().change_scene_to_file("res://scenes/Lobby.tscn")
+
+## Back to real time: no slow motion, no drag stage, no pause (run start, game over, leaving for the lobby).
+func _reset_field_time() -> void:
 	cam.base_scale = 1.0
 	cam.group_focus([], false)
 	_drag_stage(false)
 	Engine.time_scale = 1.0
 	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/Lobby.tscn")
 
 ## Scripted checks for screenshots: --test=panel | aim | items | perks | merchant | talents
 func _run_test() -> void:
@@ -355,7 +383,7 @@ func _run_test() -> void:
 			for k in ["sword1", "sword1", "sword1", "helmet2", "ring3", "bow4", "staff2", "amulet1", "shield3"]:
 				Inventory.add(self, Inventory.make("equip", k))
 			Inventory.add(self, Inventory.make("equip", "thunderHeart"))
-			Inventory.add(self, Inventory.make("relic", "luckyCompass"))
+			relics = [Inventory.make_relic("luckyCompass", 2)]
 			Inventory.add(self, Inventory.make_skillbook())
 			Inventory.add(self, Inventory.make("special", "revive"))
 			Inventory.add(self, Inventory.make("special", "crown"))
@@ -414,10 +442,7 @@ func _run_test() -> void:
 			var h := hero("warrior")
 			grant_exp(h, 60)
 			for id in ["ironWall", "vitality", "slamMastery", "earthFury", "ironWall"]:
-				var b := Inventory.make_skillbook(1, "warrior")
-				b["skill"] = id
-				inventory.append(b)
-				use_book(b)
+				learn_skill(id)
 			_select(h)
 			_shot_later(0.4, "test_panel")
 		"aim":
@@ -450,12 +475,15 @@ func _run_test() -> void:
 
 # ---------------------------------------------------------------- run
 func start_run(first := false) -> void:
-	get_tree().paused = false
-	cam.base_scale = 1.0
-	cam.group_focus([], false)
-	_drag_stage(false)
-	Engine.time_scale = 1.0
+	_reset_field_time()
 	hud.close_overlays()
+	# drop every reference to the old run's heroes before they are freed (hero card, item card, input state)
+	_select(null)
+	hud.close_tip()
+	press_hero = null
+	dragging = false
+	if _focus_tw and _focus_tw.is_valid():
+		_focus_tw.kill()
 	for u in heroes + enemies:
 		hud.unregister_unit(u)
 		u.queue_free()
@@ -472,7 +500,7 @@ func start_run(first := false) -> void:
 	_focus_light = null
 	if world:
 		world.set_focus_dim(0.0)
-	dead_order.clear()
+	clear_respawns()
 	wave = 1
 	sub_wave = 0
 	gimmick = ""
@@ -487,8 +515,7 @@ func start_run(first := false) -> void:
 	revive_used = {}
 	hud.refresh_perks()
 	gold = int(Stats.g(Meta.fx(""), "startGold"))
-	for k in Meta.relics:
-		inventory.append(Inventory.make("relic", k))
+	relics = Meta.worn_relics().duplicate()
 	if Meta.has_flag("emergencySupply"):
 		inventory.append(Inventory.make_skillbook(1))
 	var i := 0
@@ -498,6 +525,7 @@ func start_run(first := false) -> void:
 		h.drop_in(1.6, 0.12 * i)
 		_start_kit(h)
 		i += 1
+	_run_head_start()
 	hud.set_gold(gold, false)
 	hud.set_stones(stones, false)
 	hud.set_crystals(Meta.crystals, false)
@@ -523,6 +551,10 @@ func _start_kit(h: Actor) -> void:
 ## Hero level a run starts at (expedition chapters start further along, mode hook).
 func start_level() -> int:
 	return 1
+
+## Skills / perks a run starts with (expedition chapters start where the endless march would be, mode hook).
+func _run_head_start() -> void:
+	pass
 
 func enter_placement() -> void:
 	phase = P.PLACEMENT
@@ -584,6 +616,8 @@ func _spawn_sequence(list: Array, first: bool) -> void:
 			if phase != P.SPAWNING:
 				return
 			var e := _spawn(Defs.TEAM_ENEMY, s["kind"], s["tile"], mult)
+			if not first:
+				e.position = _safe_spawn_pos(e)
 			e.drop_in(2.2)
 			hud.set_enemy_count(alive_enemies().size()))
 	var total := SPAWN_GAP * maxi(list.size() - 1, 0) + SPAWN_SETTLE
@@ -606,6 +640,61 @@ func _spawn_sequence(list: Array, first: bool) -> void:
 		Sfx.play("clash", -8.0, 1.2)
 	_shot_later(1.2, "battle_a")
 	_shot_later(3.0, "battle_b")
+
+## Follow-up waves: after clearing a wave the trio usually stands right in the spawn zone, so a unit whose
+## tile is too close to a hero drops in at the nearest free spot (to its tile) that keeps SUBWAVE_SAFE_R from
+## every hero. The search covers the whole field (March: also the road further ahead), clamped to its edges.
+func _safe_spawn_pos(e: Actor) -> Vector3:
+	var want := e.position
+	var hs := alive_heroes()
+	var others: Array = enemies.filter(func(o): return o != e and o.alive)
+	var gap := func(p: Vector3) -> float:
+		var d := INF
+		for h in hs:
+			d = minf(d, Actor._flat(h.position - p).length() - (e.body_r - Actor.RADIUS))
+		return d
+	if gap.call(want) >= SUBWAVE_SAFE_R[0]:
+		return want
+	var cands: Array = []
+	var z := -Actor.BOARD_Z - (2.0 if Actor.clamp_fn.is_valid() else 0.0)
+	while z <= Actor.BOARD_Z:
+		var x := -Actor.BOARD_X
+		while x <= Actor.BOARD_X:
+			var p := Vector3(x, 0, z)
+			var m := e.body_r - Actor.RADIUS
+			if Actor.clamp_fn.is_valid():
+				p = Actor.clamp_fn.call(p, m)
+			else:
+				p = Vector3(clampf(p.x, -Actor.BOARD_X + m, Actor.BOARD_X - m), 0, clampf(p.z, -Actor.BOARD_Z + m, Actor.BOARD_Z - m))
+			if others.all(func(o): return Actor._flat(o.position - p).length() >= SUBWAVE_SPACING):
+				cands.append(p)
+			x += 0.5
+		z += 0.5
+	# prefer the enemy side (ahead of the frontmost hero) so a wave never lands behind the trio's back line
+	var front := INF
+	for h in hs:
+		front = minf(front, h.position.z)
+	for r in SUBWAVE_SAFE_R:
+		for ahead_only in [true, false]:
+			var best := want
+			var bd := INF
+			for p in cands:
+				if ahead_only and p.z > front:
+					continue
+				if gap.call(p) >= r and want.distance_to(p) < bd:
+					bd = want.distance_to(p)
+					best = p
+			if bd < INF:
+				return best
+	# nowhere is safe enough: take the spot farthest from the heroes
+	var far := want
+	var fg: float = gap.call(want)
+	for p in cands:
+		var g: float = gap.call(p)
+		if g > fg:
+			fg = g
+			far = p
+	return far
 
 func spawn_enemy_at(kind: String, pos: Vector3, mult: float) -> Actor:
 	var u := Actor.new()
@@ -688,6 +777,7 @@ func _process(delta: float) -> void:
 	if quit_after > 0.0 and _clock > quit_after:
 		Music.quit()
 	_info_pause_tick()
+	_respawn_tick(delta)
 	match phase:
 		P.PLACEMENT:
 			if autoplay and _phase_t > 1.6 and not hud.has_overlay():
@@ -760,8 +850,8 @@ func gimmick_tick() -> bool:
 	return false
 
 ## Gimmick movement (ninja leap, sprinter dash). Returns true if it handled movement this tick.
-func special_move(a: Actor, _delta: float) -> bool:
-	return Specials.move(self, a)
+func special_move(a: Actor, delta: float) -> bool:
+	return Specials.move(self, a, delta)
 
 # ---------------------------------------------------------------- wave end
 func finish_wave() -> void:
@@ -802,7 +892,9 @@ func finish_wave() -> void:
 		h.reset_status()
 		h.heal(heal, true)
 		var dest := World.tile_pos(h.home.x, h.home.y)
-		get_tree().create_timer(0.06 * k).timeout.connect(func(): h.hop_to(dest, 0.42, 0.9))
+		get_tree().create_timer(0.06 * k).timeout.connect(func():
+			if is_instance_valid(h):
+				h.hop_to(dest, 0.42, 0.9))
 		k += 1
 	await get_tree().create_timer(maxf(0.6 + 0.06 * k, loot_t - TRANSITION_DELAY - 0.5)).timeout
 	_returning = false
@@ -833,11 +925,7 @@ func game_over() -> void:
 	if record_id() != "":
 		Meta.record_best(record_id(), wave)
 	_discard_loot()
-	cam.base_scale = 1.0
-	cam.group_focus([], false)
-	_drag_stage(false)
-	Engine.time_scale = 1.0
-	get_tree().paused = false
+	_reset_field_time()
 	hud.set_fight(false)
 	Sfx.play("sad", -4.0)
 	Music.duck(-18.0, 1.2, 2.5)   # minor-key jingle clashes with the C-major loop
@@ -890,8 +978,6 @@ func _roll_drops(e: Actor, pf: Dictionary) -> void:
 			_give(Inventory.make_skillbook(roll_book_grade(role == "boss" or role == "giant")), jit.call())
 		if randf() < STONE_DROP.get(role, 0.3):
 			_give(Inventory.make_stone(stone_amount(role)), jit.call())
-		if wave >= 20 and randf() < 0.04:
-			_give(Inventory.make("special", "inventoryExpand"), at)
 		if wave >= 15:
 			var r := randf()
 			if r < 0.003:
@@ -951,7 +1037,10 @@ func _give(entry: Dictionary, at: Vector3) -> void:
 	var col: Color = Defs.RARITY_COL[Inventory.rarity_of(entry)]
 	var node := Vfx.loot_drop(at, col, Inventory.tier_of(entry))
 	field_loot.append({"entry": entry, "node": node})
-	hud.add_loot_tag(node, Inventory.name_of(entry), Inventory.rarity_of(entry))
+	if entry["kind"] == "stone":   # every 강화석 pile on the field shares one plate: "강화석 ×32"
+		hud.add_loot_tag(node, "강화석", Inventory.rarity_of(entry), "stone", int(entry["n"]))
+	else:
+		hud.add_loot_tag(node, Inventory.name_of(entry), Inventory.rarity_of(entry))
 
 ## Fly every field item into the bag. Returns the time the flights take.
 func _collect_loot() -> float:
@@ -976,6 +1065,9 @@ func _collect_loot() -> float:
 			Vfx.sparks(n.global_position + Vector3(0, 0.3, 0), Hud._vivid(Defs.RARITY_COL[Inventory.rarity_of(e)]), 8, 2.0, 0.4, "star5", 0.12)
 			hud.remove_loot_tag(n)
 			lift.chain().tween_callback(n.queue_free)
+			if e["kind"] == "stone":   # 강화석 fly into the top counter like coins, not into the bag
+				fly_stones(sp, e)
+				return
 			var slot_off := _loot_in_flight
 			_loot_in_flight += 1
 			hud.fly_item(sp, e, func():
@@ -993,6 +1085,40 @@ func _discard_loot() -> void:
 
 func _loot_landed() -> void:
 	_loot_pending = maxi(0, _loot_pending - 1)
+	if _loot_pending == 0:
+		get_tree().create_timer(0.25, true, false, true).timeout.connect(queue_merges)   # a beat after the last item lands
+
+# ---------------------------------------------------------------- skill book merges (in the bag)
+var _merging := false       # the sequential book-merge show is playing
+
+## Called by Inventory.settle after any bag change. Book merges are staged one by one in the bag
+## (HudPanels.play_merge); while loot is still flying in they wait, so the bag fills first, then merges.
+func queue_merges() -> void:
+	if _loot_pending > 0 or _merging or run_over or not is_inside_tree():
+		return
+	if Inventory.book_merge_grade(self) == 0:
+		return
+	_play_merges()
+
+func _play_merges() -> void:
+	_merging = true
+	var chain := 0
+	while is_inside_tree() and not run_over:
+		var g := Inventory.book_merge_grade(self)
+		if g == 0:
+			break
+		if test_mode != "":
+			print("[BookMerge] grade ", g, " -> ", g + 1, " bag=", inventory.size())
+		await hud.panels.play_merge(g, chain)
+		chain += 1
+	_merging = false
+
+## A book merge landed (HudPanels.play_merge): toast + chime.
+func on_book_merged(e: Dictionary) -> void:
+	var col := Hud._vivid(Defs.RARITY_COL[Inventory.rarity_of(e)])
+	hud.toast("합성! %s" % Inventory.name_of(e), col)
+	Sfx.play("chime", -5.0, 1.0 + 0.12 * Inventory.book_grade(e))
+	hud.refresh_inventory()
 
 # ---------------------------------------------------------------- permanent gear & run currencies
 ## Called by Inventory.settle after any bag / equipment change: the permanent gear held right now is saved.
@@ -1010,11 +1136,11 @@ func add_stones(n: int) -> void:
 	stones += n
 	hud.set_stones(stones)
 
-## Skill books in the bag that hero class cls can use (HUD badge).
-func books_for(cls: String) -> int:
+## Skill books in the bag (HUD badge): any book can teach any hero, so every hero shows the same count.
+func books_for(_cls := "") -> int:
 	var n := 0
 	for e in inventory:
-		if e["kind"] == "skillbook" and Inventory.skillbook_def(e).get("cls", "") == cls:
+		if e["kind"] == "skillbook":
 			n += 1
 	return n
 
@@ -1042,7 +1168,7 @@ func end_run(cleared: bool, quiet := false) -> Dictionary:
 	for e in inventory.duplicate():
 		if e["kind"] == "skillbook":
 			r["books"] += 1
-			r["book_stones"] += int(BOOK_STONES.get(int(Inventory.skillbook_def(e).get("grade", 1)), 1))
+			r["book_stones"] += int(BOOK_STONES.get(Inventory.book_grade(e), 1))
 			inventory.erase(e)
 	stones += int(r["book_stones"])
 	for e in inventory:
@@ -1120,6 +1246,7 @@ func on_hero_down(h: Actor) -> void:
 		return
 	h.die()
 	dead_order.append(h)
+	respawn_left[h] = RESPAWN_TIME
 	cam.add_trauma(0.3)
 	hud.callout(h.global_position + Vector3(0, 1.4, 0), "%s 쓰러짐!" % h.def["name"], Color("ff8a9a"))
 	if alive_heroes().size() == 1 and not revive_used.get("tip", false):
@@ -1136,8 +1263,39 @@ func _revive_fx(h: Actor, text: String) -> void:
 func revive_fallen() -> bool:
 	if dead_order.is_empty():
 		return false
-	var h: Actor = dead_order.pop_front()
+	revive_hero(dead_order.front())
+	return true
+
+## Fallen heroes get back up on their own after RESPAWN_TIME seconds of field time (frozen while paused).
+func _respawn_tick(delta: float) -> void:
+	if respawn_left.is_empty() or phase == P.GAMEOVER or get_tree().paused:
+		return
+	for h in respawn_left.keys():
+		if not is_instance_valid(h) or h.alive:
+			respawn_left.erase(h)
+			continue
+		respawn_left[h] -= delta
+		if respawn_left[h] <= 0.0:
+			revive_hero(h)
+			hud.callout(h.global_position + Vector3(0, 1.5, 0), "%s 부활!" % h.def["name"], Color("8fe36a"))
+
+## Seconds until a fallen hero respawns (0 when alive or not waiting).
+func respawn_in(h: Actor) -> float:
+	return maxf(0.0, respawn_left.get(h, 0.0))
+
+func clear_respawns() -> void:
+	dead_order.clear()
+	respawn_left.clear()
+
+## Brings one fallen hero back at full HP: during a fight where it fell, otherwise back at its post.
+func revive_hero(h: Actor) -> void:
+	dead_order.erase(h)
+	respawn_left.erase(h)
 	h.reset_status()
+	_place_revived(h)
+	h.revive(1.0)
+
+func _place_revived(h: Actor) -> void:
 	if not in_battle():
 		var t := h.home
 		var occ := _hero_on_tile(t, h)
@@ -1148,8 +1306,6 @@ func revive_fallen() -> bool:
 						t = Vector2i(c, r)
 		h.home = t
 		h.position = World.tile_pos(t.x, t.y)
-	h.revive(1.0)
-	return true
 
 # ---------------------------------------------------------------- items
 func sell_item(e: Dictionary) -> void:
@@ -1160,8 +1316,6 @@ func sell_item(e: Dictionary) -> void:
 	var price := Inventory.sell_price(self, e)
 	inventory.erase(e)
 	gold += price
-	if e["kind"] == "relic":
-		Inventory.save_relics(self)
 	hud.set_gold(gold)
 	hud.refresh_inventory()
 	hud.toast("+%dG" % price, Defs.COL_GOLD)
@@ -1238,53 +1392,145 @@ func use_item(e: Dictionary) -> void:
 		hud.show_hero_panel(selected)
 	tutorial_event("item")
 
-## Use a skill book (any time): a skill the hero knows goes up one level (max Defs.BOOK_MAX); a new one is
-## learned into a free slot, or — with every slot taken — the player picks one to forget (HudPanels).
+## Read a skill book (any time out of a cinematic): the book is spent and SkillGacha spins Defs.BOOK_PICKS reels,
+## each landing on a skill of grade <= the book's grade; the player keeps one (learn_skill).
 func use_book(e: Dictionary) -> void:
-	var bd := Inventory.skillbook_def(e)
+	if not inventory.has(e):
+		return
+	if phase == P.GAMEOVER or run_over or Cinematic.active or Skills.aiming or drag_stage:
+		hud.toast("지금은 스킬북을 읽을 수 없어요")
+		return
+	var g := Inventory.book_grade(e)
+	var offers := roll_book_offers(g)
+	if offers.is_empty():
+		hud.toast("더 배울 수 있는 스킬이 없어요")
+		return
+	hud.close_overlays()
+	inventory.erase(e)
+	hud.refresh_inventory()
+	var was := get_tree().paused
+	get_tree().paused = true
+	var sg := SkillGacha.new()
+	sg.hud = hud
+	sg.game = self
+	sg.start(g, offers)
+	Music.play("gacha", CHEST_MUSIC_FADE)
+	hud.overlay_closed.connect(func():
+		if is_inside_tree():
+			Music.play(music_track(), CHEST_MUSIC_FADE, true)
+			if phase != P.GAMEOVER:
+				get_tree().paused = was
+			queue_merges(), CONNECT_ONE_SHOT)
+	_shot_later(0.5, "book_gacha")
+
+## The reels of a grade-g book: up to n different skills a hero of the party can still take (not at
+## Defs.BOOK_MAX); each reel's skill grade is drawn from Defs.BOOK_ROLL[g] among the grades that still have one.
+func roll_book_offers(g: int, n := Defs.BOOK_PICKS) -> Array:
+	var pool := {}   # skill grade -> ids
+	for id in Defs.SKILL_BOOKS:
+		var d: Dictionary = Defs.SKILL_BOOKS[id]
+		var sg: int = d["grade"]
+		var h := hero(d["cls"])
+		if sg > g or h == null:
+			continue
+		var li := learned_index(h, id)
+		if li >= 0 and int(h.learned[li]["level"]) >= Defs.BOOK_MAX:
+			continue
+		if not pool.has(sg):
+			pool[sg] = []
+		pool[sg].append(id)
+	var odds: Array = Defs.BOOK_ROLL.get(g, [1.0])
+	var out := []
+	for i in n:
+		var total := 0.0
+		for k in odds.size():
+			if not (pool.get(k + 1, []) as Array).is_empty():
+				total += float(odds[k])
+		if total <= 0.0:
+			break
+		var x := randf() * total
+		var pick := 0
+		for k in odds.size():
+			if (pool.get(k + 1, []) as Array).is_empty():
+				continue
+			pick = k + 1
+			x -= float(odds[k])
+			if x <= 0.0:
+				break
+		var list: Array = pool[pick]
+		var id: String = list[randi() % list.size()]
+		list.erase(id)
+		out.append(id)
+	return out
+
+## Keeping skill `id` needs a slot to be given up first (its hero already knows SKILL_SLOTS other skills).
+func needs_slot(id: String) -> bool:
+	var h := hero(Defs.book(id).get("cls", ""))
+	return h != null and learned_index(h, id) < 0 and h.learned.size() >= Defs.SKILL_SLOTS
+
+## The kept skill: a known one goes up one level, a new one fills a free slot or — `slot` given — replaces
+## that slot's skill (its levels are lost).
+func learn_skill(id: String, slot := -1) -> void:
+	var bd := Defs.book(id)
 	var h := hero(bd.get("cls", ""))
 	if h == null:
 		return
-	var i := learned_index(h, e["skill"])
+	var i := learned_index(h, id)
 	if i >= 0:
-		if int(h.learned[i]["level"]) >= Defs.BOOK_MAX:
-			hud.toast("%s은(는) 이미 최고 레벨이에요" % bd["name"])
+		h.learned[i]["level"] = mini(int(h.learned[i]["level"]) + 1, Defs.BOOK_MAX)
+		_skill_hp(h, bd, 1)
+		_skill_learned(h, bd, "%s Lv.%d" % [bd["name"], h.learned[i]["level"]])
+		return
+	if h.learned.size() >= Defs.SKILL_SLOTS:
+		if slot < 0 or slot >= h.learned.size():
 			return
-		h.learned[i]["level"] += 1
-		_skill_hp(h, bd, 1)
-		_book_used(h, e, "%s Lv.%d" % [bd["name"], h.learned[i]["level"]])
-	elif h.learned.size() < Defs.SKILL_SLOTS:
-		h.learned.append({"id": e["skill"], "level": 1})
-		_skill_hp(h, bd, 1)
-		_book_used(h, e, "새 스킬! %s" % bd["name"])
+		var old: Dictionary = h.learned[slot]
+		_skill_hp(h, Defs.book(old["id"]), -int(old["level"]))
+		h.learned[slot] = {"id": id, "level": 1}
 	else:
-		hud.skillbook_choice(e)
+		h.learned.append({"id": id, "level": 1})
+	_skill_hp(h, bd, 1)
+	_skill_learned(h, bd, "새 스킬! %s" % bd["name"])
 
-## Autoplay: read every skill book in the bag (a full hero swaps its lowest-grade skill for a better book).
+## Which reel autoplay keeps: the highest grade, a level-up over a new skill; a full hero only swaps its
+## lowest-grade skill for a better one. Returns [id, slot] ("" = none worth taking).
+func best_offer(offers: Array) -> Array:
+	var best := ""
+	var best_slot := -1
+	var best_score := -1.0
+	for id in offers:
+		var bd := Defs.book(id)
+		var h := hero(bd["cls"])
+		var score := float(bd["grade"]) * 10.0
+		var slot := -1
+		if needs_slot(id):
+			slot = 0
+			for j in h.learned.size():
+				if int(Defs.book(h.learned[j]["id"])["grade"]) < int(Defs.book(h.learned[slot]["id"])["grade"]):
+					slot = j
+			if int(bd["grade"]) <= int(Defs.book(h.learned[slot]["id"])["grade"]):
+				continue
+		else:
+			score += 4.0 if learned_index(h, id) < 0 else 5.0
+		if score > best_score:
+			best_score = score
+			best = id
+			best_slot = slot
+	return [best, best_slot]
+
+## Autoplay: read every skill book in the bag and keep the best reel.
 func auto_books() -> void:
 	if hud.has_overlay() or run_over:
 		return
 	for e in inventory.duplicate():
 		if e["kind"] != "skillbook":
 			continue
-		var bd := Inventory.skillbook_def(e)
-		var h := hero(bd["cls"])
-		if h == null:
-			continue
-		var i := learned_index(h, e["skill"])
-		if i >= 0 and int(h.learned[i]["level"]) >= Defs.BOOK_MAX:
-			sell_item(e)
-		elif i >= 0 or h.learned.size() < Defs.SKILL_SLOTS:
-			use_book(e)
-		else:
-			var worst := 0
-			for j in h.learned.size():
-				if int(Defs.book(h.learned[j]["id"])["grade"]) < int(Defs.book(h.learned[worst]["id"])["grade"]):
-					worst = j
-			if int(bd["grade"]) > int(Defs.book(h.learned[worst]["id"])["grade"]):
-				replace_skill_with_book(e, worst)
-			else:
-				sell_item(e)
+		var offers := roll_book_offers(Inventory.book_grade(e))
+		inventory.erase(e)
+		var pick := best_offer(offers)
+		if pick[0] != "":
+			learn_skill(pick[0], pick[1])
+	hud.refresh_inventory()
 	for e in inventory.duplicate():   # and wear any clearly better gear
 		if e["kind"] != "equip":
 			continue
@@ -1313,18 +1559,6 @@ func learned_index(h: Actor, id: String) -> int:
 			return i
 	return -1
 
-## All slots taken: forget slot i's skill and learn the book's skill in its place (Lv.1).
-func replace_skill_with_book(e: Dictionary, slot: int) -> void:
-	var bd := Inventory.skillbook_def(e)
-	var h := hero(bd.get("cls", ""))
-	if h == null or slot < 0 or slot >= h.learned.size() or not inventory.has(e):
-		return
-	var old: Dictionary = h.learned[slot]
-	_skill_hp(h, Defs.book(old["id"]), -int(old["level"]))
-	h.learned[slot] = {"id": e["skill"], "level": 1}
-	_skill_hp(h, bd, 1)
-	_book_used(h, e, "새 스킬! %s" % bd["name"])
-
 ## Flat max HP skills (생명력) take effect right away (and are taken back when forgotten).
 func _skill_hp(h: Actor, bd: Dictionary, levels: int) -> void:
 	var add: float = float(bd.get("fx", {}).get("bonusHp", 0.0)) * levels
@@ -1332,10 +1566,8 @@ func _skill_hp(h: Actor, bd: Dictionary, levels: int) -> void:
 		h.max_hp = maxf(1.0, h.max_hp + add)
 		h.hp = clampf(h.hp + maxf(0.0, add), 1.0 if h.alive else 0.0, h.max_hp)
 
-func _book_used(h: Actor, e: Dictionary, text: String) -> void:
-	inventory.erase(e)
-	hud.refresh_inventory()
-	var col: Color = Defs.RARITY_COL[Inventory.rarity_of(e)]
+func _skill_learned(h: Actor, bd: Dictionary, text: String) -> void:
+	var col: Color = Defs.RARITY_COL[Defs.book_rarity(int(bd.get("grade", 1)))]
 	if h.alive:
 		Vfx.upgrade_pillar(h.global_position)
 		h.model.punch_scale(1.3, 0.75, 0.4)
@@ -1343,7 +1575,7 @@ func _book_used(h: Actor, e: Dictionary, text: String) -> void:
 		hud.callout(h.global_position + Vector3(0, 1.5, 0), text, Hud._vivid(col))
 	else:
 		hud.toast(text, Hud._vivid(col))
-	Sfx.play("chime", -4.0, 0.8 + 0.1 * float(Inventory.skillbook_def(e).get("grade", 1)))
+	Sfx.play("chime", -4.0, 0.8 + 0.1 * float(bd.get("grade", 1)))
 	tutorial_event("skill_up")
 	if selected == h or hud.hero_shown() == h:
 		hud.show_hero_panel(h)
@@ -1354,7 +1586,7 @@ func merchant_items() -> Array:
 	var out := []
 	for i in 2:   # skill books are the merchant's main ware
 		var b := Inventory.make_skillbook(mini(4, roll_book_grade() + (1 if i == 0 and randf() < 0.35 else 0)))
-		out.append({"entry": b, "price": BOOK_PRICE[int(Inventory.skillbook_def(b)["grade"])] + 10 * w})
+		out.append({"entry": b, "price": BOOK_PRICE[Inventory.book_grade(b)] + 10 * w})
 	var pairs := Gear.pair_keys(self, w)
 	if not pairs.is_empty() and randf() < 0.5:   # sometimes the third copy of a pair you hold (merge it in the lobby)
 		var pk: String = pairs[randi() % pairs.size()]
@@ -1461,7 +1693,7 @@ func chest_reward(r: Dictionary, from: Array) -> void:
 	var g: int = r.get("gold", 0)
 	if from.is_empty():
 		for e in items:
-			_chest_item_in(e)
+			_land_item(e)
 		gold += g
 		hud.set_gold(gold)
 		return
@@ -1469,9 +1701,12 @@ func chest_reward(r: Dictionary, from: Array) -> void:
 	for i in items.size():
 		var e: Dictionary = items[i]
 		var sp: Vector2 = from[i] if i < from.size() else hud.root.size * 0.5
+		if e["kind"] == "stone":
+			fly_stones(sp, e)
+			continue
 		get_tree().create_timer(0.08 * i, true, false, true).timeout.connect(func():
 			hud.fly_item(sp, e, func():
-				_chest_item_in(e)
+				_land_item(e)
 				_loot_landed(), i))
 	var n := clampi(g / 25, 3, 8)
 	var c := hud.root.size * 0.5 + Vector2(0, 280)
@@ -1482,8 +1717,20 @@ func chest_reward(r: Dictionary, from: Array) -> void:
 				gold += share
 				hud.set_gold(gold)))
 
-func _chest_item_in(e: Dictionary) -> void:
-	_land_item(e)
+## A 강화석 pile flies into the top 강화석 counter as a few gems (like coins), the count going up as each lands.
+## Holds one _loot_pending until the last gem lands.
+func fly_stones(from: Vector2, e: Dictionary) -> void:
+	var total := int(e["n"])
+	var k := clampi(total, 1, 5)
+	var left := [k]
+	for i in k:
+		var share := total / k + (total % k if i == k - 1 else 0)
+		get_tree().create_timer(0.05 * i, true, false, true).timeout.connect(func():
+			hud.fly_stone(from + Vector2(randf_range(-24, 24), randf_range(-16, 16)), func():
+				add_stones(share)
+				left[0] -= 1
+				if left[0] == 0:
+					_loot_landed()))
 
 ## An item arriving in the bag (loot fly-in, chest reward, ...).
 func _land_item(e: Dictionary) -> void:
@@ -1493,6 +1740,9 @@ func _land_item(e: Dictionary) -> void:
 		hud.set_gold(gold)
 	elif res == "stone":
 		Sfx.play("tick", -8.0, 1.6)
+	elif res == "relic":
+		Sfx.play("sparkle", -4.0, 1.1)
+		hud.toast("유물 획득! %s → 로비 [유물]에서 장착" % Inventory.name_of(e), Defs.RARITY_COL[Inventory.rarity_of(e)])
 	hud.refresh_inventory(e["id"])
 
 # ---------------------------------------------------------------- skills & tutorial hooks
@@ -1565,7 +1815,7 @@ func tutorial_event(what: String, h: Actor = null) -> void:
 		"wave_end":
 			if tut_pending3:
 				tut_pending3 = false
-				Inventory.add(self, Inventory.make_skillbook(1, "warrior"))
+				Inventory.add(self, Inventory.make_skillbook(1))
 				hud.refresh_inventory()
 				if inventory.is_empty():
 					Inventory.add(self, Inventory.make("equip", "sword1"))
@@ -1665,8 +1915,11 @@ func can_edit() -> bool:
 	return (phase == P.PLACEMENT or phase == P.TRANSITION) and not _returning
 
 ## Delayed call on the game clock (pauses with the battle).
+## SceneTreeTimers outlive the scene, so the callback is skipped once this scene has left the tree.
 func after(t: float, cb: Callable) -> void:
-	get_tree().create_timer(t, false).timeout.connect(cb)
+	get_tree().create_timer(t, false).timeout.connect(func():
+		if is_inside_tree() and cb.is_valid():
+			cb.call())
 
 # ---------------------------------------------------------------- input
 func _ray_plane(screen: Vector2, y: float) -> Vector3:
@@ -1761,9 +2014,7 @@ func _refresh_focus() -> void:
 		return
 	_clear_hl(_focused)
 	# detach the key light before touching mesh layers (avoids stale light/geometry pairing)
-	if _focus_light and is_instance_valid(_focus_light):
-		_focus_light.get_parent().remove_child(_focus_light)
-		_focus_light.queue_free()
+	_detach_free(_focus_light)
 	_focus_light = null
 	_set_focus_layer(_focused, false)
 	_focused = f

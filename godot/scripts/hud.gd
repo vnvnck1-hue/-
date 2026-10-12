@@ -132,12 +132,10 @@ func juicy_button(text: String, color: Color, rect: Rect2, fsize := 34) -> Butto
 	b.add_theme_font_override("font", font)
 	b.add_theme_font_size_override("font_size", fsize)
 	b.button_down.connect(func():
-		var tw := b.create_tween()
-		tw.tween_property(b, "scale", Vector2(0.92, 0.92) if UiTheme.tt() else Vector2(0.88, 0.88), 0.06)
+		retween(b).tween_property(b, "scale", Vector2(0.92, 0.92) if UiTheme.tt() else Vector2(0.88, 0.88), 0.06)
 		Sfx.play("click", -6.0))
 	b.button_up.connect(func():
-		var tw := b.create_tween()
-		tw.tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
+		retween(b).tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
 	return b
 
 ## 버튼 색만 다시 칠한다(상태에 따라 색이 바뀌는 버튼용).
@@ -180,17 +178,31 @@ func _style_button_classic(b: Button, color: Color) -> void:
 	b.add_theme_color_override("font_outline_color", INK)
 	b.add_theme_constant_override("outline_size", 10)
 
+## A fresh tween on node n that replaces the previous one started under the same key (default: the scale
+## punch). Rapid repeats (gold ticking up, hover in/out, button down/up) don't stack fighting tweens.
+static func retween(n: Node, key := "scale_tw") -> Tween:
+	kill_tween(n, key)
+	var tw := n.create_tween()
+	n.set_meta(key, tw)
+	return tw
+
+## Stop the tween started on n with retween(n, key), if it is still running.
+static func kill_tween(n: Node, key := "scale_tw") -> void:
+	if not n.has_meta(key):
+		return
+	var old: Tween = n.get_meta(key)
+	if old and old.is_valid():
+		old.kill()
+
 func pop_in(c: Control, from := 0.3, dur := 0.45) -> void:
 	c.pivot_offset = c.size * 0.5
 	c.scale = Vector2.ONE * from
-	var tw := c.create_tween()
-	tw.tween_property(c, "scale", Vector2.ONE, dur).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	retween(c).tween_property(c, "scale", Vector2.ONE, dur).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func bump(c: Control, amt := 1.3) -> void:
 	c.pivot_offset = c.size * 0.5
 	c.scale = Vector2.ONE * amt
-	var tw := c.create_tween()
-	tw.tween_property(c, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	retween(c).tween_property(c, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 ## Anchor-aware placement: anchor (0..1) on the full screen, pos/size in pixels relative to that anchor.
 func place(c: Control, anchor: Vector2, pos: Vector2, sz: Vector2) -> Control:
@@ -305,7 +317,13 @@ func _build_hero_status() -> void:
 		ult.add_theme_stylebox_override("panel", box(Color(0, 0, 0, 0), 23, 3, Color("ffe04a")))
 		ult.visible = false
 		row.add_child(ult)
-		status_rows[cls] = {"root": row, "badge": badge, "hp": hp, "lag": lag, "mana": mana, "lv": lv, "ult": ult, "lag_v": 1.0, "shown": 1.0, "dead": false}
+		var rsp := label("", 15, Color.WHITE, 5)
+		rsp.position = Vector2(48, 2)
+		rsp.size = Vector2(STATUS_BAR_W + 4, 24)
+		rsp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		rsp.visible = false
+		row.add_child(rsp)
+		status_rows[cls] = {"root": row, "badge": badge, "hp": hp, "lag": lag, "mana": mana, "lv": lv, "ult": ult, "rsp": rsp, "lag_v": 1.0, "shown": 1.0, "dead": false}
 		y += STATUS_STEP
 
 func _on_status_tap(cls: String) -> void:
@@ -385,6 +403,11 @@ func _update_hero_status(delta: float, t: float) -> void:
 			r["dead"] = dead
 			(r["root"] as Control).modulate = Color(0.55, 0.55, 0.6) if dead else Color.WHITE
 			bump(r["root"], 1.15)
+		var rsp := (r["rsp"] as Label)
+		var left: float = game.respawn_in(h) if dead else 0.0
+		rsp.visible = left > 0.0
+		if rsp.visible:
+			rsp.text = "부활 %d초" % int(ceilf(left))
 		var ult := (r["ult"] as Panel)
 		ult.visible = h.alive and game.in_battle() and h.ult_ready_at <= game.now
 		if ult.visible:
@@ -449,6 +472,7 @@ func set_fight(on: bool) -> void:
 
 # ---------------------------------------------------------------- unit bars
 func register_unit(u: Actor) -> void:
+	unregister_unit(u)   # registering twice must not orphan the first bar
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var w := 64.0 if u.body_r <= Actor.RADIUS else 110.0
@@ -508,7 +532,11 @@ func _process(delta: float) -> void:
 		var b: Dictionary = bars[key]
 		var u: Actor = key
 		var c: Control = b["c"]
-		if not is_instance_valid(u) or not u.visible or not u.alive or u.model.mats.is_empty() or u.model.mats[0].albedo_color.a < 0.9:
+		if not is_instance_valid(u):   # freed without unregister_unit: drop its bar instead of keeping it forever
+			c.queue_free()
+			bars.erase(key)
+			continue
+		if not u.visible or not u.alive or u.model.mats.is_empty() or u.model.mats[0].albedo_color.a < 0.9:
 			c.visible = false
 			continue
 		var head := u.global_position + Vector3(0, u.def.get("bar_h", 1.05) * u.model.scale.y / Actor.MODEL_SCALE + u.model.position.y + 0.15, 0)
@@ -532,7 +560,7 @@ func _process(delta: float) -> void:
 			m.modulate = Color(1.6, 1.6, 1.6) if u.mana >= 99.0 else Color.WHITE
 			(b["lv"] as Label).text = str(u.level)
 			var sp := (b["sp"] as Panel)
-			var books: int = game.books_for(u.cls)   # skill books in the bag this hero can use
+			var books: int = game.books_for(u.cls)   # skill books in the bag (any book teaches any hero)
 			var show_sp: bool = books > 0
 			if show_sp != sp.visible:
 				sp.visible = show_sp
@@ -569,6 +597,7 @@ void fragment() {
 	COLOR = vec4(0.03, 0.02, 0.08, amount * (0.62 * m + 0.2 * vig));
 }
 """
+static var _spot_shader: Shader   # compiled once, shared by every drag stage
 var _spot: ColorRect
 var _spot_k := 0.0
 var _spot_goal := 0.0
@@ -579,10 +608,11 @@ func drag_spot(on: bool) -> void:
 		_spot = ColorRect.new()
 		_spot.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_spot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var sh := Shader.new()
-		sh.code = SPOT_SHADER
+		if _spot_shader == null:
+			_spot_shader = Shader.new()
+			_spot_shader.code = SPOT_SHADER
 		var mat := ShaderMaterial.new()
-		mat.shader = sh
+		mat.shader = _spot_shader
 		_spot.material = mat
 		root.add_child(_spot)
 		root.move_child(_spot, 0)   # under every HUD element: only the field darkens
@@ -829,7 +859,7 @@ func _toast_relayout() -> void:
 		var ty := _toast_y(i)
 		if absf(t.offset_top - ty) < 0.5:
 			continue
-		var tw := t.create_tween().set_parallel(true)
+		var tw := retween(t, "slide_tw").set_parallel(true)
 		tw.tween_property(t, "offset_top", ty, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw.tween_property(t, "offset_bottom", ty + TOAST_H, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
@@ -837,9 +867,8 @@ func _toast_relayout() -> void:
 func _toast_out(l: Label, pushed: bool) -> void:
 	if not is_instance_valid(l):
 		return
-	var life: Tween = l.get_meta("life", null)
-	if life and life.is_valid():
-		life.kill()
+	kill_tween(l, "life")
+	kill_tween(l, "slide_tw")   # a pushed toast drifts up from where it is, not toward its old slot
 	var dur := 0.16 if pushed else 0.3
 	var tw := l.create_tween().set_parallel(true)
 	tw.tween_property(l, "modulate:a", 0.0, dur)
@@ -851,12 +880,18 @@ func _toast_out(l: Label, pushed: bool) -> void:
 
 ## 2D coin flies from a screen point into the gold counter.
 func fly_coin(from: Vector2, on_arrive: Callable) -> void:
-	var ic := CoinIcon.new()
+	_fly_to_pill(CoinIcon.new(), gold_pill, from, on_arrive)
+
+## A 강화석 flying from the field (or a chest card) into the top 강화석 counter, like a coin.
+func fly_stone(from: Vector2, on_arrive: Callable) -> void:
+	_fly_to_pill(StoneIcon.new(), stone_pill, from, on_arrive)
+
+func _fly_to_pill(ic: Control, target: Control, from: Vector2, on_arrive: Callable) -> void:
 	ic.size = Vector2(40, 40)
 	ic.position = from - ic.size * 0.5
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(ic)
-	var dest := gold_pill.get_global_rect().position + Vector2(8, 6)
+	var dest := target.get_global_rect().position + Vector2(8, 6)
 	var mid := from.lerp(dest, 0.5) + Vector2(randf_range(-80, 80), -120)
 	var step := func(k: float) -> void:
 		var a := from.lerp(mid, k)
@@ -931,26 +966,41 @@ func cinema_bars(on: bool, ult_name: String, hero_name: String, col: Color, bang
 ## each frame they are laid out bottom-up and a plate that would overlap is pushed up so its
 ## bottom edge sits flush on the top edge of the one below.
 var loot_tags := {}   # Node3D -> Panel
+## Grouped plates (강화석): one plate for every piece of the group on the field, at their centre, with the total.
+## group -> {"p": Panel, "base": text, "rarity": r, "nodes": {Node3D: amount}}
+var loot_groups := {}
 const LOOT_TAG_H := 22.0
 const LOOT_TAG_GAP := 2.0
 
-func add_loot_tag(node: Node3D, text: String, rarity: String) -> void:
+## A field item's name plate. With `group` set, the item joins that group's single plate ("강화석 ×32")
+## instead of getting its own, adding `amount` to the shown total.
+func add_loot_tag(node: Node3D, text: String, rarity: String, group := "", amount := 1) -> void:
+	if group != "":
+		if loot_groups.has(group) and is_instance_valid(loot_groups[group]["p"]):
+			var g: Dictionary = loot_groups[group]
+			g["nodes"][node] = amount
+			_group_text(g)
+			return
+		var gp := _loot_plate(text, rarity)
+		loot_groups[group] = {"p": gp, "base": text, "rarity": rarity, "nodes": {node: amount}}
+		_group_text(loot_groups[group])
+		return
+	loot_tags[node] = _loot_plate(text, rarity)
+
+func _loot_plate(text: String, rarity: String) -> Panel:
 	var col: Color = Defs.RARITY_COL.get(rarity, Color.WHITE)
-	var fs := 15
-	var tw_text := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var p := Panel.new()
 	p.add_theme_stylebox_override("panel", box(Color(0.07, 0.05, 0.14, 0.9), int(LOOT_TAG_H * 0.5), 0))
-	p.size = Vector2(ceilf(tw_text) + 30.0, LOOT_TAG_H)
-	p.pivot_offset = Vector2(p.size.x * 0.5, LOOT_TAG_H)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var dot := panel(col, Rect2(8, (LOOT_TAG_H - 7) * 0.5, 7, 7), 4, 0)
 	p.add_child(dot)
-	var l := label(text, fs, col.lerp(Color.WHITE, 0.45), 0)
+	var l := label(text, 15, col.lerp(Color.WHITE, 0.45), 0)
+	l.name = "Text"
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.position = Vector2(20, 0)
-	l.size = Vector2(p.size.x - 24, LOOT_TAG_H)
 	p.add_child(l)
+	_plate_text(p, text)
 	root.add_child(p)
 	# above every unit bar (those sit at the front of root, incl. ones still fading out) but under the rest of the HUD
 	var at := 0
@@ -959,13 +1009,27 @@ func add_loot_tag(node: Node3D, text: String, rarity: String) -> void:
 	root.move_child(p, at)
 	p.visible = false
 	p.modulate.a = 0.0
-	loot_tags[node] = p
 	var wr: WeakRef = weakref(p)   # the plate may be collected before it appears
 	get_tree().create_timer(0.75).timeout.connect(func():
 		var pp: Panel = wr.get_ref()
 		if pp:
 			pp.visible = true
 			pp.create_tween().tween_property(pp, "modulate:a", 1.0, 0.2))
+	return p
+
+func _plate_text(p: Panel, text: String) -> void:
+	var l: Label = p.get_node("Text")
+	l.text = text
+	var tw_text := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+	p.size = Vector2(ceilf(tw_text) + 30.0, LOOT_TAG_H)
+	p.pivot_offset = Vector2(p.size.x * 0.5, LOOT_TAG_H)
+	l.size = Vector2(p.size.x - 24, LOOT_TAG_H)
+
+func _group_text(g: Dictionary) -> void:
+	var total := 0
+	for n in g["nodes"]:
+		total += int(g["nodes"][n])
+	_plate_text(g["p"], "%s ×%d" % [g["base"], total])
 
 func remove_loot_tag(node: Node3D) -> void:
 	if loot_tags.has(node):
@@ -973,8 +1037,22 @@ func remove_loot_tag(node: Node3D) -> void:
 		loot_tags.erase(node)
 		if is_instance_valid(p):
 			p.queue_free()
+		return
+	for key in loot_groups.keys():
+		var g: Dictionary = loot_groups[key]
+		if g["nodes"].has(node):
+			g["nodes"].erase(node)
+			if g["nodes"].is_empty() or not is_instance_valid(g["p"]):
+				if is_instance_valid(g["p"]):
+					g["p"].queue_free()
+				loot_groups.erase(key)
+			else:
+				_group_text(g)
+			return
 
 func _update_loot_tags() -> void:
+	if loot_tags.is_empty() and loot_groups.is_empty():
+		return
 	var items: Array = []   # [{p, rect}]
 	for node in loot_tags.keys():
 		var p: Panel = loot_tags[node]
@@ -984,6 +1062,20 @@ func _update_loot_tags() -> void:
 		var at: Vector3 = node.global_position + Vector3(0, 0.5, 0)
 		var sp := cam.unproject_position(at)
 		items.append({"p": p, "rect": Rect2(sp.x - p.size.x * 0.5, sp.y - LOOT_TAG_H, p.size.x, LOOT_TAG_H)})
+	for key in loot_groups.keys():   # a group plate sits over the centre of its pieces
+		var g: Dictionary = loot_groups[key]
+		for n in g["nodes"].keys():
+			if not is_instance_valid(n):
+				remove_loot_tag(n)
+		if not loot_groups.has(key):
+			continue
+		var c := Vector3.ZERO
+		for n in g["nodes"]:
+			c += (n as Node3D).global_position
+		c /= float(g["nodes"].size())
+		var gp: Panel = g["p"]
+		var gsp := cam.unproject_position(c + Vector3(0, 0.5, 0))
+		items.append({"p": gp, "rect": Rect2(gsp.x - gp.size.x * 0.5, gsp.y - LOOT_TAG_H, gp.size.x, LOOT_TAG_H)})
 	# bottom-most (nearest the camera) first; ties broken by x so the order is stable
 	items.sort_custom(func(a, b):
 		var ra: Rect2 = a["rect"]
@@ -1280,8 +1372,6 @@ func show_tip(e: Dictionary) -> void:
 func close_tip() -> void:
 	panels._close_tip()
 
-func skillbook_choice(e: Dictionary) -> void:
-	panels.skillbook_choice(e)
 
 func merchant_stock() -> Array:
 	return panels.merchant_stock

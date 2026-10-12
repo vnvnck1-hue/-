@@ -6,6 +6,8 @@ extends RefCounted
 ##   mine    - twilight purple mining ruins (wooden scaffolds, pulley wheels, mine carts, glowing lanterns,
 ##             giant pink mushrooms, crystals, stone pillars)
 ## Everything is built from cached primitive meshes + a superellipsoid "rounded box" for the soft toy look.
+## The mesh / material caches are static and live for the whole session, so cache keys must stay bounded:
+## random sizes go into the instance scale (see _rb), never into a cache key.
 
 static var _meshes := {}
 static var _glow_mats := {}
@@ -13,8 +15,9 @@ static var _water_mat: StandardMaterial3D
 
 # ---------------------------------------------------------------- mesh / material helpers
 static func _q(c: Color) -> Color:
-	# quantize so Mats.prop's per-color cache stays small
-	return Color(snappedf(c.r, 1.0 / 48.0), snappedf(c.g, 1.0 / 48.0), snappedf(c.b, 1.0 / 48.0), 1.0)
+	# quantize so Mats.prop's per-color cache stays small (1/24 steps: _vary's random tints otherwise keep
+	# adding materials to that session-long cache on the endless road)
+	return Color(snappedf(c.r, 1.0 / 24.0), snappedf(c.g, 1.0 / 24.0), snappedf(c.b, 1.0 / 24.0), 1.0)
 
 static func _sp(x: float, e: float) -> float:
 	return signf(x) * pow(absf(x), e)
@@ -121,17 +124,37 @@ static func _mi(parent: Node3D, mesh: Mesh, col: Color, pos: Vector3, scl := Vec
 	parent.add_child(mi)
 	return mi
 
+## The shape helpers below build from unit meshes and put the size into the node scale (exact for these linear
+## shapes: the renderer transforms normals with the inverse scale), so the static mesh cache stays a few dozen
+## entries no matter how many randomly sized props the endless road spawns. The returned node's scale holds the
+## size: multiply it, never overwrite it.
 static func _sph(p: Node3D, r: float, col: Color, pos: Vector3, scl := Vector3.ONE) -> MeshInstance3D:
-	return _mi(p, _sphere_mesh(r), col, pos, scl)
+	return _mi(p, _sphere_mesh(1.0), col, pos, scl * r)
 
 static func _cyl(p: Node3D, rt: float, rb: float, h: float, col: Color, pos: Vector3, rot := Vector3.ZERO, seg := 14) -> MeshInstance3D:
-	return _mi(p, _cyl_mesh(rt, rb, h, seg), col, pos, Vector3.ONE, rot)
+	return _cyl_mi(p, rt, rb, h, seg, col, pos, Vector3.ONE, rot)
 
 static func _box(p: Node3D, size: Vector3, col: Color, pos: Vector3, rot := Vector3.ZERO) -> MeshInstance3D:
-	return _mi(p, _box_mesh(size), col, pos, Vector3.ONE, rot)
+	return _mi(p, _box_mesh(Vector3.ONE), col, pos, size, rot)
 
+## Cylinder / cone from a unit-height mesh keyed only by the radius ratio (1% steps) and segment count,
+## scaled to (r, h, r) on top of `scl`.
+static func _cyl_mi(p: Node3D, rt: float, rb: float, h: float, seg: int, col: Color, pos: Vector3, scl := Vector3.ONE, rot := Vector3.ZERO, mat: Material = null) -> MeshInstance3D:
+	var r := maxf(rt, rb)
+	if r <= 0.0 or h <= 0.0:
+		return _mi(p, _cyl_mesh(rt, rb, h, seg), col, pos, scl, rot, mat)
+	var m := _cyl_mesh(snappedf(rt / r, 0.01), snappedf(rb / r, 0.01), 1.0, seg)
+	return _mi(p, m, col, pos, scl * Vector3(r, h, r), rot, mat)
+
+## Torus from a unit-outer-radius mesh keyed by the radius ratio (1% steps), scaled uniformly by `ro`.
+static func _torus_mi(p: Node3D, ri: float, ro: float, col: Color, pos: Vector3, scl := Vector3.ONE, rot := Vector3.ZERO, mat: Material = null) -> MeshInstance3D:
+	return _mi(p, _torus_mesh(snappedf(ri / ro, 0.01), 1.0), col, pos, scl * ro, rot, mat)
+
+## Rounded box: one unit mesh per roundness, sized by the instance scale. A superellipsoid scales linearly and its
+## analytic normals transform with the inverse scale (what the renderer does for non-uniform scale), so this is
+## identical to rbox_mesh(size, e) — without caching a new ArrayMesh for every random prop size on the endless road.
 static func _rb(p: Node3D, size: Vector3, col: Color, pos: Vector3, rot := Vector3.ZERO, e := 0.3) -> MeshInstance3D:
-	return _mi(p, rbox_mesh(size, e), col, pos, Vector3.ONE, rot)
+	return _mi(p, rbox_mesh(Vector3.ONE, e), col, pos, size, rot)
 
 static func _root(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s := 1.0) -> Node3D:
 	var n := Node3D.new()
@@ -283,8 +306,8 @@ static func terrace(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s 
 static func pond(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s := 1.0) -> void:
 	var n := _root(parent, pos, rng, s)
 	var r := rng.randf_range(0.8, 1.3)
-	_mi(n, _cyl_mesh(r, r, 0.04, 28), Color.WHITE, Vector3(0, 0.0, 0), Vector3(1, 1, 0.75), Vector3.ZERO, water_mat())
-	_mi(n, _torus_mesh(r - 0.04, r + 0.06), Color.WHITE, Vector3(0, 0.02, 0), Vector3(1, 0.4, 0.75), Vector3.ZERO, glow_mat(Color("eafcff"), 1.05))
+	_cyl_mi(n, r, r, 0.04, 28, Color.WHITE, Vector3(0, 0.0, 0), Vector3(1, 1, 0.75), Vector3.ZERO, water_mat())
+	_torus_mi(n, r - 0.04, r + 0.06, Color.WHITE, Vector3(0, 0.02, 0), Vector3(1, 0.4, 0.75), Vector3.ZERO, glow_mat(Color("eafcff"), 1.05))
 	for i in rng.randi_range(1, 3):
 		var a := rng.randf() * TAU
 		_cyl(n, 0.13, 0.13, 0.02, Color("5fae46"), Vector3(cos(a) * r * 0.5, 0.035, sin(a) * r * 0.35), Vector3.ZERO, 12)
@@ -401,7 +424,7 @@ static func glow_shrooms(parent: Node3D, pos: Vector3, rng: RandomNumberGenerato
 		var p := Vector3(rng.randf_range(-0.15, 0.15), 0, rng.randf_range(-0.15, 0.15))
 		var k := rng.randf_range(0.6, 1.0)
 		_cyl(n, 0.02 * k, 0.03 * k, 0.16 * k, Color("e8d8f0"), p + Vector3(0, 0.08 * k, 0))
-		_mi(n, _sphere_mesh(0.07 * k), Color.WHITE, p + Vector3(0, 0.17 * k, 0), Vector3(1, 0.55, 1), Vector3.ZERO, glow_mat(col, 1.5))
+		_mi(n, _sphere_mesh(1.0), Color.WHITE, p + Vector3(0, 0.17 * k, 0), Vector3(1, 0.55, 1) * (0.07 * k), Vector3.ZERO, glow_mat(col, 1.5))
 
 ## Crystal cluster: tilted glowing hex prisms.
 static func crystals(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s := 1.0, tint := Color(0, 0, 0, 0), base := STONE) -> void:
@@ -413,7 +436,7 @@ static func crystals(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s
 	for i in rng.randi_range(3, 5):
 		var h := rng.randf_range(0.3, 0.75)
 		var a := rng.randf() * TAU
-		_mi(n, _cyl_mesh(0.015, 0.075, h, 6), Color.WHITE, Vector3(cos(a) * 0.1, h * 0.45, sin(a) * 0.1), Vector3.ONE,
+		_cyl_mi(n, 0.015, 0.075, h, 6, Color.WHITE, Vector3(cos(a) * 0.1, h * 0.45, sin(a) * 0.1), Vector3.ONE,
 			Vector3(sin(a) * 0.4, 0, cos(a) * 0.4), glow_mat(col if i % 2 == 0 else col.lightened(0.25), 1.3))
 
 ## Stacked stone pillar with moss.
@@ -612,7 +635,7 @@ static func obsidian(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s
 	var n := _root(parent, pos, rng, s)
 	for i in rng.randi_range(2, 3):
 		var h := rng.randf_range(0.25, 0.55)
-		_mi(n, _cyl_mesh(0.03, 0.16, h, 5), _vary(Color("2c2232"), rng, 0.03), Vector3(i * 0.16 - 0.15, h * 0.45, (i % 2) * 0.12), Vector3.ONE, Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3)))
+		_cyl_mi(n, 0.03, 0.16, h, 5, _vary(Color("2c2232"), rng, 0.03), Vector3(i * 0.16 - 0.15, h * 0.45, (i % 2) * 0.12), Vector3.ONE, Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3)))
 
 ## Glowing ember cracks / shards on the ground.
 static func embers(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s := 1.0) -> void:
@@ -644,9 +667,9 @@ static func dead_tree(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, 
 static func lava_pool(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s := 1.0) -> void:
 	var n := _root(parent, pos, rng, s)
 	var r := rng.randf_range(0.5, 0.9)
-	_mi(n, _torus_mesh(r - 0.06, r + 0.12), BASALT, Vector3(0, 0.02, 0), Vector3(1, 0.6, 0.8))
-	_mi(n, _cyl_mesh(r, r, 0.04, 22), Color.WHITE, Vector3(0, 0.01, 0), Vector3(1, 1, 0.8), Vector3.ZERO, glow_mat(LAVA, 1.25))
-	_mi(n, _cyl_mesh(r * 0.5, r * 0.5, 0.045, 16), Color.WHITE, Vector3(r * 0.15, 0.015, 0), Vector3(1, 1, 0.8), Vector3.ZERO, glow_mat(Color("ffb040"), 1.3))
+	_torus_mi(n, r - 0.06, r + 0.12, BASALT, Vector3(0, 0.02, 0), Vector3(1, 0.6, 0.8))
+	_cyl_mi(n, r, r, 0.04, 22, Color.WHITE, Vector3(0, 0.01, 0), Vector3(1, 1, 0.8), Vector3.ZERO, glow_mat(LAVA, 1.25))
+	_cyl_mi(n, r * 0.5, r * 0.5, 0.045, 16, Color.WHITE, Vector3(r * 0.15, 0.015, 0), Vector3(1, 1, 0.8), Vector3.ZERO, glow_mat(Color("ffb040"), 1.3))
 	for i in 2:
 		var b := _mi(n, _sphere_mesh(0.07), Color.WHITE, Vector3(rng.randf_range(-0.3, 0.3) * r, 0.03, rng.randf_range(-0.2, 0.2) * r), Vector3.ONE, Vector3.ZERO, glow_mat(Color("ffb040"), 2.0))
 		var tw := b.create_tween().set_loops()
@@ -694,7 +717,7 @@ static func ice_spike(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, 
 	var n := _root(parent, pos, rng, s)
 	for i in rng.randi_range(2, 3):
 		var h := rng.randf_range(0.6, 1.2) * (1.0 - i * 0.25)
-		var m := _mi(n, _cyl_mesh(0.0, 0.18, h, 6), Color("bfe8ff"), Vector3(i * 0.2 - 0.15, h * 0.48, (i % 2) * 0.14), Vector3.ONE, Vector3(rng.randf_range(-0.15, 0.15), 0, rng.randf_range(-0.2, 0.2)))
+		var m := _cyl_mi(n, 0.0, 0.18, h, 6, Color("bfe8ff"), Vector3(i * 0.2 - 0.15, h * 0.48, (i % 2) * 0.14), Vector3.ONE, Vector3(rng.randf_range(-0.15, 0.15), 0, rng.randf_range(-0.2, 0.2)))
 		m.material_override = Mats.prop(_q(Color("bfe8ff")), 0.2)
 
 static func snowman(parent: Node3D, pos: Vector3, rng: RandomNumberGenerator, s := 1.0) -> void:

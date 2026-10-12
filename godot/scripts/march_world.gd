@@ -28,6 +28,7 @@ var seed_v := 1
 var dist := 0.0
 var track: Node3D
 var chunks := {}     # chunk index -> Node3D
+var _span := Vector2i(1, 0)      # chunk index window [x, y] currently built (empty until the first set_dist)
 var view_mix := Vector3.ZERO   # (region a, region b, blend a->b) at the view centre
 var _dim_k := 0.0
 var _as: Array[float] = [0.0]    # encounter k: distance where the trio meets group k (k = 0 is the start)
@@ -61,6 +62,7 @@ func reset(p_seed: int) -> void:
 	for n in track.get_children():
 		n.queue_free()
 	chunks.clear()
+	_span = Vector2i(1, 0)
 	_as = [0.0]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_v
@@ -172,15 +174,16 @@ func local_center(z: float) -> float:
 func set_dist(d: float) -> void:
 	dist = d
 	track.position = Vector3(-center_x(d), 0, d)
-	var i0 := int(floorf((d - BEHIND) / CHUNK))
-	var i1 := int(floorf((d + AHEAD) / CHUNK))
-	for i in range(i0, i1 + 1):
-		if not chunks.has(i):
-			chunks[i] = _build_chunk(i)
-	for i in chunks.keys():
-		if i < i0 or i > i1:
-			chunks[i].queue_free()
-			chunks.erase(i)
+	var span := Vector2i(int(floorf((d - BEHIND) / CHUNK)), int(floorf((d + AHEAD) / CHUNK)))
+	if span != _span:   # the chunk window only moves every CHUNK metres: skip the scan on all other frames
+		_span = span
+		for i in range(span.x, span.y + 1):
+			if not chunks.has(i):
+				chunks[i] = _build_chunk(i)
+		for i in chunks.keys():
+			if i < span.x or i > span.y:
+				chunks[i].queue_free()
+				chunks.erase(i)
 	view_mix = mix_at(d + 4.0, BLEND_GROUND)
 	_apply_light()
 
@@ -322,7 +325,7 @@ func _field_decor(node: Node3D, s0: float, i: int) -> void:
 			"embers":
 				if rng.randf() < 0.45:
 					var p0 := Vector3(cx + rng.randf_range(-0.6, 0.6), -0.005, -s + rng.randf_range(-0.2, 0.2))
-					MarchProps._mi(node, MarchProps._box_mesh(Vector3(rng.randf_range(0.3, 0.6), 0.02, 0.05)), Color.WHITE, p0, Vector3.ONE, Vector3(0, rng.randf() * PI, 0), MarchProps.glow_mat(dc, 1.7))
+					MarchProps._mi(node, MarchProps._box_mesh(Vector3.ONE), Color.WHITE, p0, Vector3(rng.randf_range(0.3, 0.6), 0.02, 0.05), Vector3(0, rng.randf() * PI, 0), MarchProps.glow_mat(dc, 1.7))
 			_:
 				if rng.randf() < (0.5 if deco == "ice" else 0.4):
 					var p := Vector3(cx + rng.randf_range(-0.7, 0.7), -0.01, -s + rng.randf_range(-0.2, 0.2))

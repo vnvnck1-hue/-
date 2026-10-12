@@ -166,7 +166,7 @@ class SkillDial extends Control:
 				if kind == "ult":
 					_cd = maxf(0.1, h.ult_ready_at - game.now)
 				scale = Vector2(1.3, 1.3)
-				create_tween().set_ignore_time_scale(true).tween_property(self, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+				Hud.retween(self).set_ignore_time_scale(true).tween_property(self, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 			_last = v
 		queue_redraw()
 
@@ -210,6 +210,9 @@ class SkillDial extends Control:
 		var fs := 17
 		if kind == "ult" and alive and not ready and game.in_battle():
 			t = "%.0f" % ceilf(h.ult_ready_at - game.now)
+			fs = 22
+		elif not alive and game.respawn_in(h) > 0.0:
+			t = "%.0f" % ceilf(game.respawn_in(h))   # seconds until the fallen hero gets back up
 			fs = 22
 		var tsz := font.get_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
 		var p := Vector2(c.x - tsz.x * 0.5, c.y + fs * 0.36)

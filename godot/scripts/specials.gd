@@ -6,12 +6,16 @@ extends RefCounted
 const NINJA_JUMP_CD := 1.7
 const SPRINT_CD := 0.76
 const SPRINT_DIST := 2.0
+const KITE_NEAR := 1.0        # ranged support backs off while a hero is closer than this (edge to edge)
+const KITE_SPEED := 0.7       # x its move speed
 
 ## Returns true when it handled this tick's movement.
-static func move(game: Node, a: Actor) -> bool:
+static func move(game: Node, a: Actor, delta := 0.0) -> bool:
 	if a.is_hero() or a.target == null:
 		return false
 	var out_of_range := a.reach_to(a.target) > a.attack_range() + Actor.RANGE_PAD
+	if a.def.get("kite", false) and _kite(game, a, delta):
+		return true
 	match a.kind:
 		"mammoth", "abyss":
 			return BossSkills.tick(game, a)
@@ -29,6 +33,33 @@ static func move(game: Node, a: Actor) -> bool:
 					a.model.walk = lerpf(a.model.walk, 0.0, 0.2)
 				return true
 	return false
+
+## Ranged support steps back from the nearest hero (shooting whenever it is ready). It stops backing
+## when it hits the field edge, so it can still be cornered.
+static func _kite(game: Node, a: Actor, delta: float) -> bool:
+	if a.attacking or delta <= 0.0:
+		return false
+	var near: Actor = null
+	var nd := KITE_NEAR
+	for h in game.alive_heroes():
+		var d := a.reach_to(h)
+		if d < nd:
+			nd = d
+			near = h
+	if near == null or game.now - a.last_attack >= a.attack_interval():
+		return false   # nobody close, or the next shot is ready: stand and shoot
+	var away := Actor._flat(a.global_position - near.global_position)
+	if away.length() < 0.01:
+		away = Vector3(randf() - 0.5, 0, randf() - 0.5)
+	var before := a.position
+	a.position += away.normalized() * a.move_speed() * KITE_SPEED * delta
+	a._clamp()
+	if a.position.distance_to(before) < a.move_speed() * KITE_SPEED * delta * 0.3:
+		a.position = before   # pinned against the edge: stand and fight
+		return false
+	a._face(Actor._flat(a.target.global_position - a.global_position), delta, 18.0)
+	a.model.walk = lerpf(a.model.walk, 0.8, 1.0 - exp(-delta * 10.0))
+	return true
 
 static func _ninja_leap(game: Node, a: Actor) -> void:
 	var t := a.target

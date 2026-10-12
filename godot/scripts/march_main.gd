@@ -48,7 +48,7 @@ var mobile: HudMobile
 var atlas: MapHud
 var _merchant := {}        # {"node", "figure", "s", "k", "bubble", "seen"} — the roadside stall, if any
 var _press_merchant := false
-var _field_chests: Array = []   # [{"node", "model", "s", "t", "fx"}] treasure chests lying on the road
+var _field_chests: Array = []   # [{"node", "model", "s", "t", "fx", "tws"}] treasure chests lying on the road
 var _lost_perks := 0
 
 func mode_id() -> String:
@@ -62,14 +62,60 @@ var expedition := false
 var chapter := 0
 var _cleared := false
 ## Hero level an expedition chapter starts at (index = chapter; later laps keep climbing).
-const CHAPTER_LEVEL := [1, 5, 7, 9, 11, 13]   # ≈ the levels the old endless march reached by then
+const CHAPTER_LEVEL := [1, 5, 8, 11, 14, 17]   # ≈ the levels the endless march reaches by then (balance model)
+## Expedition head start (index = chapter): skill-book levels each hero has already learned and battle perks
+## already taken — about what the endless march has collected by then (balance model: ~13 books per hero and
+## one perk per mid-boss by group 41). Without it chapters 5-6 were walls even with the gentler enemy curve.
+const CHAPTER_BOOKS := [0, 1, 2, 3, 4, 5]
+const HEAD_START_PERKS := ["atkAll", "hpAll", "speedAll", "critAll", "dmgReduce"]
 
 func start_level() -> int:
 	if not expedition:
 		return 1
 	if chapter < CHAPTER_LEVEL.size():
 		return CHAPTER_LEVEL[chapter]
-	return CHAPTER_LEVEL[-1] + 2 * (chapter - CHAPTER_LEVEL.size() + 1)
+	return CHAPTER_LEVEL[-1] + 3 * (chapter - CHAPTER_LEVEL.size() + 1)
+
+func _run_head_start() -> void:
+	if not expedition or chapter <= 0:
+		return
+	var c := mini(chapter, CHAPTER_BOOKS.size() - 1)
+	for h in heroes:
+		for n in CHAPTER_BOOKS[c]:
+			_head_start_book(h, 2 if n % 3 == 2 else 1)
+	var pool := HEAD_START_PERKS.duplicate()
+	pool.shuffle()
+	for n in mini(chapter, pool.size()):
+		var id: String = pool[n]
+		perks.append(id)
+		var hpm: float = Defs.PERKS[id]["fx"].get("hpMult", 0.0)
+		for h in heroes:
+			var add := floorf(h.def["hp"] * hpm)
+			h.max_hp += add
+			h.hp = h.max_hp
+	hud.refresh_perks()
+	print("[March] head start chapter=", chapter + 1, " lv=", heroes.map(func(x): return x.level), " perks=", perks,
+		" skills=", heroes.map(func(x): return x.learned.size()), " hp=", heroes.map(func(x): return int(x.max_hp)))
+
+## One 일반 / 희귀 book of the hero's class learned on the spot: a new skill while a slot is free, else a level
+## on a learned one that is not maxed yet.
+func _head_start_book(h: Actor, grade: int) -> void:
+	var ids: Array = []
+	if h.learned.size() < Defs.SKILL_SLOTS:
+		ids = Defs.books_of(h.cls, grade).filter(func(id): return learned_index(h, id) < 0)
+	if ids.is_empty():
+		for s in h.learned:
+			if int(s["level"]) < Defs.BOOK_MAX:
+				ids.append(s["id"])
+	if ids.is_empty():
+		return
+	var id: String = ids[randi() % ids.size()]
+	var i := learned_index(h, id)
+	if i >= 0:
+		h.learned[i]["level"] += 1
+	else:
+		h.learned.append({"id": id, "level": 1})
+	_skill_hp(h, Defs.book(id), 1)
 
 func last_group() -> int:
 	return Meta.chapter_first_group(chapter) + Regions.PER_REGION - 1
@@ -196,13 +242,7 @@ func _densest(foes: Array) -> Vector3:
 # ---------------------------------------------------------------- run
 func start_run(first := false) -> void:
 	_clear_pending()
-	for f in _fires:
-		if is_instance_valid(f["node"]):
-			f["node"].queue_free()
-	_fires.clear()
-	_drift.clear()
-	_remove_merchant()
-	_clear_field_chests()
+	_clear_track_props()
 	dist = 0.0
 	speed = 0.0
 	_boss_cam = 0.0
@@ -221,6 +261,16 @@ func _clear_pending() -> void:
 				hud.unregister_unit(e)
 				e.queue_free()
 	pending.clear()
+
+## Everything the run left on the track: campfires, the merchant's stall, road chests and drifting drops.
+func _clear_track_props() -> void:
+	for f in _fires:
+		if is_instance_valid(f["node"]):
+			f["node"].queue_free()
+	_fires.clear()
+	_drift.clear()
+	_remove_merchant()
+	_clear_field_chests()
 
 ## Marching (reuses the PLACEMENT phase so dragging heroes and equipping keep working).
 func enter_placement() -> void:
@@ -260,6 +310,7 @@ func _process(delta: float) -> void:
 	if quit_after > 0.0 and _clock > quit_after:
 		Music.quit()
 	_info_pause_tick()
+	_respawn_tick(delta)
 	match phase:
 		P.PLACEMENT:
 			if not _info_paused:
@@ -319,25 +370,28 @@ func _scroll(dd: float) -> void:
 	for l in field_loot:
 		if is_instance_valid(l["node"]):
 			l["node"].position += shift
-	var keep: Array = []
-	for n in _drift:
+	for i in range(_drift.size() - 1, -1, -1):   # in place, back to front: no per-frame array copies
+		var n: Variant = _drift[i]   # untyped: the node may already be freed
 		if is_instance_valid(n):
 			n.position += shift
-			keep.append(n)
-	_drift = keep
+		else:
+			_drift.remove_at(i)
 	_place_pending()
-	if not _merchant.is_empty() and _merchant["s"] < dist - MarchWorld.BEHIND:
+	# props that scrolled out behind the camera are dropped (the track's ground chunks go the same way)
+	var gone := dist - MarchWorld.BEHIND
+	if not _merchant.is_empty() and _merchant["s"] < gone:
 		_remove_merchant()
-	for c in _field_chests.duplicate():
-		if c["s"] < dist - MarchWorld.BEHIND:
-			_field_chests.erase(c)
-			if is_instance_valid(c["node"]):
-				c["node"].queue_free()
-	for f in _fires.duplicate():
-		if f["s"] < dist - MarchWorld.BEHIND:
-			if is_instance_valid(f["node"]):
-				f["node"].queue_free()
-			_fires.erase(f)
+	_free_behind(_field_chests, gone)
+	_free_behind(_fires, gone)
+
+## Frees and drops every {"node", "s"} entry of `list` lying before track distance `s`.
+static func _free_behind(list: Array, s: float) -> void:
+	for i in range(list.size() - 1, -1, -1):
+		if list[i]["s"] < s:
+			var n: Variant = list[i]["node"]
+			if is_instance_valid(n):
+				n.queue_free()
+			list.remove_at(i)
 
 ## Coins and loot keep riding the ground while they fly into the HUD.
 func _collect_coins() -> void:
@@ -349,6 +403,13 @@ func _collect_loot() -> float:
 	for l in field_loot:
 		_drift.append(l["node"])
 	return super._collect_loot()
+
+## Outside a fight a revived hero pops up at its formation spot (the board's tiles don't exist here).
+func _place_revived(h: Actor) -> void:
+	if in_battle():
+		return
+	var f: Vector3 = formation.get(h.cls, Vector3.ZERO)
+	h.position = Vector3(f.x + mw.local_center(f.z), 0, f.z)
 
 ## Heroes keep their formation along the winding field (walking back into it after a fight).
 func _march_heroes(delta: float) -> void:
@@ -470,14 +531,22 @@ func _make_group(k: int) -> void:
 	_place_pending()
 
 ## Mid-boss: the region line's boss (war mammoth / abyss lord; golem without a roster) dozing at the back of
-## the wide field plus escorts drawn from the classic mix.
+## the wide field plus escorts drawn from the classic mix: melee guards on the flanks and ranged support
+## (one, two from the 4th escort on) standing back beside the boss.
 func _boss_list(k: int, roster := "") -> Array:
 	var out := [{"kind": Defs.skin("giant", roster), "pos": Vector3(0, 0, -4.4)}]
-	var escorts: Array = Waves.normal(k)
 	var n := mini(2 + int(k / 10.0), 6)
+	var ranged := []
+	var melee := []
+	for s in Waves.normal(k):
+		(ranged if Defs.is_ranged(s["kind"]) else melee).append(s["kind"])
+	var rn := mini(1 if n < 4 else 2, ranged.size())
 	var xs := [-3.4, 3.4, -2.2, 2.2, -3.9, 3.9]
-	for i in mini(n, escorts.size()):
-		out.append({"kind": Defs.skin(escorts[i]["kind"], roster), "pos": Vector3(xs[i], 0, -2.8 - (i % 2) * 1.3)})
+	for i in mini(n - rn, melee.size()):
+		out.append({"kind": Defs.skin(melee[i], roster), "pos": Vector3(xs[i], 0, -2.8 - (i % 2) * 1.3)})
+	var rxs := [-1.9, 1.9]
+	for i in rn:
+		out.append({"kind": ranged[i], "pos": Vector3(rxs[i], 0, -4.9)})
 	return out
 
 const IDLE_MODES := [["wander", 0.26], ["sit", 0.24], ["sleep", 0.12], ["dance", 0.1], ["spar", 0.16], ["lookout", 0.12]]
@@ -832,9 +901,9 @@ func _merchant_hit(sp: Vector2) -> bool:
 func _merchant_tick() -> void:
 	if _merchant.is_empty():
 		return
-	var b: Control = _merchant["bubble"]
-	if not is_instance_valid(b) or not is_instance_valid(_merchant["figure"]):
+	if not is_instance_valid(_merchant["bubble"]) or not is_instance_valid(_merchant["figure"]):
 		return
+	var b: Control = _merchant["bubble"]
 	var p := _merchant_pos()
 	var z := p.z
 	var on := z > -11.0 and z < 6.0 and not cam.is_position_behind(p) and phase != P.GAMEOVER
@@ -855,8 +924,8 @@ func _merchant_tick() -> void:
 func open_shop() -> void:
 	if _merchant.is_empty() or hud.has_overlay() or phase == P.GAMEOVER or Cinematic.active or Skills.aiming or drag_stage:
 		return
-	var fig: Node3D = _merchant["figure"]
-	if is_instance_valid(fig):
+	if is_instance_valid(_merchant["figure"]):
+		var fig: Node3D = _merchant["figure"]
 		var tw := fig.create_tween()
 		tw.tween_property(fig, "scale", Vector3(1.2, 0.85, 1.2), 0.08)
 		tw.tween_property(fig, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
@@ -878,15 +947,8 @@ func _spawn_field_chest(s: float, t := 0) -> void:
 	var root := Node3D.new()
 	root.position = Vector3(x, 0.0, -s)
 	mw.track.add_child(root)
-	var halo := MeshInstance3D.new()
-	var disc := CylinderMesh.new()
-	disc.top_radius = 0.55
-	disc.bottom_radius = 0.55
-	disc.height = 0.01
-	halo.mesh = disc
-	halo.material_override = MarchProps.glow_mat(Color(1.0, 0.85, 0.3, 0.22), 1.0)
-	halo.position.y = 0.02
-	root.add_child(halo)
+	var halo := MarchProps._mi(root, MarchProps._cyl_mesh(0.55, 0.55, 0.01, 64), Color.WHITE, Vector3(0, 0.02, 0),
+		Vector3.ONE, Vector3.ZERO, MarchProps.glow_mat(Color(1.0, 0.85, 0.3, 0.22), 1.0))   # cached disc + material
 	var m := ChestModel.new(t)
 	m.scale = Vector3.ONE * 0.72
 	m.rotation.y = randf_range(-0.45, 0.45)
@@ -924,11 +986,12 @@ func _chest_tick(delta: float) -> void:
 	var back := -INF
 	for h in heroes_alive:
 		back = maxf(back, h.global_position.z)
-	for c in _field_chests.duplicate():
-		var root: Node3D = c["node"]
-		if not is_instance_valid(root):
-			_field_chests.erase(c)
+	for i in range(_field_chests.size() - 1, -1, -1):   # back to front: a pickup removes the current entry
+		var c: Dictionary = _field_chests[i]
+		if not is_instance_valid(c["node"]):   # checked before the typed read (a freed instance can't be assigned)
+			_field_chests.remove_at(i)
 			continue
+		var root: Node3D = c["node"]
 		var p := root.global_position
 		c["fx"] -= delta
 		if c["fx"] <= 0.0 and p.z > -11.0:
@@ -1026,14 +1089,8 @@ func resume_region() -> void:
 			c["node"].queue_free()
 	coins.clear()
 	_discard_loot()
-	for f in _fires:
-		if is_instance_valid(f["node"]):
-			f["node"].queue_free()
-	_fires.clear()
-	_drift.clear()
-	_remove_merchant()
-	_clear_field_chests()
-	dead_order.clear()
+	_clear_track_props()
+	clear_respawns()
 	revive_used = {}
 	relic_tempo = 0
 	gimmick = ""
@@ -1075,17 +1132,50 @@ func _run_test() -> void:
 	if test_mode == "pause":
 		await _test_pause()
 		return
+	if test_mode == "respawn":
+		await _test_respawn()
+		return
 	if test_mode == "notice":
 		await _test_notice()
 		return
 	if test_mode == "bestiary":
 		await _test_bestiary()
 		return
+	if test_mode == "subwave":
+		await _test_subwave()
+		return
 	if test_mode == "shop":
 		await _test_shop()
 		return
 	if test_mode == "chest":
 		await _test_chest()
+		return
+	if test_mode == "stones":   # many 강화석 piles on the field share one "강화석 ×N" plate
+		await get_tree().create_timer(0.8).timeout
+		var c := Vector3(hero("ranger").global_position.x, 0, -Actor.BOARD_Z + 1.2)
+		for i in 10:
+			_give(Inventory.make_stone(2 + i % 4), c + Vector3(randf_range(-1.6, 1.6), 0, randf_range(-0.6, 0.6)))
+		_give(Inventory.make("equip", "sword2"), c + Vector3(-0.8, 0, 0.2))
+		_give(Inventory.make_skillbook(2), c + Vector3(0.9, 0, -0.2))
+		await get_tree().create_timer(1.4).timeout
+		_shot_later(0.0, "stones_field")
+		await get_tree().create_timer(0.3).timeout
+		_collect_loot()
+		_shot_later(0.6, "stones_collecting")
+		_shot_later(0.9, "stones_collecting2")
+		await get_tree().create_timer(2.5).timeout
+		print("[Stones] groups=", hud.loot_groups.size(), " tags=", hud.loot_tags.size(), " stones=", stones)
+		return
+	if test_mode == "relics":   # lobby-worn relics listed with the perks; a relic drop goes to the collection
+		await get_tree().create_timer(0.8).timeout
+		relics = [Inventory.make_relic("crescendoGear", 3), Inventory.make_relic("vampireChalice", 2)]
+		hud.perk_hud.toggle()
+		_shot_later(0.4, "relics_list")
+		await get_tree().create_timer(0.6).timeout
+		hud.perk_hud.toggle()
+		_land_item(Inventory.make_relic("luckyCompass"))
+		_shot_later(0.3, "relics_drop")
+		print("[Relics] bag=", Meta.relic_bag.map(func(x): return x["key"]), " inv=", inventory.size())
 		return
 	if test_mode == "debug":   # DBG menu -> random item drop flying into the bag
 		await get_tree().create_timer(0.8).timeout
@@ -1121,37 +1211,104 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.3).timeout
 	Music.quit()
 
-## --test=books: skill books of every grade in the bag -> learn / level up / full slots choice -> hero card,
-## a slot-levelled loadout, the chest screen with book + 강화석 cards, then the settlement.
+## --test=books: book merges in the bag (일반 ×3 -> 희귀, chained), reading a book (three reels, pick one),
+## a forced 전설 landing, the full-slots replacement, the hero card, the item card, the chest screen with
+## book + 강화석 cards, then the settlement.
 func _test_books() -> void:
 	var rt := func(t: float) -> Signal: return get_tree().create_timer(t, true, false, true).timeout
 	await rt.call(0.6)
 	var w := hero("warrior")
 	for id in ["ironWall", "vitality", "slamMastery", "earthFury", "ironWall", "ironWall"]:
-		var b := Inventory.make_skillbook(1, "warrior")
-		b["skill"] = id
-		inventory.append(b)
-		use_book(b)
-	for g in [1, 2, 3, 4]:
-		inventory.append(Inventory.make_skillbook(g))
-	inventory.append(Inventory.make_skillbook(2, "warrior"))
-	hud.refresh_inventory()
-	print("[Books] warrior learned=", w.learned, " max_hp=", w.max_hp, " badge=", books_for("warrior"))
-	_select(w)
-	await rt.call(0.5)
-	print("[Books] hero card=", hud.panels.hero_card != null and is_instance_valid(hud.panels.hero_card), " selected=", selected)
-	_shot_later(0.0, "books_hero_panel")
-	await rt.call(0.5)
-	_select(null)
-	var extra: Dictionary = inventory.filter(func(x): return x["kind"] == "skillbook" and Inventory.skillbook_def(x)["cls"] == "warrior" and learned_index(w, x["skill"]) < 0)[0]
-	use_book(extra)
-	_shot_later(0.4, "books_full_choice")
-	await rt.call(0.9)
-	hud.close_overlays()
+		learn_skill(id)
+	print("[Books] warrior learned=", w.learned, " max_hp=", w.max_hp)
+	# merges: 8 일반 books -> 2 희귀 + 2 일반, then one more 일반 -> 일반 ×3 -> 희귀 ×3 -> 영웅
+	for i in 8:
+		Inventory.add(self, Inventory.make_skillbook(1))
+	_shot_later(0.55, "books_merge_mid")
+	while _merging or Inventory.book_merge_grade(self) != 0:
+		await rt.call(0.1)
+	print("[Books] after 8 일반: ", _book_grades())
+	Inventory.add(self, Inventory.make_skillbook(1))
+	await rt.call(0.3)
+	while _merging or Inventory.book_merge_grade(self) != 0:
+		await rt.call(0.1)
+	print("[Books] after 9 일반: ", _book_grades())
+	_shot_later(0.1, "books_merged_bag")
+	await rt.call(0.4)
 	hud.show_tip(inventory.filter(func(x): return x["kind"] == "skillbook")[0])
 	_shot_later(0.3, "books_tip")
 	await rt.call(0.7)
 	hud.close_tip()
+	# read the 영웅 book: random reels, pick the first one that needs no slot swap
+	var epic: Dictionary = inventory.filter(func(x): return x["kind"] == "skillbook" and Inventory.book_grade(x) == 3)[0]
+	use_book(epic)
+	var sg: SkillGacha = hud.overlay
+	print("[Books] epic offers=", sg.offers, " grades=", sg.offers.map(func(id): return Defs.book(id)["grade"]), " bag=", _book_grades())
+	_shot_later(1.6, "books_gacha_spin")
+	while sg.state != "pick":
+		await rt.call(0.1)
+	_shot_later(0.0, "books_gacha_pick")
+	await rt.call(0.4)
+	var free := -1
+	for i in sg.offers.size():
+		if not needs_slot(sg.offers[i]):
+			free = i
+			break
+	var learned_before := _learned_total()
+	sg._pick(maxi(free, 0))
+	if free < 0:
+		await rt.call(0.3)
+		_shot_later(0.0, "books_gacha_slot")
+		sg._finish(0, 0)
+	await rt.call(1.2)
+	print("[Books] picked overlay=", hud.has_overlay(), " paused=", get_tree().paused, " levels ", learned_before, " -> ", _learned_total())
+	# a forced 전설 landing (일반, 희귀, 전설) with the full-slot swap for the warrior's 전설
+	get_tree().paused = true
+	sg = SkillGacha.new()
+	sg.hud = hud
+	sg.game = self
+	var rg := hero("ranger")
+	for id in ["pierce", "critical", "splitArrow", "shadowEvasion", "volleyMastery", "hunterFocus"]:
+		if rg.learned.size() < Defs.SKILL_SLOTS and learned_index(rg, id) < 0:
+			learn_skill(id)
+	sg.start(4, ["rapidFire", "sniperMode", "arrowStorm"])
+	hud.overlay_closed.connect(func(): get_tree().paused = false, CONNECT_ONE_SHOT)
+	while sg._faces.size() < 3 or sg._faces[1] == null:
+		await get_tree().process_frame
+	_shot_later(0.35, "books_gacha_rare")
+	await rt.call(0.6)
+	_shot_later(0.9, "books_gacha_suspense")
+	while sg._faces[2] == null:
+		await get_tree().process_frame
+	_shot_later(0.12, "books_gacha_legend")
+	_shot_later(0.6, "books_gacha_legend2")
+	while sg.state != "pick":
+		await rt.call(0.1)
+	_shot_later(0.0, "books_gacha_legend_pick")
+	await rt.call(0.3)
+	print("[Books] legend offers=", sg.offers, " needs_slot=", sg.offers.map(func(id): return needs_slot(id)))
+	# the ranger is full: taking the 전설 skill asks which one to forget
+	var newk := -1
+	for i in sg.offers.size():
+		if needs_slot(sg.offers[i]):
+			newk = i
+	if newk >= 0:
+		sg._pick(newk)
+		_shot_later(0.4, "books_gacha_slot")
+		await rt.call(0.8)
+		var forgot: String = rg.learned[0]["id"]
+		sg._finish(newk, 0)
+		await rt.call(1.2)
+		print("[Books] swapped ", forgot, " -> ", rg.learned[0], " learned=", rg.learned.map(func(x): return x["id"]))
+	else:
+		sg._finish(2, -1)
+		await rt.call(1.2)
+	_select(w)
+	await rt.call(0.5)
+	print("[Books] hero card=", hud.panels.hero_card != null and is_instance_valid(hud.panels.hero_card), " badge=", books_for())
+	_shot_later(0.0, "books_hero_panel")
+	await rt.call(0.5)
+	_select(null)
 	add_stones(7)
 	give_chest(3, hud.root.size * 0.5)
 	await rt.call(1.0)
@@ -1166,7 +1323,7 @@ func _test_books() -> void:
 	_shot_later(3.2, "books_chest_cards")
 	await rt.call(4.0)
 	hud.close_overlays()
-	await rt.call(0.5)
+	await rt.call(1.5)
 	give_chest(1)
 	phase = P.GAMEOVER
 	hud.show_settlement(end_run(false))
@@ -1174,6 +1331,25 @@ func _test_books() -> void:
 	await rt.call(1.4)
 	print("[Books] meta gold=", Meta.gold, " stones=", Meta.stones, " storage=", Meta.storage.size())
 	Music.quit()
+
+func _book_grades() -> Array:
+	return inventory.filter(func(x): return x["kind"] == "skillbook").map(func(x): return Inventory.book_grade(x))
+
+func _learned_total() -> int:
+	var n := 0
+	for cls in Defs.HERO_ORDER:
+		var h := hero(cls)
+		if h == null:
+			continue
+		for s in h.learned:
+			n += int(s["level"])
+	return n
+
+## Dev log tag of a bag entry: gear / relics carry a "key", skill books a grade (and 강화석 neither).
+static func _entry_tag(e: Dictionary) -> String:
+	if e["kind"] == "skillbook":
+		return "book%d" % Inventory.book_grade(e)
+	return str(e.get("key", e.get("kind", "?")))
 
 ## --test=shop (use --wave=13): roadside merchant appears, tap opens the shop (same stock on a second tap),
 ## perk roulette, then a team wipe -> perks gone -> resume from the region's first group.
@@ -1192,7 +1368,7 @@ func _test_shop() -> void:
 	_press(tap)
 	_release(tap)
 	await rt.call(0.6)
-	var first: Array = hud.merchant_stock().map(func(x): return x["entry"]["key"] if x else "")
+	var first: Array = hud.merchant_stock().map(func(x): return _entry_tag(x["entry"]) if x else "")
 	print("[Shop] open=", hud.has_overlay(), " paused=", get_tree().paused, " stock=", first)
 	_shot_later(0.0, "shop_open")
 	await rt.call(0.2)
@@ -1200,7 +1376,7 @@ func _test_shop() -> void:
 	await rt.call(0.3)
 	open_shop()
 	await rt.call(0.3)
-	print("[Shop] reopen same stock=", hud.merchant_stock().map(func(x): return x["entry"]["key"] if x else "") == first, " paused=", get_tree().paused)
+	print("[Shop] reopen same stock=", hud.merchant_stock().map(func(x): return _entry_tag(x["entry"]) if x else "") == first, " paused=", get_tree().paused)
 	hud.close_overlays()
 	await rt.call(0.3)
 	print("[Shop] closed paused=", get_tree().paused)
@@ -1299,7 +1475,7 @@ func _test_chest() -> void:
 	_shot_later(1.15, "gacha_cards_fly")
 	while g.state != "result":
 		await get_tree().process_frame
-	print("[Chest] reward=", g.reward["items"].map(func(x): return x["key"]), " lucky=", g.reward["lucky"], " gold=", g.reward["gold"])
+	print("[Chest] reward=", g.reward["items"].map(_entry_tag), " lucky=", g.reward["lucky"], " gold=", g.reward["gold"])
 	_shot_later(0.7, "gacha_result")
 	await rt.call(1.0)
 	var inv0 := inventory.size()
@@ -1338,7 +1514,7 @@ func _test_bestiary() -> void:
 	for h in heroes:
 		h.visible = false
 	hud.visible = false
-	var rows := [["wolf", "hornbunny", "boar", "bear"], ["imp", "eyebat", "mimic", "horror"]]
+	var rows := [["wolf", "hornbunny", "boar", "bear"], ["imp", "eyebat", "mimic", "horror"], ["slinger", "crossbow", "shaman"]]
 	var made: Array = []
 	for ri in rows.size():
 		for i in rows[ri].size():
@@ -1377,6 +1553,34 @@ func _test_bestiary() -> void:
 		b.queue_free()
 	await get_tree().create_timer(0.3).timeout
 	Music.quit()
+
+## --test=subwave (use with --wave=22+ --autoplay): the moment the first wave falls, the trio stands right in
+## the spawn zone; the follow-up wave must drop in at least SUBWAVE_SAFE_R away from every hero.
+func _test_subwave() -> void:
+	while phase != P.BATTLE:
+		await get_tree().create_timer(0.2).timeout
+	await get_tree().create_timer(1.0).timeout
+	var spots := [Vector3(-1.2, 0, -3.0), Vector3(0.2, 0, -3.4), Vector3(1.4, 0, -2.8)]
+	for i in heroes.size():
+		heroes[i].position = clamp_local_spot(spots[i])
+	for e in alive_enemies():
+		if e.apply_damage(99999.0, heroes[0], false, false, 0.0):
+			on_enemy_killed(e, heroes[0])
+	for h in heroes:   # hold them still where they stand while the next wave drops in
+		h.busy = true
+	while sub_wave == 0 or _sub_pending or phase != P.BATTLE:
+		await get_tree().create_timer(0.1).timeout
+	var worst := INF
+	for e in alive_enemies():
+		for h in heroes:
+			worst = minf(worst, Actor._flat(h.position - e.position).length())
+	print("[Subwave] enemies=", alive_enemies().size(), " closest_to_hero=", snappedf(worst, 0.01), " safe_r=", SUBWAVE_SAFE_R[0])
+	_shot_later(0.0, "subwave_spawned")
+	await get_tree().create_timer(0.4).timeout
+	Music.quit()
+
+func clamp_local_spot(p: Vector3) -> Vector3:
+	return mw.clamp_local(p, 0.0)
 
 ## --test=notice: centred gimmick text + toast band (max 2, newest pushes the oldest out).
 func _test_notice() -> void:
@@ -1441,6 +1645,30 @@ func _test_notice() -> void:
 
 ## --test=ui: drag slow motion, equipping mid-battle, face tap -> hero info, auto ultimate staging.
 ## Item card / hero card open -> march and battle freeze in place; closed -> they pick up again.
+## --test=respawn: a fallen hero counts down RESPAWN_TIME (on the HUD) and gets back up on its own.
+func _test_respawn() -> void:
+	await get_tree().create_timer(1.0).timeout
+	var h := hero("mage")
+	h.hp = 1.0
+	on_hero_down(h)
+	print("[Respawn] down: alive=", h.alive, " left=", snappedf(respawn_in(h), 0.1))
+	await get_tree().create_timer(2.0).timeout
+	print("[Respawn] after 2s: alive=", h.alive, " left=", snappedf(respawn_in(h), 0.1))
+	_shot_later(0.0, "respawn_wait")
+	var field := 2.0
+	var real := 0.0
+	while not h.alive and real < 90.0:
+		await get_tree().process_frame
+		var d := get_process_delta_time()
+		real += d / maxf(Engine.time_scale, 0.001)
+		if not get_tree().paused and phase != P.GAMEOVER:
+			field += d
+	print("[Respawn] back: alive=", h.alive, " field_time=", snappedf(field, 0.1), " hp=", h.hp, "/", h.max_hp, " left=", respawn_in(h), " pos=", h.position)
+	await get_tree().create_timer(0.4).timeout
+	_shot_later(0.0, "respawn_back")
+	await get_tree().create_timer(0.5).timeout
+	get_tree().quit()
+
 func _test_pause() -> void:
 	Inventory.add(self, Inventory.make("equip", "sword2"))
 	hud.refresh_inventory()

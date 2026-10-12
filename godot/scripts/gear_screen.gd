@@ -5,7 +5,8 @@ extends Control
 ##     [강화] raises the slot level with banked gold + 강화석 (Gear.upgrade_cost, capped by the worn grade).
 ##     The level belongs to the slot: whatever is worn there in a run (even a piece picked up mid-run) gets it.
 ##   - storage grid: tap a piece to see it, then [장착] (onto the selected hero) or [판매].
-##     [모두 합성] merges every group of three (same slot + grade -> next grade, Meta.merge_all).
+##     [모두 합성] merges every group of three (same slot + grade -> next grade, Meta.merge_all), then the
+##     MergeFx cutscene plays each merge (RelicScreen, the lobby [유물] screen, reuses this screen's helpers).
 ## Built over the lobby on its own canvas layer; closes with X / Esc.
 
 signal closed
@@ -16,6 +17,8 @@ var cls := "warrior"
 var picked := {}          # storage entry shown in the detail bar
 var _body: Control
 var _toast_l: Label
+var _toast_tw: Tween
+var _fx: MergeFx          # merge cutscene (while it plays)
 
 const CLASS_COL := {"warrior": Color("ff7a5a"), "ranger": Color("5fcf5a"), "mage": Color("a77aff")}
 const SLOT_KO := {"weapon": "무기", "armor": "방어구", "accessory": "장신구"}
@@ -55,7 +58,8 @@ func close() -> void:
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
-		close()
+		if _fx == null:
+			close()
 
 # ---------------------------------------------------------------- layout
 func _rebuild() -> void:
@@ -174,14 +178,13 @@ func _storage(r: Rect2) -> void:
 	var ready := Meta.merge_ready()
 	var mb := _button("모두 합성 (%d)" % ready if ready > 0 else "합성할 것 없음", Color("ff9f1c") if ready > 0 else Color("6e6a8c"), Rect2(r.size.x - 290, 6, 274, 54), 26)
 	mb.pressed.connect(func():
-		var made := Meta.merge_all()
-		if made.is_empty():
+		var steps := Meta.merge_all()
+		if steps.is_empty():
+			Sfx.play("click", -6.0, 0.7)
 			_say("같은 부위·같은 등급 3개가 모이면 합성할 수 있어요")
 			return
-		Sfx.play("chime", -3.0, 1.3)
-		picked = made[-1]
-		_rebuild()
-		_say("합성 %d회! %s" % [made.size(), Inventory.label_of(made[-1])]))
+		picked = steps[-1]["out"]
+		_play_merge(steps))
 	box.add_child(mb)
 	var sc := ScrollContainer.new()
 	sc.position = Vector2(14, 72)
@@ -288,14 +291,28 @@ func _detail(r: Rect2) -> void:
 		_say("+%dG" % g))
 	box.add_child(sb)
 
+## The merges already happened (Meta); the screen behind is rebuilt with the results and the cutscene plays on top.
+func _play_merge(steps: Array) -> void:
+	_rebuild()
+	_fx = MergeFx.play(self, font, steps)
+	_fx.finished.connect(func():
+		_fx = null
+		var last: Dictionary = steps[-1]["out"]
+		var nm := Inventory.name_of(last)
+		if last["kind"] == "relic":
+			nm += "  ★%d" % int(last["star"])
+		_say("합성 %d회! %s" % [steps.size(), nm]))
+
 func _say(t: String) -> void:
 	if _toast_l == null or not is_instance_valid(_toast_l):
 		return
 	_toast_l.text = t
 	_toast_l.modulate.a = 1.0
-	var tw := _toast_l.create_tween()
-	tw.tween_interval(1.4)
-	tw.tween_property(_toast_l, "modulate:a", 0.0, 0.4)
+	if _toast_tw:
+		_toast_tw.kill()   # a fresh toast restarts the hold instead of being faded by the previous one
+	_toast_tw = _toast_l.create_tween()
+	_toast_tw.tween_interval(1.4)
+	_toast_tw.tween_property(_toast_l, "modulate:a", 0.0, 0.4)
 
 # ---------------------------------------------------------------- style helpers
 func _label(text: String, size: int, color := Color.WHITE, outline := 10) -> Label:
@@ -334,10 +351,13 @@ func _button(text: String, col: Color, r: Rect2, fsize := 28) -> Button:
 			b.add_theme_stylebox_override(st, UiTheme.button_box(col.lightened(0.08 if st == "hover" else 0.0), 18, st == "pressed"))
 		else:
 			b.add_theme_stylebox_override(st, _box(col.lightened(0.1 if st == "hover" else 0.0), 20, 5))
-	var tc := UiTheme.text_color(col) if tt else Color.WHITE
+	# 뚜까펫: role text colour (dark on yellow, white elsewhere). text_color() maps cream-card text colours, so it
+	# returned the button's own colour here and the label vanished into the button.
+	var dark := tt and UiTheme.button_role(col) == "yellow"
+	var tc := UiTheme.button_text("yellow") if dark else Color.WHITE
 	for k in ["font_color", "font_hover_color", "font_pressed_color"]:
 		b.add_theme_color_override(k, tc)
-	if tc == Color.WHITE:
+	if not dark:
 		b.add_theme_color_override("font_outline_color", INK)
 		b.add_theme_constant_override("outline_size", 8)
 	return b

@@ -235,6 +235,7 @@ class Layered extends StyleBox:
 	var layers: Array = []
 	var header_h := 0.0
 	var header_radius := 26
+	var _header_sb: StyleBoxFlat   # built on first draw, then reused (no allocation per redraw)
 
 	func add(sb: StyleBox, grow: Vector4, frac := 1.0) -> void:
 		layers.append([sb, grow, frac])
@@ -255,13 +256,14 @@ class Layered extends StyleBox:
 	func _draw_header(ci: RID, rect: Rect2) -> void:
 		var b := 6.0
 		var hr := Rect2(rect.position + Vector2(b, b), Vector2(rect.size.x - b * 2.0, header_h - b))
-		var top := StyleBoxFlat.new()
-		top.bg_color = HEADER
-		top.anti_aliasing = true
 		var cr := maxi(header_radius - 6, 2)
-		top.corner_radius_top_left = cr
-		top.corner_radius_top_right = cr
-		top.draw(ci, hr)
+		if _header_sb == null:
+			_header_sb = StyleBoxFlat.new()
+			_header_sb.bg_color = HEADER
+			_header_sb.anti_aliasing = true
+			_header_sb.corner_radius_top_left = cr
+			_header_sb.corner_radius_top_right = cr
+		_header_sb.draw(ci, hr)
 		var s := hr.size.y * 0.5
 		var cols := int(ceil(hr.size.x / s))
 		for row in 2:

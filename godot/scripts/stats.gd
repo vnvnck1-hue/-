@@ -5,7 +5,8 @@ extends RefCounted
 
 const CAP_ATK_SPEED := 0.7
 const CAP_MOVE_SPEED := 0.75
-const CAP_REDUCE := 0.9
+const CAP_REDUCE := 0.75     # was 0.9 (late gear alone reached it: 1/10 damage taken)
+const CAP_LIFESTEAL := 0.35
 const CAP_DODGE := 0.75
 const CAP_ULT_CD := 0.85
 
@@ -66,14 +67,13 @@ static func has_effect(h: Actor, eff: String) -> bool:
 			return true
 	return false
 
-## Team-wide: run perks + relics in inventory + class-less talents (except atk/hp multipliers).
+## Team-wide: run perks + the relics worn in the lobby (game.relics, ★-scaled) + class-less talents (except atk/hp multipliers).
 static func perk_fx(game: Node) -> Dictionary:
 	var out := {}
 	for p in game.perks:
 		_add(out, Defs.PERKS[p]["fx"])
-	for e in game.inventory:
-		if e.get("kind", "") == "relic":
-			_add(out, Defs.RELICS[e["key"]]["fx"])
+	for e in game.relics:
+		_add(out, Defs.relic_fx(e["key"], int(e.get("star", 1))))
 	var common := Meta.fx("")
 	for k in common:
 		if k != "atkMult" and k != "hpMult":
@@ -81,10 +81,14 @@ static func perk_fx(game: Node) -> Dictionary:
 	return out
 
 static func has_relic(game: Node, key: String) -> bool:
-	for e in game.inventory:
-		if e.get("kind", "") == "relic" and e["key"] == key:
-			return true
-	return false
+	return relic_star(game, key) > 0
+
+## ★ of the worn relic `key` this run (0 = not worn).
+static func relic_star(game: Node, key: String) -> int:
+	for e in game.relics:
+		if e["key"] == key:
+			return int(e.get("star", 1))
+	return 0
 
 ## Per-class: common atk/hp multipliers + that class's talent nodes.
 static func talent_fx(h: Actor) -> Dictionary:
@@ -105,8 +109,9 @@ static func attack_power(game: Node, h: Actor) -> int:
 
 static func atk_speed_bonus(game: Node, h: Actor) -> float:
 	var s := g(skill_fx(h), "atkSpeedBonus") + g(item_fx(h), "atkSpeedBonus") + g(perk_fx(game), "atkSpeedBonus") + g(talent_fx(h), "atkSpeedBonus")
-	if has_relic(game, "crescendoGear"):
-		s += minf(0.30, game.relic_tempo * 0.02)
+	var tempo_star := relic_star(game, "crescendoGear")
+	if tempo_star > 0:
+		s += minf(Defs.relic_tempo_cap(tempo_star), game.relic_tempo * 0.02 * Defs.relic_mult(tempo_star))
 	return s
 
 ## seconds
@@ -149,6 +154,20 @@ static func damage_reduce(game: Node, h: Actor) -> float:
 	if h.cls == "warrior" and Meta.has_flag("warLastStand") and h.hp / h.max_hp <= 0.3:
 		r += 0.15
 	return minf(CAP_REDUCE, r)
+
+static func life_steal(game: Node) -> float:
+	return minf(CAP_LIFESTEAL, g(perk_fx(game), "lifeSteal"))
+
+## Freeze-on-hit chance: skill books + talents (냉기 숙련).
+static func freeze_chance(h: Actor) -> float:
+	return g(skill_fx(h), "freezeChance") + g(talent_fx(h), "freezeChance")
+
+## Extra damage against bosses and mid-bosses (talent 약점 추적).
+static func boss_dmg_mult(h: Actor, t: Actor) -> float:
+	var r := Defs.role(t.kind)
+	if h.is_hero() and (r == "boss" or r == "giant" or r == "illusionist"):
+		return 1.0 + g(talent_fx(h), "bossDmgBonus")
+	return 1.0
 
 ## Ultimate damage bonus from talents + 전설 skill books.
 static func ult_damage_bonus(h: Actor) -> float:

@@ -40,7 +40,6 @@ const WINDOW := {-2: [0.10, 0.06], -1: [0.50, 0.30], 0: [0.36, 0.48], 1: [0.04, 
 const BOSS_SHIFT := 1
 ## Chance that an equipment drop is the third copy of a pair the player already holds (merge assist).
 const ASSIST := 0.22
-const ASSIST_MERCHANT := 1.0   # the merchant always brings one "third copy" if a pair exists
 ## Each region's featured families drop this many times more often (Regions.LIST "gear").
 const FEATURED_W := 3.5
 ## Extra gear drop chance per kill in the first regions (few enemies per group there), by region index.
@@ -98,7 +97,8 @@ static func grade_name(grade: int) -> String:
 		return "초월 ★%d" % (grade - STAR_FROM)
 	return NAMES.get(grade, "?")
 
-## Definition for a generated family item (grade >= 5). Grades 1-4 live in Defs.ITEMS.
+## Definition for a generated family item (grade >= 5). Grades 1-4 live in Defs.ITEMS. Cached per key
+## (bounded by the grades actually reached).
 static func def(k: String) -> Dictionary:
 	if _cache.has(k):
 		return _cache[k]
@@ -121,6 +121,7 @@ static func def(k: String) -> Dictionary:
 	if g > STAR_FROM:
 		nm = "%s ★%d" % [nm, g - STAR_FROM]
 	var d := {"name": nm, "slot": base["slot"], "tier": g, "stats": stats}
+	d.make_read_only()   # shared by every caller of Defs.item, like the const tables
 	_cache[k] = d
 	return d
 
@@ -242,7 +243,7 @@ static func slot_bonus(slot: String, lv: int) -> Dictionary:
 
 ## Cost of raising a slot from level lv to lv + 1: {"gold", "stones"}.
 static func upgrade_cost(lv: int) -> Dictionary:
-	return {"gold": 40 + 25 * lv + int(pow(lv, 1.6)), "stones": 2 + int(lv * 0.8)}
+	return {"gold": 40 + 25 * lv + int(pow(lv, 1.6)), "stones": 2 + int(lv * 0.5)}
 
 ## Additive per-kill gear drop bonus for group k (early regions only).
 static func drop_bonus(k: int) -> float:

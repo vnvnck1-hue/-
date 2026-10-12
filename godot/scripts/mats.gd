@@ -4,9 +4,23 @@ extends RefCounted
 
 static var _cache := {}
 static var _tex := {}
+static var _shared := {}
 
-## Shared, lit material for props (cached per color).
+## Shared resource (mesh / material nobody mutates afterwards), built once by `make` and kept under `key`.
+## Keys must come from a bounded set (code constants), never from per-spawn random values.
+static func shared(key: String, make: Callable) -> Resource:
+	var r: Resource = _shared.get(key)
+	if r == null:
+		r = make.call()
+		_shared[key] = r
+	return r
+
+## Shared, lit material for props (cached per color). Callers pass random / lerped shades, so the
+## colour is snapped to 1/32 steps (invisible on a lit prop) to keep the cache bounded.
 static func prop(color: Color, rough := 0.85) -> StandardMaterial3D:
+	const Q := 1.0 / 32.0
+	color = Color(snappedf(color.r, Q), snappedf(color.g, Q), snappedf(color.b, Q), snappedf(color.a, Q))
+	rough = snappedf(rough, 0.05)
 	var key := "p%s%.2f" % [color.to_html(), rough]
 	if _cache.has(key):
 		return _cache[key]
@@ -66,8 +80,11 @@ static func puff(color: Color) -> StandardMaterial3D:
 	m.emission = color * 0.35
 	return m
 
-## Billboard particle material using a procedural sprite.
+## Billboard particle material using a procedural sprite (shared: particles tint through vertex colour).
 static func particle(shape: String, additive := true) -> StandardMaterial3D:
+	var key := "pt%s%s" % [shape, additive]
+	if _cache.has(key):
+		return _cache[key]
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -76,6 +93,7 @@ static func particle(shape: String, additive := true) -> StandardMaterial3D:
 	m.albedo_texture = texture(shape)
 	if additive:
 		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_cache[key] = m
 	return m
 
 ## Billboard quad material (non particle).

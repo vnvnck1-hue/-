@@ -42,6 +42,14 @@ const ENEMIES := {
 	"hydra": {"name": "히드라", "hp": 50, "atk": 10, "range": 1, "speed": 1200, "move": 1000, "scale": 1.0},
 	"illusionist": {"name": "환술사", "hp": 80, "atk": 12, "range": 1, "speed": 1000, "move": 900, "scale": 0.95},
 	"illusion": {"name": "환영", "hp": 40, "atk": 12, "range": 1, "speed": 1000, "move": 900, "scale": 0.95},
+	# ranged support (원거리): stay behind the front line and shoot; attack = projectile style (Combat.enemy_attack),
+	# kite = back off when a hero gets close, splash = radius (tiles) of the impact blast (50% to others nearby).
+	"slinger": {"name": "돌팔매 고블린", "hp": 24, "atk": 7, "range": 3, "speed": 1700, "move": 1100, "scale": 0.8,
+		"attack": "rock", "kite": true},
+	"crossbow": {"name": "석궁 저격수", "hp": 26, "atk": 15, "range": 4.2, "speed": 2700, "move": 1300, "scale": 0.88,
+		"attack": "quarrel", "kite": true},
+	"shaman": {"name": "화염 주술사", "hp": 42, "atk": 10, "range": 3.2, "speed": 2300, "move": 1300, "scale": 0.95,
+		"attack": "hex", "splash": 1.0},
 	"tut_easy": {"name": "허수아비", "hp": 5, "atk": 1, "range": 1, "speed": 2000, "move": 2000, "scale": 0.9, "flat": true},
 	"tut_tough": {"name": "튼튼 허수아비", "hp": 280, "atk": 1, "range": 1, "speed": 3200, "move": 3200, "scale": 1.0, "flat": true},
 	# --- March field creatures: same numbers as the classic role they stand in for ("role"), new bodies.
@@ -82,11 +90,16 @@ static func role(kind: String) -> String:
 static func skin(kind: String, roster: String) -> String:
 	return ROSTERS.get(roster, {}).get(kind, kind)
 
+## Shoots projectiles instead of swinging (Combat.enemy_attack).
+static func is_ranged(kind: String) -> bool:
+	return ENEMIES.get(kind, {}).has("attack")
+
 ## 2x2 mid-boss bodies.
 static func is_huge(kind: String) -> bool:
 	return ENEMIES.get(kind, {}).get("size", 1) > 1
 
-const DROP_RATES := {"normal": 0.2, "fast": 0.25, "tank": 0.4, "boss": 0.8, "hydra": 0.3, "illusionist": 0.6, "illusion": 0.15}
+const DROP_RATES := {"normal": 0.2, "fast": 0.25, "tank": 0.4, "boss": 0.8, "hydra": 0.3, "illusionist": 0.6, "illusion": 0.15,
+	"slinger": 0.22, "crossbow": 0.3, "shaman": 0.35}
 
 static func gold_base(kind: String) -> int:
 	match role(kind):
@@ -94,16 +107,17 @@ static func gold_base(kind: String) -> int:
 		"tank": return 30
 		"illusionist": return 40
 		"illusion": return 20
+		"crossbow", "shaman": return 20
 	return 15
 
+## Enemy hp / atk multiplier of wave (march group) w: one constant growth rate all the way, so every group is
+## SCALE_RATE harder than the last (x1.97 per 10-group region, close to the gear ladder's x1.75 + levels and books).
+## Was linear to 30 (felt growth fading 15% -> 4.7%) and then x1.15 per group (x4 per region: chapters 4-6 walled).
+const SCALE_BASE := 1.2
+const SCALE_RATE := 1.07
+
 static func scaling(wave: int) -> float:
-	if wave <= 10:
-		return 1.0 + (wave - 1) * 0.15
-	if wave <= 20:
-		return 2.35 + (wave - 10) * 0.25
-	if wave <= 30:
-		return 4.85 + (wave - 20) * 0.4
-	return 8.85 * pow(1.15, wave - 30)
+	return SCALE_BASE * pow(SCALE_RATE, maxi(1, wave) - 1)
 
 static func sub_wave_count(wave: int) -> int:
 	if wave >= 25:
@@ -114,14 +128,22 @@ static func sub_wave_count(wave: int) -> int:
 
 # ---------------------------------------------------------------- skill books (run growth)
 ## Skills are found, not trained: skill books drop in battle (and come from chests and the merchant) and are
-## used from the bag whenever the player likes. The first book of a skill teaches it (into one of SKILL_SLOTS
-## slots); every further copy raises it one level up to BOOK_MAX. Everything learned is lost when the run ends.
+## read from the bag whenever the player likes. A book is only a grade: reading it spins BOOK_PICKS reels (SkillGacha)
+## that each land on a random skill of grade <= the book's grade (BOOK_ROLL odds), and the player keeps one.
+## A new skill takes one of SKILL_SLOTS slots; a known one goes up one level (max BOOK_MAX). BOOK_MERGE books of one
+## grade merge in the bag into one book of the next grade, so saving books trades picks for a higher ceiling.
+## Everything learned is lost when the run ends.
 ## grade: 1 일반 (basic passives) · 2 희귀 (stronger mixes) · 3 영웅 (signature skill upgrades) · 4 전설 (ultimate upgrades).
 ## fx values are per level. Hero-only keys: activeMult (signature skill damage), activeCount (extra arrows),
 ## activeStun / activeFreeze (seconds), ultDamageBonus, ultCooldownReduce, ultBounces, bonusHp (flat max HP).
 const SKILL_SLOTS := 4
 const BOOK_MAX := 5
 const BOOK_GRADES := {1: ["일반", "common"], 2: ["희귀", "rare"], 3: ["영웅", "epic"], 4: ["전설", "legendary"]}
+const BOOK_TOP := 4
+const BOOK_PICKS := 3
+const BOOK_MERGE := 3
+## Skill-grade odds of one reel per book grade (index 0 = 일반 skill): a book never shows a skill above its grade.
+const BOOK_ROLL := {1: [1.0], 2: [0.55, 0.45], 3: [0.3, 0.4, 0.3], 4: [0.1, 0.2, 0.35, 0.35]}
 const SKILL_BOOKS := {
 	# warrior
 	"ironWall": {"cls": "warrior", "grade": 1, "name": "철벽", "desc": "받는 피해 -5%", "fx": {"dmgReduce": 0.05}},
@@ -272,6 +294,44 @@ const RELICS := {
 	"luckyCompass": {"name": "행운의 나침반", "rarity": "rare", "price": 1300, "fx": {"dropBonus": 0.10, "goldMult": 0.10}, "desc": "드랍률 +10%, 골드 +10%"},
 }
 
+## Relics are permanent (Meta): kept in the lobby [유물] collection, RELIC_SLOTS of them are worn there and
+## apply to the whole party in every run. Three of the same relic at the same ★ merge into the next ★
+## (up to RELIC_MAX_STAR); each ★ above 1 adds RELIC_STAR_STEP of the base effect.
+const RELIC_SLOTS := 3
+const RELIC_MAX_STAR := 5
+const RELIC_STAR_STEP := 0.25   # ★5 = x2.0 of the base effect (was 0.4 -> x2.6)
+## fx key -> [label, is percent, sign]
+const RELIC_FX_NAME := {
+	"lifeSteal": ["가한 피해 흡혈", true, "+"], "atkSpeedBonus": ["공격 속도", true, "+"], "moveSpeedBonus": ["이동 속도", true, "+"],
+	"doubleAttackChance": ["추가 공격 확률", true, "+"], "manaGainMult": ["마나 획득", true, "+"], "dmgReduce": ["받는 피해", true, "-"],
+	"dropBonus": ["드랍률", true, "+"], "goldMult": ["골드", true, "+"]}
+
+static func relic_mult(star: int) -> float:
+	return 1.0 + RELIC_STAR_STEP * float(clampi(star, 1, RELIC_MAX_STAR) - 1)
+
+## The relic's effect at ★ `star`.
+static func relic_fx(key: String, star: int) -> Dictionary:
+	var out := {}
+	var fx: Dictionary = RELICS[key]["fx"]
+	for k in fx:
+		out[k] = fx[k] * relic_mult(star)
+	return out
+
+## crescendoGear: the extra attack speed it builds up as the party attacks (cap) at ★ `star`.
+static func relic_tempo_cap(star: int) -> float:
+	return 0.30 * relic_mult(star)
+
+## One-line effect text at ★ `star` (numbers scaled), e.g. "공격 속도 +14% · 공격할수록 최대 +42% 가속".
+static func relic_desc(key: String, star: int) -> String:
+	var parts := []
+	var fx := relic_fx(key, star)
+	for k in fx:
+		var n: Array = RELIC_FX_NAME.get(k, [k, true, "+"])
+		parts.append("%s %s%d%%" % [n[0], n[2], roundi(fx[k] * 100.0)])
+	if RELICS[key].get("tempo", false):
+		parts.append("공격할수록 최대 +%d%% 가속" % roundi(relic_tempo_cap(star) * 100.0))
+	return " · ".join(parts)
+
 const SPECIAL := {
 	"revive": {"name": "부활의 깃털", "price": 500, "desc": "쓰러진 동료 1명을 체력 100%로 부활"},
 	"fullHeal": {"name": "여신의 축복", "price": 300, "desc": "모든 아군 체력 100% 회복"},
@@ -350,14 +410,14 @@ const TALENTS := [
 	{"id": "rngSpeed", "branch": "ranger", "name": "빠른 손놀림", "max": 5, "costs": [2, 4, 6, 9, 13], "req": ["rngAtk"], "pos": Vector2(240, 405), "cls": "ranger", "fx": {"atkSpeedBonus": 0.03}, "desc": "레인저 공속 +3%"},
 	{"id": "rngCrit", "branch": "ranger", "name": "명중 훈련", "max": 5, "costs": [3, 5, 8, 12, 16], "req": ["rngSpeed"], "pos": Vector2(165, 460), "cls": "ranger", "fx": {"critChance": 0.02}, "desc": "레인저 치명타 +2%"},
 	{"id": "rngRange", "branch": "ranger", "name": "긴 사거리", "max": 1, "costs": [18], "req": ["rngCrit"], "pos": Vector2(225, 515), "cls": "ranger", "fx": {"range": 1}, "desc": "레인저 사거리 +1"},
-	{"id": "rngBoss", "branch": "ranger", "name": "약점 추적", "max": 3, "costs": [7, 14, 24], "req": ["rngCrit"], "pos": Vector2(100, 555), "desc": "보스·정예 피해 +5% (원본 미구현)"},
+	{"id": "rngBoss", "branch": "ranger", "name": "약점 추적", "max": 3, "costs": [7, 14, 24], "req": ["rngCrit"], "pos": Vector2(100, 555), "cls": "ranger", "fx": {"bossDmgBonus": 0.05}, "desc": "레인저 보스·정예 피해 +5%"},
 	{"id": "rngGold", "branch": "ranger", "name": "화살 회수", "max": 5, "costs": [4, 7, 11, 16, 22], "req": ["rngSpeed"], "pos": Vector2(125, 385), "cls": "ranger", "fx": {"rangerGoldBonus": 0.02}, "desc": "레인저 처치 시 추가 골드"},
 	{"id": "rngLoot", "branch": "ranger", "name": "전리품 감각", "max": 1, "costs": [35], "req": ["rngGold"], "pos": Vector2(65, 465), "fx": {"dropBonus": 0.05}, "desc": "아이템 드랍률 +5%"},
 	{"id": "rngFinal", "branch": "ranger", "name": "시간 사냥꾼", "max": 1, "costs": [50], "req": ["timeCore", "rngLoot"], "pos": Vector2(60, 300), "fx": {"crystalDropBonus": 0.02}, "desc": "결정 드랍 확률 +2%"},
 	{"id": "magAtk", "branch": "mage", "name": "보라 단련", "max": 5, "costs": [2, 4, 6, 9, 13], "req": ["root"], "pos": Vector2(450, 500), "cls": "mage", "fx": {"atkMult": 0.03}, "desc": "메이지 공격력 +3%"},
 	{"id": "magMana", "branch": "mage", "name": "마나 순환", "max": 5, "costs": [2, 4, 6, 9, 13], "req": ["magAtk"], "pos": Vector2(370, 560), "cls": "mage", "fx": {"manaGainMult": 0.03}, "desc": "메이지 마나 획득 +3%"},
 	{"id": "magSpeed", "branch": "mage", "name": "주문 가속", "max": 5, "costs": [3, 5, 8, 12, 16], "req": ["magAtk"], "pos": Vector2(530, 560), "cls": "mage", "fx": {"atkSpeedBonus": 0.02}, "desc": "메이지 공속 +2%"},
-	{"id": "magFrost", "branch": "mage", "name": "냉기 숙련", "max": 3, "costs": [5, 10, 18], "req": ["magMana"], "pos": Vector2(285, 620), "desc": "빙결 확률 +5% (원본 미구현)"},
+	{"id": "magFrost", "branch": "mage", "name": "냉기 숙련", "max": 3, "costs": [5, 10, 18], "req": ["magMana"], "pos": Vector2(285, 620), "cls": "mage", "fx": {"freezeChance": 0.05}, "desc": "메이지 빙결 확률 +5%"},
 	{"id": "magChain", "branch": "mage", "name": "연쇄 전류", "max": 3, "costs": [10, 18, 30], "req": ["magSpeed"], "pos": Vector2(615, 620), "cls": "mage", "fx": {"mageUltBounces": 1}, "desc": "체인 라이트닝 튕김 +1"},
 	{"id": "magUltCool", "branch": "mage", "name": "폭풍의 눈", "max": 1, "costs": [40], "req": ["magFrost", "magChain"], "pos": Vector2(450, 675), "cls": "mage", "fx": {"ultCooldownReduce": 0.20}, "desc": "체인 라이트닝 쿨타임 -20%"},
 	{"id": "magFinal", "branch": "mage", "name": "시간 마도사", "max": 1, "costs": [55], "req": ["timeCore", "magUltCool"], "pos": Vector2(450, 745), "flag": true, "desc": "궁 사용 시 10% 확률로 결정 +1"},
