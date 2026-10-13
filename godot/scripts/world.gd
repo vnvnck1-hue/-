@@ -47,7 +47,7 @@ func set_dim(k: float) -> void:
 	env.ambient_light_energy = lerpf(0.62, 0.1, k)
 	env.background_color = Color("8fd0f0").lerp(Color("141026"), k)
 	env.adjustment_saturation = lerpf(1.3, 0.85, k)
-	env.glow_intensity = lerpf(0.5, 0.65, k)
+	env.glow_intensity = WebLook.glow(lerpf(0.5, 0.65, k))
 
 static func tile_pos(c: int, r: int) -> Vector3:
 	return Vector3((c - 2.5) * TILE, 0.0, (3.5 - r) * TILE)
@@ -92,6 +92,7 @@ func _env() -> void:
 	e.adjustment_enabled = true
 	e.adjustment_saturation = 1.3
 	e.adjustment_contrast = 1.1
+	WebLook.apply(e)
 	we.environment = e
 	env = e
 	add_child(we)
@@ -242,6 +243,7 @@ func _terrain() -> void:
 	wm.metallic_specular = 0.8
 	wm.emission_enabled = true
 	wm.emission = WATER * 0.25
+	WebLook.unify(wm)
 	water.material_override = wm
 	water.position = Vector3(-4.3, -0.03, 0.6)
 	add_child(water)

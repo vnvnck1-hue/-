@@ -1,0 +1,13 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[sub_resource type="Shader" id="Shader_6plak"]
+code = "shader_type canvas_item;
+uniform vec4 tint : source_color;
+void fragment() {
+	COLOR = vec4(tint.rgb, COLOR.a * tint.a);
+}
+"
+
+[resource]
+shader = SubResource("Shader_6plak")
+shader_parameter/tint = Color(0.05, 0.03, 0.1, 1)

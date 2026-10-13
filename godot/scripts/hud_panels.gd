@@ -886,13 +886,79 @@ const GROUP_COL := ["d8432c", "2f9a4a", "2f78d0"]   # 공격 / 생존 / 보조
 const EFFECT_COL := "9a3cc8"
 const META_COL := "8a7a60"
 const BODY_COL := "3a2a20"
-## Effect body for the card (the effect name is its own coloured heading above it).
+## Effect body for the card (the effect name is its own coloured heading above it). Mirrors Combat.hero_hit /
+## main.on_enemy_killed exactly; the same effect on two worn items does not stack.
 const EFFECT_BODY := {
-	"sharedMana": "다른 아군이 공격할 때 얻는 마나의 50%를 함께 얻습니다.",
-	"killMana": "적이 쓰러질 때마다 마나가 가득 찹니다.",
-	"knockback": "공격한 적을 뒤로 밀어냅니다.",
-	"swap": "공격할 때마다 대상과 자리를 맞바꿉니다.",
-	"lightning": "3번째 공격마다 다른 적 1명에게 피해의 80% 번개가 튑니다."}
+	"sharedMana": "다른 아군이 기본 공격으로 마나를 얻을 때마다, 그 양의 50%를 이 영웅도 함께 얻습니다.",
+	"killMana": "아군 누가 적을 쓰러뜨려도 그때마다 이 영웅의 마나가 즉시 가득 찹니다.",
+	"knockback": "기본 공격에 맞은 적을 뒤로 강하게 밀어냅니다.\n(위치 교환 효과도 함께 지니면 넉백 대신 위치 교환)",
+	"swap": "기본 공격 뒤 대상이 살아 있으면 대상과 서로 자리를 맞바꿉니다.",
+	"lightning": "기본 공격 3번째마다 다른 적 1명(무작위)에게 그 공격 피해의 80% 번개가 튑니다."}
+
+## What a stat actually does in combat ({v} = formatted value). Only stats whose name alone doesn't say it all.
+## party = true: relic / team-wide wording ("파티 전원").
+const STAT_NOTE := {
+	"critChance": "치명타가 터지면 기본 공격 피해 2배",
+	"explosionChance": "기본 공격 시 {v} 확률로 폭발: 주변 적에게 그 피해의 50%",
+	"counterChance": "근접 공격을 받으면 {v} 확률로 즉시 반격 (원거리 공격엔 발동 안 함)",
+	"dmgBonus": "기본 공격 피해 +{v} (스킬·궁극기 피해엔 적용 안 됨)",
+	"range": "공격 사거리 +{v}칸",
+	"lifeSteal": "기본 공격으로 가한 피해의 {v}만큼 체력 회복 (흡혈 합계 최대 35%)",
+	"doubleAttackChance": "기본 공격 시 {v} 확률로 0.2초 뒤 같은 적을 한 번 더 공격 (추가 공격·반격은 다시 발동 안 함)",
+	"manaGainMult": "기본 공격으로 얻는 마나 +{v} → 궁극기를 더 자주 사용",
+	"moveSpeedBonus": "이동 속도 +{v} (이동 속도 보너스 합계 최대 75%)",
+	"dmgReduce": "받는 피해 {v} 감소 (모든 피해 감소 합계 최대 75%)",
+	"atkSpeedBonus": "공격 간격 {v} 단축 (공격 속도 보너스 합계 최대 70%)",
+	"dropBonus": "적 처치 시 장비 드랍 확률 +{v}p · 스킬북 드랍 확률 +{h}p",
+	"goldMult": "적 처치 골드 +{v}"}
+## Equipment notes are shown for these (atk / hp / atk speed / reduce read fine from the stat line itself).
+const EQUIP_NOTE_KEYS := ["critChance", "explosionChance", "counterChance", "dmgBonus", "range", "lifeSteal",
+	"doubleAttackChance", "manaGainMult", "moveSpeedBonus", "dropBonus", "goldMult"]
+
+static func _pct(v: float) -> String:
+	return "%d%%" % roundi(v * 100.0)
+
+static func stat_note(k: String, v: float) -> String:
+	var t: String = STAT_NOTE.get(k, "")
+	if t == "":
+		return ""
+	var vs := str(int(v)) if k == "range" else _pct(v)
+	return t.replace("{v}", vs).replace("{h}", _pct(v * 0.5))
+
+## Full equipment text: [stat summary line, [note lines], [[effect name, effect body]]]. Used by the lobby gear screen.
+static func equip_detail(e: Dictionary) -> Dictionary:
+	var es := Stats.entry_stats(e)
+	var stats := []
+	var notes := []
+	for k in es:
+		if not STAT_NAME.has(k):
+			continue
+		var n: Array = STAT_NAME[k]
+		stats.append("%s +%s" % [n[0], _pct(es[k]) if n[1] else str(int(es[k]))])
+		if k in EQUIP_NOTE_KEYS:
+			notes.append(stat_note(k, es[k]))
+	var effs := []
+	for x in Defs.item(e["key"]).get("effects", []):
+		effs.append([EFFECT_NAME.get(x, x), EFFECT_BODY.get(x, "")])
+	return {"stats": stats, "notes": notes, "effects": effs}
+
+## Every line a relic's effect means at ★ `star` (party-wide, numbers scaled), e.g. for 가속의 태엽심장:
+## "파티 전원 공격 속도 +10%" + how the tempo stacks build up and reset.
+static func relic_detail(key: String, star: int) -> Array:
+	var out := []
+	var fx := Defs.relic_fx(key, star)
+	for k in fx:
+		var n: Array = Defs.RELIC_FX_NAME.get(k, [k, true, "+"])
+		var line := "파티 전원 %s %s%s" % [n[0], n[2], _pct(fx[k])]
+		var note := stat_note(k, fx[k])
+		if note != "" and k != "atkSpeedBonus":
+			line += "\n   └ " + note
+		out.append(line)
+	if Defs.RELICS[key].get("tempo", false):
+		var step := 0.02 * Defs.relic_mult(star)
+		out.append("가속: 아군이 기본 공격할 때마다 공격 속도 +%s씩 쌓여 최대 +%s (%d중첩) · 전투가 시작될 때마다 초기화" % [
+			"%.1f%%" % (step * 100.0) if roundi(step * 1000.0) % 10 != 0 else _pct(step), _pct(Defs.relic_tempo_cap(star)), 15])
+	return out
 
 ## Info-card rows: [bbcode, plain text (height estimate), font size, (stat value bbcode)]; size 0 is a section gap.
 ## Rows carrying a value are laid out as a two-column table so the numbers line up.
@@ -905,18 +971,28 @@ func _card_rows(e: Dictionary) -> Array:
 			var grade_txt := ("%s 등급" % Gear.grade_name(tier)) if Gear.is_family(e["key"]) else ("%d티어" % tier)
 			_text_rows(rows, "%s  ·  %s" % [SLOT_KO.get(def.get("slot", ""), "?"), grade_txt], 18, META_COL)
 			_stat_rows(rows, Stats.entry_stats(e))
+			_note_rows(rows, Stats.entry_stats(e))
 			_effect_rows(rows, def.get("effects", []))
 		"special":
 			var sd: Dictionary = Defs.SPECIAL[e["key"]]
 			if sd.get("equip", false):
 				_text_rows(rows, "장신구", 18, META_COL)
 				_stat_rows(rows, sd["stats"])
+				_note_rows(rows, sd["stats"])
 				_effect_rows(rows, sd.get("effects", []))
+				rows.append(["", "", 0])
+				_text_rows(rows, SPECIAL_DETAIL.get(e["key"], ""), 17, META_COL)
 			else:
 				_text_rows(rows, SPECIAL_DETAIL.get(e["key"], sd["desc"]))
 		"relic":
 			var st := int(e.get("star", 1))
-			_text_rows(rows, "★%d  ·  %s" % [st, Defs.relic_desc(e["key"], st)], 22)
+			_text_rows(rows, "유물  ·  ★%d / %d" % [st, Defs.RELIC_MAX_STAR], 18, META_COL)
+			rows.append(["", "", 0])
+			for ln in relic_detail(e["key"], st):
+				_text_rows(rows, ln, 20)
+			if st < Defs.RELIC_MAX_STAR:
+				rows.append(["", "", 0])
+				_text_rows(rows, "다음 ★%d: %s" % [st + 1, Defs.relic_desc(e["key"], st + 1)], 18, "2f78d0")
 			rows.append(["", "", 0])
 			_text_rows(rows, "로비 [유물]에서 장착하면 모든 판에서 파티 전체에 적용됩니다. 같은 유물 3개(같은 ★)를 모으면 합성!", 17, META_COL)
 		"skillbook":
@@ -953,6 +1029,16 @@ func _stat_rows(rows: Array, stats: Dictionary) -> void:
 		rows.append(["[color=#%s]●  %s[/color]" % [col, n[0]], "●  %s   %s" % [n[0], val], 24,
 			"[font_size=27][color=#%s]%s[/color][/font_size]" % [BODY_COL, val]])
 
+## What the special stats do (crit / explosion / counter ...), in small text under the stat table.
+func _note_rows(rows: Array, stats: Dictionary) -> void:
+	var first := true
+	for k in stats:
+		if k in EQUIP_NOTE_KEYS:
+			if first:
+				rows.append(["", "", 0])
+				first = false
+			_text_rows(rows, "·  " + stat_note(k, stats[k]), 18, META_COL)
+
 ## Special effects: purple heading, then what it does on its own line in smaller text.
 func _effect_rows(rows: Array, effs: Array) -> void:
 	for x in effs:
@@ -965,7 +1051,7 @@ func _text_rows(rows: Array, text: String, size := 20, col := BODY_COL) -> void:
 	for ln in text.split("\n"):
 		rows.append(["[color=#%s]%s[/color]" % [col, ln], ln, size])
 
-func _show_tip(e: Dictionary, pinned: bool) -> void:
+func _show_tip(e: Dictionary, pinned: bool, shop := false) -> void:
 	_close_tip()
 	tip_entry = e
 	tip_pinned = pinned
@@ -1000,6 +1086,12 @@ func _show_tip(e: Dictionary, pinned: bool) -> void:
 	body.add_theme_font_override("normal_font", hud.font)
 	body.add_theme_constant_override("line_separation", 4)
 	body.text = "\n".join(bb)
+	# the per-row estimate above misses wrapped lines' spacing: lay the text out at its real width and measure
+	# (it needs to sit in the tree for its theme; it moves onto the card below)
+	body.size = Vector2(W - 156, body_h)
+	hud.root.add_child(body)
+	body_h = maxf(body_h, body.get_content_height() + 10.0)
+	hud.root.remove_child(body)
 	var H := 70.0 + body_h + (74.0 if pinned else 40.0)
 	var rarity := Inventory.rarity_of(e)
 	var col: Color = Defs.RARITY_COL[rarity]
@@ -1064,7 +1156,7 @@ func _show_tip(e: Dictionary, pinned: bool) -> void:
 		cb.pressed.connect(_close_tip)
 		card.add_child(cb)
 	else:
-		var pl := hud.label("판매가 %dG · 눌러서 고정" % price, 16, Color("8a7a60"), 0)
+		var pl := hud.label("상인 판매 물품 · 아이콘을 다시 누르면 닫힘" if shop else "판매가 %dG · 눌러서 고정" % price, 16, Color("8a7a60"), 0)
 		pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		pl.position = Vector2(16, H - 32)
 		pl.size = Vector2(W - 32, 26)
@@ -1134,13 +1226,15 @@ func settlement(r: Dictionary) -> void:
 		note.append("남은 스킬북 %d권 → 강화석 %d" % [int(r["books"]), int(r["book_stones"])])
 	if int(r.get("chests", 0)) > 0:
 		note.append("열지 않은 상자 %d개 자동 개봉" % int(r["chests"]))
+	if r.get("kept", false):
+		note = ["가방(%d칸)%s은 다음 챕터로 그대로 이어져요" % [int(r.get("bag", 0)), " · 상자 %d개" % int(r["chests"]) if int(r.get("chests", 0)) > 0 else ""]]
 	var nl := hud.label(" · ".join(note) if not note.is_empty() else "배운 스킬과 특성은 판이 끝나면 사라져요", 19, Color("8a7a60") if not dark else Color("c8c0e0"), 0)
 	nl.position = Vector2(20, 284)
 	nl.size = Vector2(560, 30)
 	card.add_child(nl)
 	var y := 322.0
 	if not gear.is_empty():
-		var gl := hud.label("장비 %d개 → 보관함" % gear.size(), 22, body_col, 8 if dark else 0)
+		var gl := hud.label(("로비로 가면 장비 %d개 → 보관함" if r.get("kept", false) else "장비 %d개 → 보관함") % gear.size(), 22, body_col, 8 if dark else 0)
 		gl.position = Vector2(0, y)
 		gl.size = Vector2(600, 30)
 		card.add_child(gl)
@@ -1189,6 +1283,7 @@ func merchant(reuse := false) -> bool:
 	return true
 
 func _merchant_card(replace := true) -> void:
+	_close_tip()
 	var tt := UiTheme.tt()
 	var card := _modal(Vector2(660, 640), -170, replace, 80.0)
 	var t := hud.label("떠돌이 상인", 48 if tt else 52, Color.WHITE if tt else Color("ffd27a"), 14)
@@ -1217,6 +1312,24 @@ func _merchant_card(replace := true) -> void:
 		ic.position = Vector2(10, 10)
 		ic.size = Vector2(84, 84)
 		slot.add_child(ic)
+		# the card only has room for a summary: hover / tap the icon for the full item card
+		ic.mouse_filter = Control.MOUSE_FILTER_STOP
+		ic.tooltip_text = ""
+		ic.mouse_entered.connect(func(): _show_tip(e, false, true))
+		ic.mouse_exited.connect(func():
+			if tip_entry == e:
+				_close_tip())
+		ic.gui_input.connect(func(ev: InputEvent):
+			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+				if tip and tip_entry == e:
+					_close_tip()
+				else:
+					_show_tip(e, false, true))
+		var info := hud.label("ⓘ 정보", 15, Color.WHITE, 5)
+		info.position = Vector2(10, 94)
+		info.size = Vector2(84, 24)
+		info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(info)
 		var nm := hud.label(Inventory.name_of(e), 22, Color.WHITE, 8)
 		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

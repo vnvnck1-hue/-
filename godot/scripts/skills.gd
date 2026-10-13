@@ -65,8 +65,7 @@ static func _jump_slam(game: Node, h: Actor, def: Dictionary) -> void:
 	h.guard_until = game.now + def["guard"] / 1000.0
 	var dir := Actor._flat(target.global_position - h.global_position)
 	var land := target.global_position - dir.normalized() * (target.body_r + 0.35)
-	land.x = clampf(land.x, -Actor.BOARD_X, Actor.BOARD_X)
-	land.z = clampf(land.z, -Actor.BOARD_Z, Actor.BOARD_Z)
+	land = Actor.field_clamp(land)
 	var target_spot := target.global_position
 	h.model.punch_scale(0.75, 1.3, 0.25)
 	Sfx.play("whoosh", -4.0, 0.7)
@@ -129,8 +128,8 @@ static func _retreat_spot(game: Node, h: Actor) -> Vector3:
 	var best_score := -INF
 	for i in cands.size():
 		var c: Vector3 = cands[i]
-		if absf(c.x) > Actor.BOARD_X or absf(c.z) > Actor.BOARD_Z:
-			continue
+		if Actor.field_clamp(c, h.body_r - Actor.RADIUS).distance_to(c) > 0.01:
+			continue   # off the field (e.g. would land behind the bag): try a sideways hop instead
 		var blocked := false
 		for u in game.all_alive():
 			if u != h and Actor._flat(u.global_position - c).length() < 0.55:

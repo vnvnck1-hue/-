@@ -112,6 +112,7 @@ static func water_mat() -> StandardMaterial3D:
 		_water_mat.metallic_specular = 0.9
 		_water_mat.emission_enabled = true
 		_water_mat.emission = Color("46bfcf") * 0.3
+		WebLook.unify(_water_mat)
 	return _water_mat
 
 static func _mi(parent: Node3D, mesh: Mesh, col: Color, pos: Vector3, scl := Vector3.ONE, rot := Vector3.ZERO, mat: Material = null) -> MeshInstance3D:

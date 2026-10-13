@@ -31,6 +31,7 @@ static func prop(color: Color, rough := 0.85) -> StandardMaterial3D:
 	m.rim_enabled = true
 	m.rim = 0.25
 	m.rim_tint = 0.6
+	WebLook.unify(m)
 	_cache[key] = m
 	return m
 

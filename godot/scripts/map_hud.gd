@@ -1,7 +1,8 @@
 class_name MapHud
 extends Node
 ## March mode <-> world map:
-##   - region chip at the top right under the crystals: map icon, current region name and camps beaten (tap = open map)
+##   - chapter chip at the top left (map icon + chapter name, tap = open map) and the chapter progress track
+##     under it (ChapterTrack: start crest, one diamond per group, mid-boss skull; tap = open map as well)
 ##   - the world map overlay: WorldMap diorama rendered in its own SubViewport while the game is paused,
 ##     speech-bubble name plaques, "CLEAR!" stamps, a title and a card with the current region's progress.
 ##   - opening / closing transition: CloudFly - low-poly 3D clouds stream fast from left to right, the view
@@ -21,7 +22,7 @@ var hud: Hud
 var game: Node
 var chip: Panel
 var chip_name: Label
-var chip_sub: Label
+var track: ChapterTrack
 var _r := -1
 var _cleared := -1
 var _map: WorldMap
@@ -32,38 +33,47 @@ var _pending_unlock := false  # a region was reached that the map has not shown 
 var _badge: Panel
 var _sky_tw: Tween            # the field camera's sky lift / settle (one at a time)
 
+const CHIP := Vector2(236, 50)
+
 func build() -> void:
-	chip = hud.panel(Color(0.1, 0.08, 0.2, 0.5), Rect2(0, 0, 196, 62), 22, 0)
-	chip.add_theme_stylebox_override("panel", UiTheme.capsule(22))
+	chip = hud.panel(Color(0.1, 0.08, 0.2, 0.5), Rect2(Vector2.ZERO, CHIP), 25, 0)
+	chip.add_theme_stylebox_override("panel", UiTheme.capsule(25))
 	chip.mouse_filter = Control.MOUSE_FILTER_STOP
-	hud.root.add_child(hud.place(chip, Vector2(1, 0), Vector2(-212, 146), Vector2(196, 62)))   # top right, under the crystals
-	chip.gui_input.connect(func(ev: InputEvent):
-		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-			Sfx.play("click", -6.0)
-			open_map(_pending_unlock))
+	hud.root.add_child(hud.place(chip, Vector2(0, 0), Vector2(16, Hud.TOP_Y), CHIP))   # top left: where the trio is
+	chip.gui_input.connect(_on_tap)
 	var icon := MapIcon.new()
-	icon.position = Vector2(-6, -4)
-	icon.size = Vector2(66, 66)
+	icon.position = Vector2(-4, -6)
+	icon.size = Vector2(62, 62)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	chip.add_child(icon)
 	chip_name = hud.label("", 22, Color.WHITE, 8)
 	chip_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	chip_name.position = Vector2(62, 3)
-	chip_name.size = Vector2(132, 32)
+	chip_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	chip_name.position = Vector2(60, 0)
+	chip_name.size = Vector2(CHIP.x - 72, CHIP.y)
 	chip.add_child(chip_name)
-	chip_sub = hud.label("", 17, Color("ffd27a"), 6)
-	chip_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	chip_sub.position = Vector2(62, 32)
-	chip_sub.size = Vector2(132, 24)
-	chip.add_child(chip_sub)
-	_badge = hud.panel(Color("ff4f5e"), Rect2(178, -8, 26, 26), 13, 3)
+	_badge = hud.panel(Color("ff4f5e"), Rect2(CHIP.x - 18, -8, 26, 26), 13, 3)
 	_badge.visible = false
 	chip.add_child(_badge)
 	var bl := hud.label("!", 17, Color.WHITE, 4)
 	bl.size = Vector2(26, 26)
 	_badge.add_child(bl)
+	# chapter progress track: full-width capsule right under the chip / wallet row (tap = map as well)
+	var band := hud.panel(Color(0.1, 0.08, 0.2, 0.5), Rect2(0, 0, 688, Hud.TRACK_H), int(Hud.TRACK_H * 0.5), 0)
+	band.add_theme_stylebox_override("panel", UiTheme.capsule(int(Hud.TRACK_H * 0.5)))
+	band.mouse_filter = Control.MOUSE_FILTER_STOP
+	band.gui_input.connect(_on_tap)
+	hud.root.add_child(hud.place(band, Vector2(0.5, 0), Vector2(-344, Hud.TRACK_Y), Vector2(688, Hud.TRACK_H)))
+	track = ChapterTrack.new()
+	track.position = Vector2(10, 0)
+	track.size = Vector2(688 - 20, Hud.TRACK_H)
+	band.add_child(track)
+	track.build(hud)
 	if game.test_mode == "map":
 		_test.call_deferred()
+	for a in OS.get_cmdline_user_args():   # dev (영상 촬영): --map_at=초 → 그때 지도를 열고 --map_hold=초 뒤 닫음
+		if a.begins_with("--map_at="):
+			_visit.call_deferred(float(a.substr(9)))
 
 # ---------------------------------------------------------------- progress
 func region() -> int:
@@ -100,12 +110,30 @@ func _process(_delta: float) -> void:
 			_announce(r)
 		_r = r
 		_cleared = -1
-		chip_name.text = Regions.info(r)["name"]
+		chip_name.text = Meta.chapter_name(r)
 	if cl != _cleared:
 		_cleared = cl
-		chip_sub.text = "무리 %d / %d" % [cl, Regions.PER_REGION]
+	track.cleared = cl
+	track.fill = _fill(r, cl)
+	track.fighting = game.in_battle()
+	if cl >= Regions.PER_REGION:   # mid-boss down, still marching to the region border
+		hud.sub_label.text = "지역 클리어!"
 	if _map:
 		_update_plaques()
+
+## Rail fill in node units: groups cleared plus the march's share of the way to the next camp.
+func _fill(r: int, cl: int) -> float:
+	if cl >= Regions.PER_REGION:
+		return float(cl)
+	var cp := camps(r)
+	var a: float = 0.0 if cl == 0 else cp[cl - 1]
+	var b: float = cp[cl]
+	return cl + (clampf((progress(r) - a) / (b - a), 0.0, 1.0) if b > a else 0.0)
+
+func _on_tap(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+		Sfx.play("click", -6.0)
+		open_map(_pending_unlock)
 
 ## Entering a new region: its name drops in over the field (the march keeps going).
 func _announce(r: int) -> void:
@@ -136,6 +164,8 @@ func open_map(p_unlock := false) -> void:
 	_root = root
 	get_tree().paused = true
 	root.tree_exiting.connect(func():
+		if is_inside_tree():
+			get_viewport().disable_3d = false
 		_map = null
 		_root = null
 		_plaques.clear()
@@ -156,6 +186,8 @@ func open_map(p_unlock := false) -> void:
 		# inside the cloud: the map takes the field's place underneath
 		if is_instance_valid(root):
 			_build_map(root, r, p_unlock)
+			if WebLook.compat():   # web: the map covers the screen, stop drawing the field underneath
+				get_viewport().disable_3d = true
 			Sfx.play("poof", -10.0, 0.8))
 	fly.queue_free()
 	_busy = false
@@ -554,3 +586,18 @@ class MapIcon extends Control:
 		var k := s * 0.07
 		draw_line(x - Vector2(k, k), x + Vector2(k, k), Color("e2412c"), s * 0.06)
 		draw_line(x + Vector2(-k, k), x + Vector2(k, -k), Color("e2412c"), s * 0.06)
+
+## Dev: open the map by itself at `at` seconds (retrying while a popup / ult blocks it), hold, then close.
+func _visit(at: float) -> void:
+	var hold := 2.5
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--map_hold="):
+			hold = float(a.substr(11))
+	await get_tree().create_timer(at, true, false, true).timeout
+	while not hud.has_overlay() or _root == null:
+		open_map(_pending_unlock)
+		await get_tree().create_timer(0.25, true, false, true).timeout
+	while _busy:
+		await get_tree().process_frame
+	await get_tree().create_timer(hold, true, false, true).timeout
+	close_map()

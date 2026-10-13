@@ -159,6 +159,7 @@ func _build() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("d8dcff")
 	env.ambient_light_energy = 0.75
+	WebLook.apply(env)
 	we.environment = env
 	_vp.add_child(we)
 	var key := DirectionalLight3D.new()
@@ -309,7 +310,7 @@ func _begin(t: int) -> void:
 	chest.scale = Vector3.ONE
 	chest.rotation = Vector3.ZERO
 	chest.position = Vector3(0, 3.2, 0)
-	_rim.light_color = ChestLoot.tier_color(tier)
+	WebLook.light_color(_rim, ChestLoot.tier_color(tier))
 	_view.scale = Vector2.ONE
 	hud.place(_view, Vector2(0.5, 0.5), Vector2(-VIEW * 0.5, CHEST_Y - VIEW * 0.5), Vector2(VIEW, VIEW))   # back home
 	_view.modulate.a = 1.0
@@ -480,7 +481,7 @@ func _upgrade(i: int) -> void:
 	_twn(_flash).tween_property(_flash, "color:a", 0.0, 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	chest.set_tier(tier)
 	chest.set_flash(1.0)
-	_rim.light_color = ChestLoot.tier_color(tier)
+	WebLook.light_color(_rim, ChestLoot.tier_color(tier))
 	_set_bg(tier, 0.25)
 	_style_plate()
 	_hint_l.text = ChestLoot.preview(tier)

@@ -1,0 +1,41 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[sub_resource type="Shader" id="Shader_2wib4"]
+code = "
+shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
+uniform vec4 tint : source_color = vec4(1.0);
+uniform float strength = 0.6;
+uniform float height = 2.0;
+uniform float grow = 0.0;   // 0..1: how far up the column has risen
+uniform float seed = 0.0;
+varying float t;            // 0 at the ground .. 1 at the top
+void vertex() {
+	t = VERTEX.y / height + 0.5;
+}
+void fragment() {
+	// soft sides: brightest where the column faces the camera, nothing at the silhouette
+	float facing = abs(dot(normalize(NORMAL), VIEW));
+	float side = facing * facing;
+	// fades in just above the ground, then dies off smoothly toward the top
+	float vert = smoothstep(0.0, 0.05, t) * pow(1.0 - t, 1.7);
+	vert *= 1.0 + 0.8 * exp(-t * 9.0);   // hot spot where it leaves the box
+	// faint wisps drifting up, and a slow breathing of the whole column
+	float w = sin(UV.x * 18.85 + seed) * 0.5 + 0.5;
+	float drift = sin(t * 9.0 - TIME * 2.2 + w * 3.0 + seed) * 0.5 + 0.5;
+	float shimmer = 0.82 + 0.18 * drift;
+	float breathe = 0.88 + 0.12 * sin(TIME * 1.7 + seed);
+	float reveal = 1.0 - smoothstep(grow * 1.25 - 0.25, grow * 1.25, t);
+	ALBEDO = tint.rgb;
+	ALPHA = clamp(strength * side * vert * shimmer * breathe * reveal, 0.0, 1.0);
+}
+"
+
+[resource]
+render_priority = 0
+shader = SubResource("Shader_2wib4")
+shader_parameter/tint = Color(0.78431374, 0.8, 0.84705883, 1)
+shader_parameter/strength = 0.486
+shader_parameter/height = 2.0
+shader_parameter/grow = 0.0
+shader_parameter/seed = 4.767449752698294

@@ -240,6 +240,9 @@ func _relic_detail(r: Rect2) -> void:
 		_rebuild()
 		_say("%s → %d번 칸" % [Inventory.name_of(e), i + 1]))
 	box.add_child(eb)
+	var more := HudPanels.relic_detail(e["key"], star)
+	more.append("장착하면 모든 판에서 파티 전체에 적용 · 같은 ★ 3개 → 다음 ★ 합성")
+	_grow_detail(box, r, more)
 	var price := Meta.relic_sell_price(e)
 	var sb := _button("판매 %dG" % price, Color("ff7a5a"), Rect2(r.size.x - 200, 80, 186, 56), 24)
 	sb.pressed.connect(func():

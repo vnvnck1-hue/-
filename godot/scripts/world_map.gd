@@ -34,6 +34,7 @@ shader_type spatial;
 render_mode specular_schlick_ggx;
 uniform vec4 isl[6];
 uniform vec2 half_size = vec2(5.0, 7.5);
+uniform vec3 sheen = vec3(0.0);   // web build: stands in for the ambient specular sheen Forward+ gives the sea
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -88,7 +89,7 @@ void fragment() {
 	ALBEDO = col;
 	ROUGHNESS = 0.32;
 	SPECULAR = 0.45;
-	EMISSION = col * 0.12;
+	EMISSION = col * 0.12 + sheen;
 }
 """
 
@@ -223,6 +224,7 @@ func _env() -> void:
 	e.adjustment_enabled = true
 	e.adjustment_saturation = 1.22
 	e.adjustment_contrast = 1.08
+	WebLook.apply(e)
 	we.environment = e
 	add_child(we)
 	var sun := DirectionalLight3D.new()
@@ -280,6 +282,7 @@ func _vmat() -> StandardMaterial3D:
 		_vm.metallic_specular = 0.2
 		_vm.rim_enabled = true
 		_vm.rim = 0.2
+		WebLook.unify(_vm)
 	return _vm
 
 func _commit(st: SurfaceTool, parent: Node3D) -> MeshInstance3D:
@@ -291,6 +294,7 @@ func _commit(st: SurfaceTool, parent: Node3D) -> MeshInstance3D:
 	return mi
 
 func _bobber(n: Node3D, amp: float, phase := -1.0) -> void:
+	n.set_meta("no_batch", true)   # animated: keep out of WebBatch
 	_bob.append([n, n.position, phase if phase >= 0.0 else randf() * TAU, amp])
 
 # ---------------------------------------------------------------- desk + frame
@@ -364,6 +368,7 @@ func _sea() -> void:
 		arr.append(Vector4(c.x, c.y, d["size"] * (0.92 if FLOAT_Y[i] > 0.0 else 1.0), d["seed"] * 1.37))
 	sm.set_shader_parameter("isl", arr)
 	sm.set_shader_parameter("half_size", HALF)
+	sm.set_shader_parameter("sheen", WebLook.SEA_SHEEN if WebLook.compat() else Vector3.ZERO)
 	mi.material_override = sm
 	add_child(mi)
 
@@ -435,6 +440,7 @@ func _island(i: int, gray := false) -> Node3D:
 		_flag(node, path_point(i, 1.0), state == "done")
 	if gray:
 		_grayify(node)
+	WebBatch.batch(node)
 	return node
 
 ## Greyscale tone used for regions not reached yet.
@@ -452,7 +458,7 @@ func _grayify(n: Node) -> void:
 				if not _gray_mats.has(key):
 					var gm: StandardMaterial3D = m.duplicate()
 					gm.albedo_color = _g(Color(minf(m.albedo_color.r, 1.0), minf(m.albedo_color.g, 1.0), minf(m.albedo_color.b, 1.0), m.albedo_color.a))
-					if gm.emission_enabled:
+					if gm.emission_enabled and not (WebLook.compat() and gm.emission == Color.BLACK):   # web: unify()'s placeholder
 						gm.emission = _g(gm.emission) * 0.3
 					_gray_mats[key] = gm
 				ch.material_override = _gray_mats[key]
@@ -946,6 +952,7 @@ func _desk_props() -> void:
 		halo.mesh = qm
 		halo.material_override = Mats.sprite("soft", Color(1.0, 0.65, 0.25, 0.4), true)
 		fl.add_child(halo)
+		fl.set_meta("no_batch", true)
 		_flames.append(fl)
 	var l := OmniLight3D.new()
 	l.light_color = Color("ffb062")

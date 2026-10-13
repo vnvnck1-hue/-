@@ -13,6 +13,8 @@ config/windows_native_icon="res://icon.ico"
 [autoload]
 
 Music="*res://scripts/music.gd"
+WebLookHook="*res://scripts/web_look.gd"
+ShaderWarmup="*res://scripts/shader_warmup.gd"
 
 [display]
 
@@ -25,7 +27,7 @@ window/stretch/aspect="expand"
 
 [gui]
 
-theme/custom_font.web="res://fonts/NotoSansKR-VF.ttf"
+theme/custom_font.web="res://fonts/noto_kr_web.tres"
 
 [rendering]
 

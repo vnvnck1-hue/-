@@ -1,0 +1,34 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[sub_resource type="Shader" id="Shader_2tx1a"]
+code = "
+shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx, skip_vertex_transform;
+uniform float roughness = 0.85;
+uniform float specular = 0.25;
+uniform float rim = 0.25;
+uniform float rim_tint = 0.6;
+uniform vec3 emission : source_color = vec3(0.0);
+void vertex() {
+	// COLOR (the instance color) already arrives linear here
+	VERTEX = (MODELVIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	NORMAL = normalize(inverse(transpose(mat3(MODELVIEW_MATRIX))) * NORMAL);
+}
+void fragment() {
+	ALBEDO = COLOR.rgb;
+	ROUGHNESS = roughness;
+	SPECULAR = specular;
+	RIM = rim;
+	RIM_TINT = rim_tint;
+	EMISSION = emission;
+}
+"
+
+[resource]
+render_priority = 0
+shader = SubResource("Shader_2tx1a")
+shader_parameter/roughness = 0.85
+shader_parameter/specular = 0.25
+shader_parameter/rim = 0.25
+shader_parameter/rim_tint = 0.6
+shader_parameter/emission = Color(0, 0, 0, 1)

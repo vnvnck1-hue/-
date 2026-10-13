@@ -22,6 +22,10 @@ static var storage: Array = []    # permanent gear not worn: runtime entries (In
 static var loadout := {}          # cls -> {slot -> entry | null}: what each hero starts a run wearing
 static var slot_lv := {}          # cls -> {slot -> level}
 static var run_gear: Array = []   # gear in the live run's bag (moved to storage when the run ends / on load)
+static var kept_rest := {}       # cleared chapter's bag waiting on [다음 챕터]/[로비로]: {"books": [grades], "chests": [tiers], "k"}
+                                 # (saved: if the game quits there, the next load banks it like the lobby would)
+static var carry := {}
+static var _settled := false           # bag handed from a cleared chapter to the next one: {inventory, chests, inv_cap} (memory only)
 static var cleared := 0           # expedition chapters cleared (chapter c is open when c <= cleared)
 static var chapter := 0           # chapter picked in the lobby
 static var expedition := true    # lobby choice for the March scene: chapter expedition (true) or endless march
@@ -72,6 +76,8 @@ static func load_save() -> void:
 		if _valid_gear(x):
 			storage.append(Inventory.from_save(x))
 	run_gear = []
+	_settled = false
+	_settle_kept_rest(_dict(d.get("kept_rest", {})))
 	var lo = d.get("loadout", null)
 	var sl = d.get("slot_lv", {})
 	for cls in Defs.HERO_ORDER:
@@ -87,6 +93,9 @@ static func load_save() -> void:
 	if typeof(b) == TYPE_DICTIONARY:
 		for m in b:
 			best[str(m)] = _int(b[m])
+	if _settled:
+		_settled = false
+		save()
 
 ## The parsed save at `p`, or {} when it is missing / unreadable / not a JSON object.
 static func _read_save(p: String) -> Dictionary:
@@ -165,7 +174,7 @@ static func save() -> void:
 			lo[cls][slot] = Inventory.to_save(e) if e else null
 	f.store_string(JSON.stringify({"crystals": crystals, "talents": talents, "relic_slots": relic_slots.map(_relic_save), "relic_bag": relic_bag.map(_relic_save), "tutorial_done": tutorial_done,
 		"best": best, "gold": gold, "stones": stones, "cleared": cleared, "chapter": chapter, "slot_lv": slot_lv, "loadout": lo,
-		"storage": storage.map(Inventory.to_save), "run_gear": run_gear.map(Inventory.to_save)}))
+		"storage": storage.map(Inventory.to_save), "run_gear": run_gear.map(Inventory.to_save), "kept_rest": kept_rest}))
 	var ok := f.get_error() == OK
 	f.close()
 	if ok:
@@ -473,13 +482,38 @@ static func sync_run(game: Node) -> void:
 	save()
 
 ## The run is over: its bag gear joins the storage, its gold and 강화석 are banked.
-static func end_run(game: Node, run_gold: int, run_stones: int) -> void:
+## keep_bag (chapter cleared, next chapter may follow): the bag gear stays run_gear — still saved, so quitting
+## here sends it to the storage on the next load — and moves to the storage only on the way back to the lobby.
+static func end_run(game: Node, run_gold: int, run_stones: int, keep_bag := false) -> void:
 	sync_run(game)
-	storage.append_array(run_gear)
-	run_gear = []
+	if not keep_bag:
+		storage.append_array(run_gear)
+		run_gear = []
 	gold += maxi(0, run_gold)
 	stones += maxi(0, run_stones)
 	save()
+
+## Leftover-book 강화석 by book grade (run end / lobby tidy-up).
+const BOOK_STONES := {1: 1, 2: 3, 3: 6, 4: 12}
+
+## The game quit on a cleared chapter's settlement screen before [다음 챕터] / [로비로]: bank the kept bag's
+## skill books and unopened chests now, as the lobby would have (its gear already came back through run_gear).
+static func _settle_kept_rest(r: Dictionary) -> void:
+	kept_rest = {}
+	if r.is_empty():
+		return
+	for g in _arr(r.get("books", [])):
+		stones += int(BOOK_STONES.get(_int(g), 1))
+	for t in _arr(r.get("chests", [])):
+		var c := ChestLoot.roll(null, maxi(1, _int(r.get("k", 1))), clampi(_int(t), 0, ChestLoot.ITEMS.size() - 1))
+		gold += int(c["gold"])
+		for e in c["items"]:
+			match e["kind"]:
+				"equip": storage.append(e)
+				"stone": stones += int(e["n"])
+				"skillbook": stones += int(BOOK_STONES.get(Inventory.book_grade(e), 1))
+	print("[Meta] settled a kept bag left on quit: books=", _arr(r.get("books", [])).size(), " chests=", _arr(r.get("chests", [])).size())
+	_settled = true   # load_save saves once every other field is loaded
 
 # ---------------------------------------------------------------- expedition chapters
 ## Chapter c (0-based) = march groups c*10+1 .. c*10+10 (Regions.PER_REGION), the region (c % 6) on lap c / 6.

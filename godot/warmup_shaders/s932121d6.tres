@@ -1,0 +1,34 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[sub_resource type="Shader" id="Shader_td3xn"]
+code = "
+shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;
+uniform float k = 0.0;
+void fragment() {
+	vec2 c = SCREEN_UV - 0.5;
+	float r2 = dot(c, c);
+	// lens bulge: the centre swells toward the viewer, edges stretch
+	vec2 uv = 0.5 + c * (1.0 - 0.07 * k + 0.16 * k * r2);
+	// horizontal motion blur, stronger toward the sides
+	float spread = 0.07 * k * (0.35 + r2 * 2.5);
+	vec3 col = vec3(0.0);
+	for (int i = 0; i < 12; i++) {
+		float t = float(i) / 11.0 - 0.5;
+		col += texture(screen_tex, uv + vec2(t * spread, 0.0)).rgb;
+	}
+	col /= 12.0;
+	// chromatic fringes
+	float ca = 0.012 * k * (0.2 + r2 * 3.0);
+	col.r = mix(col.r, texture(screen_tex, uv + vec2(ca, 0.0)).r, 0.7);
+	col.b = mix(col.b, texture(screen_tex, uv - vec2(ca, 0.0)).b, 0.7);
+	// tunnel vignette (cool tint, no black)
+	float v = smoothstep(0.08, 0.45, r2) * k;
+	col = mix(col, col * vec3(0.78, 0.82, 0.95), v * 0.55);
+	COLOR = vec4(col, 1.0);
+}
+"
+
+[resource]
+shader = SubResource("Shader_td3xn")
+shader_parameter/k = 0.878881187859

@@ -67,8 +67,7 @@ static func _ninja_leap(game: Node, a: Actor) -> void:
 	if away.length() < 0.01:
 		away = Vector3(0, 0, -1)
 	var spot := t.global_position + away.normalized() * (t.body_r + a.body_r + 0.1)
-	spot.x = clampf(spot.x, -Actor.BOARD_X, Actor.BOARD_X)
-	spot.z = clampf(spot.z, -Actor.BOARD_Z, Actor.BOARD_Z)
+	spot = Actor.field_clamp(spot)
 	a.busy = true
 	Vfx.speed_puffs(a.global_position, Color("c8c0e0"))
 	Vfx.dust_ring(a.global_position, 0.5)

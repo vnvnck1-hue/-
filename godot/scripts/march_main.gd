@@ -32,6 +32,8 @@ const REFORM_SPEED := 4.6
 const MERCHANT_EVERY := 13      # was every mid-boss (10 groups); now 30% rarer and no longer forced open
 const MERCHANT_AHEAD := 1.6     # stall sits this far before the camp: right beside the trio when they stop
 const CHEST_AHEAD := 5.6        # field chests lie this far before a camp (about halfway from the previous one)
+const FIELD_Z_MAX := 4.7        # nearest local z a unit may stand on (further capped by the bag panel, see _bag_z_limit)
+const BAG_CLEAR_PX := 36.0      # feet stay at least this many px above the bag's top edge
 
 var mw: MarchWorld
 var dist := 0.0
@@ -50,6 +52,7 @@ var _merchant := {}        # {"node", "figure", "s", "k", "bubble", "seen"} — 
 var _press_merchant := false
 var _field_chests: Array = []   # [{"node", "model", "s", "t", "fx", "tws"}] treasure chests lying on the road
 var _lost_perks := 0
+var _field_z_max := FIELD_Z_MAX   # battle field's near edge: units (e.g. the ranger hopping back) never walk under the bag
 
 func mode_id() -> String:
 	return "march"
@@ -143,7 +146,6 @@ func _ready() -> void:
 			chapter = maxi(0, int(forced[0].substr(10)) - 1)
 		wave = Meta.chapter_first_group(chapter)
 	super._ready()
-	hud.wave_title.text = "무리"
 	hud.talent_btn.visible = false
 	hud.fight_btn.visible = false
 	mobile = HudMobile.new()
@@ -156,7 +158,7 @@ func _ready() -> void:
 	atlas.game = self
 	hud.add_child(atlas)
 	atlas.build()
-	Actor.clamp_fn = func(p: Vector3, m: float) -> Vector3: return mw.clamp_local(p, m)
+	Actor.clamp_fn = func(p: Vector3, m: float) -> Vector3: return mw.clamp_local(p, m, -6.6, _field_z_max)
 	if wave > 1:   # expedition chapter (or dev --wave=N): start on the approach to group N
 		var r := Regions.of_group(wave)
 		dist = mw.region_start(r) + 0.1 if expedition and r > 0 else mw.arena_s(wave - 1)
@@ -280,7 +282,6 @@ func enter_placement() -> void:
 	world.deploy_glow = 0.0
 	_set_bounds()
 	hud.set_wave(wave, 0, 1)
-	hud.set_enemy_count(0)
 	hud.set_gimmick("", "")
 	hud.fight_btn.visible = false
 	hud.talent_btn.visible = false   # the talent tree lives in the bottom navigation bar
@@ -448,7 +449,7 @@ func _end_drag(cancel: bool, sp := Vector2.ZERO) -> void:
 	if not cancel:
 		var p := _ray_plane(sp, 0.0)
 		if p != Vector3.INF:
-			var z := clampf(p.z, 0.3, 3.9)
+			var z := clampf(p.z, 0.3, minf(3.9, _field_z_max - 0.2))
 			var w := mw.half_w(dist - z) - 0.5
 			var x := clampf(p.x - mw.local_center(z), -w, w)
 			formation[h.cls] = Vector3(x, 0, z)
@@ -465,6 +466,21 @@ func _update_camera(delta: float) -> void:
 	_boss_cam = lerpf(_boss_cam, goal, 1.0 - exp(-delta * 3.0))
 	var look := Vector3(0, 0, -1.0 - 0.6 * _boss_cam)
 	cam.set_base(look + MARCH_CAM * (1.0 + BOSS_ZOOM * _boss_cam), look)
+	_field_z_max = _bag_z_limit()
+
+## Local z where the gameplay framing (no shake / cinematic dolly) meets the bag panel's top edge, so a fight
+## can't push a unit behind the inventory at the bottom of the screen. Falls back to FIELD_Z_MAX without a bag.
+func _bag_z_limit() -> float:
+	var inv: Panel = hud.panels.inv_panel if hud and hud.panels else null
+	if inv == null or not inv.is_visible_in_tree():
+		return FIELD_Z_MAX
+	var vp := get_viewport().get_visible_rect().size
+	var sy := inv.get_global_rect().position.y - BAG_CLEAR_PX
+	var d := Basis.looking_at(cam.base_look - cam.base_pos, Vector3.UP) * cam.project_local_ray_normal(Vector2(vp.x * 0.5, sy))
+	if d.y > -0.0001:
+		return FIELD_Z_MAX
+	var z := cam.base_pos.z + d.z * (-cam.base_pos.y / d.y)
+	return clampf(z, 1.5, FIELD_Z_MAX)
 
 ## Chatter context: heroes talk on the road, waiting camps chat around the fire (or mumble in their sleep).
 func chat_ctx(u: Actor) -> String:
@@ -715,7 +731,6 @@ func _engage() -> void:
 	_phase_t = 0.0
 	hud.set_wave(wave, sub_wave, sub_waves)
 	_update_march_hud()
-	hud.set_enemy_count(alive_enemies().size())
 	_shot_later(0.4, "engage")
 	_shot_later(2.0, "battle")
 
@@ -817,7 +832,7 @@ func _chapter_clear() -> void:
 	phase = P.GAMEOVER
 	_returning = false
 	Music.duck(-8.0, 0.6, 2.0)
-	hud.show_settlement(end_run(true))
+	hud.show_settlement(end_run(true, false, expedition))   # the bag waits: next chapter keeps it, the lobby banks it
 	_shot_later(0.9, "chapter_clear")
 
 # ---------------------------------------------------------------- wandering merchant
@@ -1056,6 +1071,7 @@ func retry_label() -> String:
 func retry() -> void:
 	if expedition and _cleared:
 		Meta.chapter = mini(chapter + 1, Meta.cleared)
+		carry_bag()   # the next chapter picks the bag up exactly as it is
 		Meta.save()
 	Engine.time_scale = 1.0
 	get_tree().paused = false
@@ -1177,6 +1193,128 @@ func _run_test() -> void:
 		_shot_later(0.3, "relics_drop")
 		print("[Relics] bag=", Meta.relic_bag.map(func(x): return x["key"]), " inv=", inventory.size())
 		return
+	if test_mode == "retreat":   # the ranger's hop-back skill, cast over and over from the near edge, stays above the bag
+		while phase != P.BATTLE:
+			await get_tree().create_timer(0.2).timeout
+		var r := hero("ranger")
+		var worst := -INF
+		for i in 12:
+			while phase != P.BATTLE or not r.alive or r.busy:
+				await get_tree().create_timer(0.2).timeout
+			if i % 3 == 0:
+				r.position = Vector3(r.position.x, 0, _field_z_max)   # start each battle pinned to the near edge
+			Skills.cast_active(self, r)
+			_shot_later(0.45, "retreat_%d" % i)
+			await get_tree().create_timer(0.45).timeout
+			var feet := cam.unproject_position(Vector3(r.position.x, 0, r.position.z))
+			worst = maxf(worst, feet.y)
+			print("[Retreat] cast ", i, " z=", snappedf(r.position.z, 0.01), " limit=", snappedf(_field_z_max, 0.01), " feet_y=", snappedf(feet.y, 0.1))
+		print("[Retreat] lowest feet_y=", snappedf(worst, 0.1), " bag_top=", hud.panels.inv_panel.get_global_rect().position.y)
+		Music.quit()
+		return
+	if test_mode == "iteminfo":   # full item cards (effects / special stats / relic mechanics) + merchant card info
+		await get_tree().create_timer(0.8).timeout
+		inventory.clear()
+		for e in [Inventory.make("equip", "ascendedChronosHourglass"), Inventory.make("equip", "staff6"), Inventory.make("equip", "shield5"),
+				Inventory.make("special", "crown"), Inventory.make_relic("crescendoGear", 2), Inventory.make_relic("luckyCompass", 1)]:
+			inventory.append(e)
+		hud.refresh_inventory()
+		for i in inventory.size():
+			hud.panels._show_tip(inventory[i], true)
+			_shot_later(0.3, "iteminfo_%d" % i)
+			await get_tree().create_timer(0.6).timeout
+		# every special item / relic card: the whole text must fit inside the card and the card on screen
+		var all := []
+		for k in Defs.LEGENDARY.keys() + Defs.TRANSCENDENT.keys() + ["crown"]:
+			all.append(Inventory.make("special", k) if k == "crown" else Inventory.make("equip", k))
+		for f in Defs.FAMILIES:
+			all.append(Inventory.make("equip", Gear.key(f, 9)))
+		for k in Defs.RELICS:
+			all.append(Inventory.make_relic(k, 3))
+		var bad := []
+		for e in all:
+			hud.panels._show_tip(e, true)
+			await get_tree().process_frame
+			var card: Control = hud.panels.tip
+			var body: RichTextLabel = null
+			for c in card.get_children():
+				if c is RichTextLabel:
+					body = c
+			# the card's text vs the item's real abilities: every stat (name + value), effect (name + what it does),
+			# special stat note and relic effect must appear
+			var txt := body.get_parsed_text()
+			var need := []
+			if e["kind"] == "relic":
+				for ln in HudPanels.relic_detail(e["key"], int(e["star"])):
+					need.append_array(ln.split("
+"))
+			else:
+				var st: Dictionary = Stats.entry_stats(e) if e["kind"] == "equip" else Defs.SPECIAL[e["key"]]["stats"]
+				for k in st:
+					var n: Array = HudPanels.STAT_NAME[k]
+					need.append(n[0])
+					need.append(("+%d%%" % roundi(st[k] * 100.0)) if n[1] else ("+%d" % int(st[k])))
+					if k in HudPanels.EQUIP_NOTE_KEYS:
+						need.append(HudPanels.stat_note(k, st[k]))
+				for x in Defs.item(e["key"]).get("effects", []):
+					need.append(HudPanels.EFFECT_NAME[x])
+					need.append_array(HudPanels.EFFECT_BODY[x].split("
+"))
+			for w in need:
+				if not txt.contains(w.strip_edges()):
+					bad.append("%s missing '%s'" % [e.get("key", "?"), w])
+			var clipped := body.get_content_height() > body.size.y + 1.0
+			var off := card.get_global_rect().position.y < 0.0
+			if clipped or off:
+				bad.append("%s clipped=%s off=%s" % [e.get("key", "?"), clipped, off])
+		print("[ItemInfo] cards checked=", all.size(), " (text vs real abilities + fit) bad=", bad)
+		hud.panels._close_tip()
+		hud.panels.merchant()
+		hud.panels._show_tip(hud.panels.merchant_stock[0]["entry"], false, true)
+		_shot_later(0.3, "iteminfo_merchant")
+		await get_tree().create_timer(0.6).timeout
+		hud.close_overlays()
+		print("[ItemInfo] tip closed with merchant=", hud.panels.tip == null)
+		return
+	if test_mode == "carryquit":   # quit on the clear screen: the next launch banks the kept books / chests
+		await get_tree().create_timer(0.8).timeout
+		inventory.clear()
+		for e in [Inventory.make("equip", "sword3"), Inventory.make_skillbook(2)]:
+			inventory.append(e)
+		chests = [2]
+		_cleared = true
+		end_run(true, true, true)
+		print("[CarryQuit] quit with kept=", Meta.kept_rest, " stones=", Meta.stones, " storage=", Meta.storage.size())
+		Music.quit()
+		return
+	if test_mode == "carry":   # chapter clear keeps the bag: next chapter continues with it, the lobby banks it
+		await get_tree().create_timer(0.8).timeout
+		if not Engine.has_meta("carry_test"):
+			Engine.set_meta("carry_test", 1)
+			inventory.clear()
+			for e in [Inventory.make("equip", "sword3"), Inventory.make_skillbook(2), Inventory.make("special", "revive")]:
+				inventory.append(e)
+			chests = [1]
+			var st0 := Meta.storage.size()
+			_cleared = true
+			var r := end_run(true, false, true)
+			print("[Carry] cleared: kept=", r["kept"], " bag=", inventory.size(), " storage +", Meta.storage.size() - st0, " run_gear=", Meta.run_gear.size())
+			hud.show_settlement(r)
+			_shot_later(0.8, "carry_settlement")
+			await get_tree().create_timer(1.2).timeout
+			hud.close_overlays()
+			retry()
+		else:
+			print("[Carry] next chapter bag=", inventory.map(func(x): return x.get("key", x["kind"])), " chests=", chests, " storage=", Meta.storage.size())
+			_shot_later(0.2, "carry_next")
+			await get_tree().create_timer(0.5).timeout
+			var st0 := Meta.storage.size()
+			_cleared = true
+			end_run(true, true, true)
+			bank_kept_bag()
+			print("[Carry] lobby: storage +", Meta.storage.size() - st0, " run_gear=", Meta.run_gear.size(), " chests=", chests.size())
+			Music.quit()
+		return
 	if test_mode == "debug":   # DBG menu -> random item drop flying into the bag
 		await get_tree().create_timer(0.8).timeout
 		hud.debug_hud.toggle()
@@ -1211,8 +1349,8 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.3).timeout
 	Music.quit()
 
-## --test=books: book merges in the bag (일반 ×3 -> 희귀, chained), reading a book (three reels, pick one),
-## a forced 전설 landing, the full-slots replacement, the hero card, the item card, the chest screen with
+## --test=books: book merges in the bag (일반 ×3 -> 희귀, chained), reading a book (three cards tapped over, pick one),
+## a forced 전설 ascend, the full-slots replacement, the hero card, the item card, the chest screen with
 ## book + 강화석 cards, then the settlement.
 func _test_books() -> void:
 	var rt := func(t: float) -> Signal: return get_tree().create_timer(t, true, false, true).timeout
@@ -1239,12 +1377,20 @@ func _test_books() -> void:
 	_shot_later(0.3, "books_tip")
 	await rt.call(0.7)
 	hud.close_tip()
-	# read the 영웅 book: random reels, pick the first one that needs no slot swap
+	# read the 영웅 book: random cards, pick the first one that needs no slot swap
 	var epic: Dictionary = inventory.filter(func(x): return x["kind"] == "skillbook" and Inventory.book_grade(x) == 3)[0]
 	use_book(epic)
 	var sg: SkillGacha = hud.overlay
 	print("[Books] epic offers=", sg.offers, " grades=", sg.offers.map(func(id): return Defs.book(id)["grade"]), " bag=", _book_grades())
-	_shot_later(1.6, "books_gacha_spin")
+	_shot_later(0.1, "books_gacha_book")
+	_shot_later(0.4, "books_gacha_launch")
+	_shot_later(1.3, "books_gacha_fan")
+	while sg.state != "flip":
+		await rt.call(0.1)
+	await rt.call(0.8)
+	for i in [2, 0, 1]:   # tapped out of order: the skills still come up lowest grade first
+		await sg.flip(i)
+	print("[Books] epic flip order grades=", [2, 0, 1].map(func(k): return Defs.book(sg.offers[k])["grade"]))
 	while sg.state != "pick":
 		await rt.call(0.1)
 	_shot_later(0.0, "books_gacha_pick")
@@ -1262,7 +1408,7 @@ func _test_books() -> void:
 		sg._finish(0, 0)
 	await rt.call(1.2)
 	print("[Books] picked overlay=", hud.has_overlay(), " paused=", get_tree().paused, " levels ", learned_before, " -> ", _learned_total())
-	# a forced 전설 landing (일반, 희귀, 전설) with the full-slot swap for the warrior's 전설
+	# a forced 전설 reveal (일반, 희귀, 전설) with the full-slot swap for the warrior's 전설
 	get_tree().paused = true
 	sg = SkillGacha.new()
 	sg.hud = hud
@@ -1273,15 +1419,27 @@ func _test_books() -> void:
 			learn_skill(id)
 	sg.start(4, ["rapidFire", "sniperMode", "arrowStorm"])
 	hud.overlay_closed.connect(func(): get_tree().paused = false, CONNECT_ONE_SHOT)
-	while sg._faces.size() < 3 or sg._faces[1] == null:
+	while sg.state != "flip":
+		await rt.call(0.1)
+	await rt.call(0.5)
+	sg.flip(1)   # the middle card first: 일반
+	await rt.call(0.15)
+	_shot_later(0.0, "books_gacha_flip")
+	while sg._flipping:
 		await get_tree().process_frame
-	_shot_later(0.35, "books_gacha_rare")
-	await rt.call(0.6)
-	_shot_later(0.9, "books_gacha_suspense")
-	while sg._faces[2] == null:
+	await rt.call(0.3)
+	await sg.flip(2)   # then the right one: 희귀
+	_shot_later(0.1, "books_gacha_rare")
+	await rt.call(0.4)
+	sg.flip(0)   # the last tap is always the best: 전설 (the book's top grade) ascends
+	_shot_later(0.3, "books_gacha_tease")
+	_shot_later(0.62, "books_gacha_ascend")
+	_shot_later(0.83, "books_gacha_slam")
+	_shot_later(1.0, "books_gacha_legend")
+	_shot_later(1.5, "books_gacha_legend2")
+	while sg._flipping:
 		await get_tree().process_frame
-	_shot_later(0.12, "books_gacha_legend")
-	_shot_later(0.6, "books_gacha_legend2")
+	print("[Books] legend flip order grades=", [1, 2, 0].map(func(k): return Defs.book(sg.offers[k])["grade"]))
 	while sg.state != "pick":
 		await rt.call(0.1)
 	_shot_later(0.0, "books_gacha_legend_pick")

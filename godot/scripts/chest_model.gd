@@ -92,7 +92,7 @@ func set_tier(t: int) -> void:
 	_mats["trim"].albedo_color = p[2]
 	_mats["gem"].albedo_color = p[3]
 	_mats["dark"].albedo_color = (p[0] as Color).darkened(0.45)
-	_gem_light.light_color = p[3]
+	WebLook.light_color(_gem_light, p[3])
 	set_flash(0.0)
 
 ## 0 = normal, 1 = solid white (upgrade flash). Gem keeps a little glow of its own.

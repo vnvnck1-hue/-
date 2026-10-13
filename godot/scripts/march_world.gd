@@ -51,6 +51,7 @@ func build() -> void:
 	_gmat.metallic_specular = 0.2
 	_gmat.rim_enabled = true
 	_gmat.rim = 0.15
+	WebLook.unify(_gmat)
 	track = Node3D.new()
 	track.name = "Track"
 	add_child(track)
@@ -207,16 +208,16 @@ func _apply_light() -> void:
 		return
 	var m := view_mix
 	var k := _dim_k
-	sun.light_color = tcol(m, "sun")
+	WebLook.light_color(sun, tcol(m, "sun"))
 	sun.light_energy = lerpf(tnum(m, "sun_e"), 0.12, k)
-	fill.light_color = tcol(m, "fill")
+	WebLook.light_color(fill, tcol(m, "fill"))
 	fill.light_energy = lerpf(tnum(m, "fill_e"), 0.04, k)
-	env.ambient_light_color = tcol(m, "amb")
+	env.ambient_light_color = WebLook.ambient(tcol(m, "amb"))
 	env.ambient_light_energy = lerpf(tnum(m, "amb_e"), 0.1, k)
 	env.background_color = tcol(m, "sky").lerp(Color("141026"), k)
 	env.fog_light_color = tcol(m, "fog").lerp(Color("141026"), k).lerp(env.background_color, sky_fade)
 	env.adjustment_saturation = lerpf(tnum(m, "sat"), 0.85, k)
-	env.glow_intensity = lerpf(tnum(m, "glow"), 0.65, k)
+	env.glow_intensity = WebLook.glow(lerpf(tnum(m, "glow"), 0.65, k))
 
 # ---------------------------------------------------------------- ground chunk
 func _build_chunk(i: int) -> Node3D:
@@ -227,6 +228,7 @@ func _build_chunk(i: int) -> Node3D:
 	_field_mesh(node, s0)
 	_field_decor(node, s0, i)
 	_scatter_props(node, s0, i)
+	WebBatch.batch(node)
 	return node
 
 func _quad_indices(st: SurfaceTool, rows: int, cols: int) -> void:

@@ -38,6 +38,7 @@ var perks: Array = []
 var inventory: Array = []
 var chests: Array = []        # unopened treasure chests on the bag badge (their starting tier, ChestLoot)
 var inv_cap := Defs.MAX_INVENTORY
+var bag_kept := false      # run ended on a chapter clear with the bag left as is (next chapter or lobby decides)
 var relic_tempo := 0
 var relics: Array = []   # relics worn in the lobby (Meta.relic_slots), active for the whole run
 var coins: Array = []
@@ -248,6 +249,8 @@ func can_equip() -> bool:
 func go_lobby() -> void:
 	if not run_over:   # leaving mid-run: everything picked up so far is kept
 		end_run(false, true)
+	else:
+		bank_kept_bag()   # a cleared chapter's bag waited for "next chapter": back in the lobby it goes to storage
 	Actor.clamp_fn = Callable()
 	Skills.cancel(self)
 	Cinematic.reset(self)
@@ -516,7 +519,14 @@ func start_run(first := false) -> void:
 	hud.refresh_perks()
 	gold = int(Stats.g(Meta.fx(""), "startGold"))
 	relics = Meta.worn_relics().duplicate()
-	if Meta.has_flag("emergencySupply"):
+	bag_kept = false
+	if not Meta.carry.is_empty():   # continuing straight from a cleared chapter: the bag is exactly as it was left
+		inventory = Meta.carry.get("inventory", []).duplicate()
+		chests = Meta.carry.get("chests", []).duplicate()
+		inv_cap = maxi(inv_cap, int(Meta.carry.get("inv_cap", inv_cap)))
+		Meta.carry = {}
+		print("[Run] bag carried over: items=", inventory.size(), " chests=", chests.size(), " cap=", inv_cap)
+	if Meta.has_flag("emergencySupply") and inventory.size() < inv_cap:
 		inventory.append(Inventory.make_skillbook(1))
 	var i := 0
 	for cls in Defs.HERO_ORDER:
@@ -562,7 +572,6 @@ func enter_placement() -> void:
 	gimmick = ""
 	world.deploy_glow = 1.0
 	hud.set_wave(wave, 0, Defs.sub_wave_count(wave))
-	hud.set_enemy_count(0)
 	hud.set_gimmick("", "")
 	hud.set_phase("영웅을 끌어 배치하고 전투를 시작하세요!" if wave == 1 else "배치를 정비하고 다음 웨이브에 대비하세요!")
 	hud.set_fight(true)
@@ -618,8 +627,7 @@ func _spawn_sequence(list: Array, first: bool) -> void:
 			var e := _spawn(Defs.TEAM_ENEMY, s["kind"], s["tile"], mult)
 			if not first:
 				e.position = _safe_spawn_pos(e)
-			e.drop_in(2.2)
-			hud.set_enemy_count(alive_enemies().size()))
+			e.drop_in(2.2))
 	var total := SPAWN_GAP * maxi(list.size() - 1, 0) + SPAWN_SETTLE
 	await get_tree().create_timer(total).timeout
 	if phase != P.SPAWNING:
@@ -827,7 +835,6 @@ func _battle_tick(delta: float) -> void:
 			Skills.cast_active(self, h)
 	for u in all_alive():
 		u.battle_tick(delta)
-	hud.set_enemy_count(alive_enemies().size())
 
 ## Gimmick-specific per-tick logic. Returns true when the wave was resolved this tick.
 func gimmick_tick() -> bool:
@@ -1145,15 +1152,39 @@ func books_for(_cls := "") -> int:
 	return n
 
 ## 강화석 a leftover skill book turns into when the run ends.
-const BOOK_STONES := {1: 1, 2: 3, 3: 6, 4: 12}
+const BOOK_STONES := Meta.BOOK_STONES
 
 ## The run is over (wiped / cleared / left): unopened chests are opened on the spot, leftover skill books
 ## become 강화석, and gear, gold and 강화석 are banked for good. Returns the settlement summary.
-func end_run(cleared: bool, quiet := false) -> Dictionary:
+func end_run(cleared: bool, quiet := false, keep_bag := false) -> Dictionary:
 	if run_over:
 		return {}
 	run_over = true
-	var r := {"cleared": cleared, "title": gameover_text(), "chests": chests.size(), "gear": [], "books": 0, "book_stones": 0}
+	var r := {"cleared": cleared, "title": gameover_text(), "chests": chests.size(), "gear": [], "books": 0, "book_stones": 0,
+		"kept": keep_bag, "bag": inventory.size()}
+	if keep_bag:
+		bag_kept = true   # banked later only if the player heads back to the lobby (bank_kept_bag)
+		Meta.kept_rest = {"k": wave, "chests": chests.duplicate(),
+			"books": inventory.filter(func(e): return e["kind"] == "skillbook").map(func(e): return Inventory.book_grade(e))}
+	else:
+		_bank_bag(r)
+	for e in inventory:
+		if e["kind"] == "equip":
+			r["gear"].append(e)
+	r["gold"] = gold
+	r["stones"] = stones
+	Meta.end_run(self, gold, stones, keep_bag)
+	hud.refresh_inventory()
+	hud.set_stones(stones)
+	hud.set_gold(gold)
+	hud.panels.refresh_chests()
+	if not quiet:
+		print("[Run] end cleared=", cleared, " gold=", gold, " stones=", stones, " gear=", r["gear"].size(), " books->", r["book_stones"], " kept_bag=", keep_bag)
+	return r
+
+## Tidy the bag for the lobby: unopened chests are opened into it, leftover skill books become 강화석.
+## (Its gear then joins the permanent storage in Meta.end_run.)
+func _bank_bag(r: Dictionary) -> void:
 	for t in chests:
 		var c := ChestLoot.roll(self, wave, int(t))
 		gold += int(c["gold"])
@@ -1164,6 +1195,7 @@ func end_run(cleared: bool, quiet := false) -> Dictionary:
 				inventory.append(e)
 			elif e["kind"] == "skillbook":
 				inventory.append(e)
+	r["chests"] = chests.size()
 	chests.clear()
 	for e in inventory.duplicate():
 		if e["kind"] == "skillbook":
@@ -1171,19 +1203,28 @@ func end_run(cleared: bool, quiet := false) -> Dictionary:
 			r["book_stones"] += int(BOOK_STONES.get(Inventory.book_grade(e), 1))
 			inventory.erase(e)
 	stones += int(r["book_stones"])
-	for e in inventory:
-		if e["kind"] == "equip":
-			r["gear"].append(e)
-	r["gold"] = gold
-	r["stones"] = stones
-	Meta.end_run(self, gold, stones)
-	hud.refresh_inventory()
-	hud.set_stones(stones)
-	hud.set_gold(gold)
-	hud.panels.refresh_chests()
-	if not quiet:
-		print("[Run] end cleared=", cleared, " gold=", gold, " stones=", stones, " gear=", r["gear"].size(), " books->", r["book_stones"])
-	return r
+
+## A cleared chapter kept its bag for the next chapter, but the player went back to the lobby instead:
+## only now is the bag tidied and its gear sent to the storage (gold / 강화석 earned before were banked already).
+func bank_kept_bag() -> void:
+	if not bag_kept:
+		return
+	bag_kept = false
+	Meta.kept_rest = {}
+	var g0 := gold
+	var s0 := stones
+	var r := {"chests": 0, "books": 0, "book_stones": 0}
+	_bank_bag(r)
+	Meta.end_run(self, gold - g0, stones - s0)
+	print("[Run] kept bag banked: gear=", inventory.filter(func(e): return e["kind"] == "equip").size(), " books->", r["book_stones"], " chests=", r["chests"])
+
+## Next chapter ▶: hand the bag (items, unopened chests, extra slots) to the next scene's run (Meta.carry).
+func carry_bag() -> void:
+	if not bag_kept:
+		return
+	bag_kept = false
+	Meta.kept_rest = {}   # the next chapter's run holds the bag now
+	Meta.carry = {"inventory": inventory.duplicate(), "chests": chests.duplicate(), "inv_cap": inv_cap}
 
 func _drop_coin(pos: Vector3, amount: int) -> void:
 	var node := Vfx.coin(pos)
@@ -1392,8 +1433,8 @@ func use_item(e: Dictionary) -> void:
 		hud.show_hero_panel(selected)
 	tutorial_event("item")
 
-## Read a skill book (any time out of a cinematic): the book is spent and SkillGacha spins Defs.BOOK_PICKS reels,
-## each landing on a skill of grade <= the book's grade; the player keeps one (learn_skill).
+## Read a skill book (any time out of a cinematic): the book is spent and SkillGacha flips Defs.BOOK_PICKS cards,
+## each one a skill of grade <= the book's grade; the player keeps one (learn_skill).
 func use_book(e: Dictionary) -> void:
 	if not inventory.has(e):
 		return
@@ -1406,6 +1447,7 @@ func use_book(e: Dictionary) -> void:
 		hud.toast("더 배울 수 있는 스킬이 없어요")
 		return
 	hud.close_overlays()
+	var from := hud.panels.slot_center(inventory.find(e))   # the cards shoot out of the book's bag slot
 	inventory.erase(e)
 	hud.refresh_inventory()
 	var was := get_tree().paused
@@ -1413,18 +1455,17 @@ func use_book(e: Dictionary) -> void:
 	var sg := SkillGacha.new()
 	sg.hud = hud
 	sg.game = self
+	sg.from_pos = from
 	sg.start(g, offers)
-	Music.play("gacha", CHEST_MUSIC_FADE)
-	hud.overlay_closed.connect(func():
+	hud.overlay_closed.connect(func():   # a light show over the field: the field music keeps playing
 		if is_inside_tree():
-			Music.play(music_track(), CHEST_MUSIC_FADE, true)
 			if phase != P.GAMEOVER:
 				get_tree().paused = was
 			queue_merges(), CONNECT_ONE_SHOT)
 	_shot_later(0.5, "book_gacha")
 
-## The reels of a grade-g book: up to n different skills a hero of the party can still take (not at
-## Defs.BOOK_MAX); each reel's skill grade is drawn from Defs.BOOK_ROLL[g] among the grades that still have one.
+## The cards of a grade-g book: up to n different skills a hero of the party can still take (not at
+## Defs.BOOK_MAX); each card's skill grade is drawn from Defs.BOOK_ROLL[g] among the grades that still have one.
 func roll_book_offers(g: int, n := Defs.BOOK_PICKS) -> Array:
 	var pool := {}   # skill grade -> ids
 	for id in Defs.SKILL_BOOKS:

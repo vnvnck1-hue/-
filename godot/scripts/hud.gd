@@ -13,8 +13,6 @@ var cam: Camera3D
 var font: Font
 var root: Control
 var bars := {}                # Actor -> Dictionary
-var wave_label: Label
-var wave_title: Label
 var sub_label: Label
 var gold_label: Label
 var gold_pill: Control
@@ -22,8 +20,6 @@ var crystal_label: Label
 var crystal_pill: Control
 var stone_label: Label
 var stone_pill: Control
-var enemy_label: Label
-var mult_label: Label
 var gimmick_title: Label
 var gimmick_hint: Label
 var phase_label: Label
@@ -47,10 +43,15 @@ func _ready() -> void:
 	# Web builds can't see system fonts — fall back to the bundled Noto Sans KR.
 	var ko_web := FontVariation.new()
 	ko_web.base_font = load("res://fonts/NotoSansKR-VF.ttf")
-	ko_web.variation_opentype = {"wght": 800}
+	ko_web.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 800}
 	ko.fallbacks = [ko_web]
 	latin.fallbacks = [ko]
 	font = latin
+	if OS.has_feature("web"):   # SystemFont resolves to the theme font there, so use the bundled ones directly
+		var lilita := FontVariation.new()
+		lilita.base_font = load("res://fonts/LilitaOne-Regular.ttf")
+		lilita.fallbacks = [ko_web]
+		font = lilita
 	root = Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -66,7 +67,7 @@ func _ready() -> void:
 	perk_hud.hud = self
 	perk_hud.game = game
 	add_child(perk_hud)
-	perk_hud.build(218.0 if game.mode_id() == "march" else 146.0)
+	perk_hud.build(TRACK_Y + TRACK_H + 36.0)   # right column, under the "보스까지" caption
 	debug_hud = DebugHud.new()   # tiny "DBG" pill under the hero status column (debug quick actions)
 	debug_hud.hud = self
 	debug_hud.game = game
@@ -235,31 +236,29 @@ func pill(icon: Control, anchor: Vector2, pos: Vector2, sz: Vector2, fsize := 36
 	return l
 
 # ---------------------------------------------------------------- layout
+## Top band, by rank: row 1 = where (chapter chip, left; added by MapHud) and wallet (currencies, right),
+## row 2 = chapter progress track (MapHud), row 3 = hero status (left) / run perks (right), then the notice band.
+const TOP_Y := 14.0
+const CUR_SIZE := Vector2(132, 50)
+const CUR_GAP := 8.0
+const TRACK_Y := 74.0
+const TRACK_H := 58.0
+
 func _build_top() -> void:
-	var wp := panel(Color.WHITE, Rect2(0, 0, 150, 92), 18, 0)
-	wp.add_theme_stylebox_override("panel", UiTheme.capsule(20))
-	root.add_child(place(wp, Vector2(0, 0), Vector2(16, 16), Vector2(150, 92)))
-	var wt := label("WAVE", 24, Color("bfe4ff"), 8)
-	wt.position = Vector2(0, 4)
-	wt.size = Vector2(150, 28)
-	wp.add_child(wt)
-	wave_title = wt
-	wave_label = label("1", 50)
-	wave_label.position = Vector2(0, 26)
-	wave_label.size = Vector2(150, 60)
-	wave_label.pivot_offset = wave_label.size * 0.5
-	wp.add_child(wave_label)
-	sub_label = label("", 22, Color("ffd27a"), 8)
-	root.add_child(place(sub_label, Vector2(0.5, 0), Vector2(-170, 78), Vector2(160, 30)))
-	gold_label = pill(CoinIcon.new(), Vector2(1, 0), Vector2(-206, 16), Vector2(190, 56))
-	gold_pill = gold_label.get_parent()
-	crystal_label = pill(GemIcon.new(), Vector2(1, 0), Vector2(-206, 80), Vector2(190, 56))
+	# wallet: three equal pills, premium crystals at the far right
+	var x := -16.0 - CUR_SIZE.x
+	crystal_label = pill(GemIcon.new(), Vector2(1, 0), Vector2(x, TOP_Y), CUR_SIZE, 30)
 	crystal_pill = crystal_label.get_parent()
-	stone_label = pill(StoneIcon.new(), Vector2(1, 0), Vector2(-356, 80), Vector2(140, 56), 30)   # this run's 강화석
+	x -= CUR_SIZE.x + CUR_GAP
+	stone_label = pill(StoneIcon.new(), Vector2(1, 0), Vector2(x, TOP_Y), CUR_SIZE, 30)   # this run's 강화석
 	stone_pill = stone_label.get_parent()
-	enemy_label = pill(SkullIcon.new(), Vector2(0.5, 0), Vector2(-170, 22), Vector2(160, 52), 32)
-	mult_label = pill(null, Vector2(0.5, 0), Vector2(6, 22), Vector2(150, 52), 30)
-	mult_label.label_settings.font_color = Color("ffb0c0")
+	x -= CUR_SIZE.x + CUR_GAP
+	gold_label = pill(CoinIcon.new(), Vector2(1, 0), Vector2(x, TOP_Y), CUR_SIZE, 30)
+	gold_pill = gold_label.get_parent()
+	# "보스까지 N무리": tucked under the boss end of the progress track
+	sub_label = label("", 20, Color("ffd27a"), 8)
+	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	root.add_child(place(sub_label, Vector2(1, 0), Vector2(-236, TRACK_Y + TRACK_H + 2), Vector2(212, 28)))
 	# centre message band: screen-centred, right below the hero status column (NOTICE_Y)
 	gimmick_title = label("", 36, Color("ffd27a"), 12)
 	root.add_child(place(gimmick_title, Vector2(0.5, 0), Vector2(-340, NOTICE_Y), Vector2(680, 46)))
@@ -276,10 +275,10 @@ const HERO_INITIAL := {"warrior": "워", "ranger": "레", "mage": "메"}
 const HERO_COL := {"warrior": Color("ff7a5a"), "ranger": Color("5fcf5a"), "mage": Color("a77aff")}
 var status_rows := {}   # cls -> {root, badge, hp, hp_lag, mana, lv, ult, hp_t, lag_v}
 ## Hero status column (top-left); the centre message band sits right below it (region chip: top right).
-const STATUS_Y := 118.0
+const STATUS_Y := TRACK_Y + TRACK_H + 16.0
 const STATUS_STEP := 52.0
 const STATUS_BAR_W := 66.0
-const NOTICE_Y := 290.0
+const NOTICE_Y := STATUS_Y + 3 * STATUS_STEP + 22.0
 
 func _build_hero_status() -> void:
 	var y := STATUS_Y
@@ -356,6 +355,7 @@ func _portrait(cls: String) -> TextureRect:
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color("c8d0ff")
 	e.ambient_light_energy = 0.9
+	WebLook.apply(e)
 	we.environment = e
 	vp.add_child(we)
 	var sun := DirectionalLight3D.new()
@@ -422,12 +422,8 @@ func _build_bottom() -> void:
 	root.add_child(place(talent_btn, Vector2(0.5, 1), Vector2(-300, -116), Vector2(160, 92)))
 
 # ---------------------------------------------------------------- state setters
-func set_wave(w: int, sub: int, subs: int) -> void:
-	if wave_label.text != str(w):
-		wave_label.text = str(w)
-		bump(wave_label, 1.35)
+func set_wave(_w: int, sub: int, subs: int) -> void:
 	sub_label.text = "%d차 / %d" % [sub + 1, subs] if subs > 1 else ""
-	mult_label.text = "x%.1f" % Defs.scaling(w)
 
 func set_gold(v: int, animate := true) -> void:
 	if gold_label.text != str(v):
@@ -446,12 +442,6 @@ func set_crystals(v: int, animate := true) -> void:
 		crystal_label.text = str(v)
 		if animate:
 			bump(crystal_label, 1.35)
-
-func set_enemy_count(n: int) -> void:
-	if enemy_label.text != str(n):
-		enemy_label.text = str(n)
-		if n > 0:
-			bump(enemy_label, 1.15)
 
 func set_gimmick(title: String, hint: String) -> void:
 	gimmick_title.text = title
@@ -1334,6 +1324,8 @@ func has_overlay() -> bool:
 	return overlay != null and is_instance_valid(overlay)
 
 func close_overlays() -> void:
+	if panels and panels.tip and not panels.tip_pinned:
+		panels._close_tip()   # e.g. the merchant's item card
 	if has_overlay():
 		overlay.queue_free()
 		overlay = null
@@ -1499,17 +1491,6 @@ class GemIcon extends Control:
 		draw_colored_polygon(outer, Defs.COL_CRYSTAL)
 		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.85, -r * 0.2), c + Vector2(0, -r * 0.05)]), Color("b8d4ff"))
 		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(-r * 0.85, -r * 0.2), c + Vector2(0, -r * 0.05)]), Color("dce9ff"))
-
-class SkullIcon extends Control:
-	func _draw() -> void:
-		var c := size * 0.5 + Vector2(0, -2)
-		var r := minf(size.x, size.y) * 0.36
-		draw_circle(c, r + 3.0, UiTheme.ink())
-		draw_rect(Rect2(c.x - r * 0.6 - 3, c.y + r * 0.3, r * 1.2 + 6, r * 0.75 + 3), UiTheme.ink())
-		draw_circle(c, r, Color("ff7a8a"))
-		draw_rect(Rect2(c.x - r * 0.6, c.y + r * 0.3, r * 1.2, r * 0.7), Color("ff7a8a"))
-		draw_circle(c + Vector2(-r * 0.38, 0), r * 0.26, UiTheme.ink())
-		draw_circle(c + Vector2(r * 0.38, 0), r * 0.26, UiTheme.ink())
 
 # ---------------------------------------------------------------- 뚜까펫식 연출 도형
 ## 리본 띠: 양 끝이 접혀 뒤로 넘어간 꼬리 + 아래쪽 진한 그림자 + 두꺼운 검정 외곽선.

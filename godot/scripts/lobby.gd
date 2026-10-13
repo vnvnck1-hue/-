@@ -63,17 +63,36 @@ func _ready() -> void:
 				Meta.storage.append(Inventory.make("equip", ["sword1", "axe1", "shield1", "ring1", "helmet2", "bow2"][i]))
 			Meta.stones += 20
 			Meta.gold += 500
+			Meta.storage.append(Inventory.make("equip", "eclipseBlade"))   # effects + special stats in the detail bar
 			_open_gear()
 			await get_tree().create_timer(0.6).timeout
-			_gear.picked = Meta.storage[0]
+			_gear.picked = Meta.storage[-1]
 			_gear._rebuild()
 			await get_tree().create_timer(0.3).timeout
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png(shots + "/gear.png")
+			var ring: Dictionary = Meta.storage.filter(func(x): return x["key"] == "ring1")[0]   # worn piece -> detail bar with [해제]
+			Meta.wear(_gear.cls, ring)
+			_gear.picked = ring
+			_gear.picked_slot = "accessory"
+			_gear._rebuild()
+			await get_tree().create_timer(0.3).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(shots + "/gear_worn.png")
+			_gear._hold_start("accessory")   # held [강화]: repeats, level-up burst each time
+			for k in [0.1, 0.9]:
+				await get_tree().create_timer(k).timeout
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(shots + "/gear_hold_%d.png" % int(k * 10))
+			print("[Gear] hold levels=", _gear._hold_n, " slot lv=", Meta.slot_level(_gear.cls, "accessory"))
+			_gear._hold_stop()
 			for k in ["bow1", "staff1", "sword1"]:   # completes a 일반 무기 group (and a chain) for the cutscene
 				Meta.storage.append(Inventory.make("equip", k))
 			await _dev_merge_shots(shots, "gear")
 		if Array(OS.get_cmdline_user_args()).has("--open=relic"):   # dev: the relic screen + its merge cutscene
+			if _gear:   # --open=gear ran first: drop its screen without the scene reload its close() does
+				_gear.get_parent().queue_free()
+				_gear = null
 			for k in ["vampireChalice", "vampireChalice", "vampireChalice", "luckyCompass", "luckyCompass", "luckyCompass",
 					"guardianIdol", "echoCrystal", "crescendoGear", "crescendoGear"]:
 				Meta.add_relic(k, 1, false)
@@ -201,10 +220,15 @@ func _build_ui() -> void:
 	# Web builds can't see system fonts — fall back to the bundled Noto Sans KR.
 	var ko_web := FontVariation.new()
 	ko_web.base_font = load("res://fonts/NotoSansKR-VF.ttf")
-	ko_web.variation_opentype = {"wght": 800}
+	ko_web.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 800}
 	ko.fallbacks = [ko_web]
 	latin.fallbacks = [ko]
 	font = latin
+	if OS.has_feature("web"):   # SystemFont resolves to the theme font there, so use the bundled ones directly
+		var lilita := FontVariation.new()
+		lilita.base_font = load("res://fonts/LilitaOne-Regular.ttf")
+		lilita.fallbacks = [ko_web]
+		font = lilita
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	root = Control.new()

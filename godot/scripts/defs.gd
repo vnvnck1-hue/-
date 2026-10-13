@@ -128,8 +128,8 @@ static func sub_wave_count(wave: int) -> int:
 
 # ---------------------------------------------------------------- skill books (run growth)
 ## Skills are found, not trained: skill books drop in battle (and come from chests and the merchant) and are
-## read from the bag whenever the player likes. A book is only a grade: reading it spins BOOK_PICKS reels (SkillGacha)
-## that each land on a random skill of grade <= the book's grade (BOOK_ROLL odds), and the player keeps one.
+## read from the bag whenever the player likes. A book is only a grade: reading it flips BOOK_PICKS cards (SkillGacha)
+## that each show a random skill of grade <= the book's grade (BOOK_ROLL odds), and the player keeps one.
 ## A new skill takes one of SKILL_SLOTS slots; a known one goes up one level (max BOOK_MAX). BOOK_MERGE books of one
 ## grade merge in the bag into one book of the next grade, so saving books trades picks for a higher ceiling.
 ## Everything learned is lost when the run ends.

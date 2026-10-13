@@ -294,12 +294,13 @@ func battle_tick(delta: float) -> void:
 	_clamp()
 
 func _clamp() -> void:
-	var m := body_r - RADIUS
+	position = field_clamp(position, body_r - RADIUS)
+
+## Nearest point on the playable field (March: the winding road minus the strip under the bag; else the board).
+static func field_clamp(p: Vector3, m := 0.0) -> Vector3:
 	if clamp_fn.is_valid():
-		position = clamp_fn.call(position, m)
-		return
-	position.x = clampf(position.x, -BOARD_X + m, BOARD_X - m)
-	position.z = clampf(position.z, -BOARD_Z + m, BOARD_Z - m)
+		return clamp_fn.call(p, m)
+	return Vector3(clampf(p.x, -BOARD_X + m, BOARD_X - m), p.y, clampf(p.z, -BOARD_Z + m, BOARD_Z - m))
 
 func _separation() -> Vector3:
 	var push := Vector3.ZERO

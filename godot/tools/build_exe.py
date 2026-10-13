@@ -48,7 +48,7 @@ def main() -> int:
     # one executable only: old game builds in godot/build/ go (the web export is a separate target)
     if os.path.isdir(BUILD):
         for name in os.listdir(BUILD):
-            if name == "web":
+            if name in ("web", ".gdignore"):   # .gdignore keeps the editor from importing the web export's icons
                 continue
             p = os.path.join(BUILD, name)
             shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
