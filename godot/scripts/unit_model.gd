@@ -72,6 +72,12 @@ func build(p_kind: String, p_team: int) -> UnitModel:
 		"horror": _build_horror()
 		"mammoth": _build_mammoth()
 		"abyss": _build_abyss()
+		"spider": _build_spider()
+		"warden": _build_warden()
+		"flytrap": _build_flytrap()
+		"murPriest": _build_mur_priest()
+		"murWhip": _build_mur_whip()
+		"murSpear": _build_mur_spear()
 		# Toy Clash originals (kept for reference)
 		"king": _build_king()
 		"queen": _build_queen()
@@ -984,6 +990,334 @@ func _build_abyss() -> void:
 			_cyl(arm, 0.0, 0.025, 0.12, bone, Vector3(sx * 0.06 + (i - 1) * 0.05, -0.44, -0.05), Vector3(-2.7, 0, 0))   # claws
 	weapon = _node(arm_r, Vector3(0.06, -0.34, 0))
 
+## --- raid / region bosses ------------------------------------------------------
+## Capsule spanning a -> b (limb segments that bend at arbitrary angles).
+func _seg(parent: Node3D, a: Vector3, b: Vector3, r: float, color: Color) -> MeshInstance3D:
+	var d := b - a
+	var mi := _capsule(parent, r, d.length() + r * 2.0, color, (a + b) * 0.5)
+	if d.length() > 0.0001:
+		mi.quaternion = Quaternion(Vector3.UP, d.normalized())
+	return mi
+
+static func _cone_mesh(r: float, h: float) -> Mesh:
+	return Mats.shared("um/cone%.4f/%.4f" % [r, h], func() -> Mesh:
+		var c := CylinderMesh.new()
+		c.top_radius = 0.0
+		c.bottom_radius = r
+		c.height = h
+		c.radial_segments = 8
+		c.rings = 1
+		return c)
+
+## Glowing flame tongue (unlit cone) standing on `parent` at pos.
+func _flame(parent: Node3D, r: float, h: float, col: Color, pos: Vector3) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	m.mesh = _cone_mesh(r, h)
+	m.material_override = _glow_mat(col, 2.2)
+	m.position = pos + Vector3(0, h * 0.5, 0)
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(m)
+	return m
+
+## Fang-mother spider: a huge round abdomen banded in bone-white chevrons, a dark armoured head with eight
+## acid-green eyes, two long orange fangs dripping green, eight black legs on orange joints with pale tips.
+func _build_spider() -> void:
+	var dark := Color("2c2320")
+	var brown := Color("6b3e26")
+	var rust := Color("b8562a")
+	var bone := Color("e2dcd4")
+	var acid := Color("a8f03a")
+	# abdomen: dark sphere with three bone-white chevron bands across the back and a rusty belly
+	var ab := _node(torso, Vector3(0, 0.6, 0.32))
+	var shell := _node(ab, Vector3.ZERO)
+	shell.scale = Vector3(1.0, 0.92, 1.05)
+	_sphere(shell, 0.36, dark, Vector3.ZERO)
+	_sphere(ab, 0.3, brown, Vector3(0, -0.12, 0.02), Vector3(1.05, 0.75, 1.0))   # rusty belly
+	for i in 4:   # bone-white bands sunk into the shell so only a stripe shows
+		var z := -0.2 + i * 0.13
+		var rr := sqrt(maxf(0.0, 0.36 * 0.36 - z * z))
+		var t := _torus(shell, rr - 0.075, rr + 0.008, bone, Vector3(0, 0, z), Vector3(PI * 0.5, 0, 0))
+		t.scale = Vector3(1, 1, 1)
+	_sphere(shell, 0.12, dark, Vector3(0, -0.3, 0.05), Vector3(2.2, 0.6, 2.4))   # dark underside hides the bands' bottoms
+	_sphere(ab, 0.06, brown.darkened(0.2), Vector3(0, -0.06, 0.38))   # spinneret
+	_wiggle(ab, Vector3(1, 0, 0), 0.04, 3.0, 0.06)
+	# thorax + armoured head
+	_sphere(torso, 0.22, brown, Vector3(0, 0.42, -0.06), Vector3(1.05, 0.75, 1.1))
+	_sphere(torso, 0.2, dark, Vector3(0, 0.48, -0.08), Vector3(1.0, 0.45, 1.0))
+	head = _node(torso, Vector3(0, 0.44, -0.27))
+	_sphere(head, 0.16, dark, Vector3.ZERO, Vector3(1.1, 0.85, 1.0))
+	_sphere(head, 0.13, brown, Vector3(0, -0.07, -0.03), Vector3(1.1, 0.6, 1.0))
+	var eyes := [[0.055, 0.04, 0.05], [-0.055, 0.04, 0.05], [0.12, 0.05, 0.034], [-0.12, 0.05, 0.034], [0.04, 0.1, 0.03], [-0.04, 0.1, 0.03], [0.1, 0.11, 0.024], [-0.1, 0.11, 0.024]]
+	for e in eyes:
+		var z: float = -0.15 + absf(e[0]) * 0.35
+		_glow(head, e[2], acid, 1.9, Vector3(e[0], e[1], z), Vector3(1, 1.2, 0.6))
+	# chelicerae: orange fangs with green tips, gnawing
+	for sx in [-1.0, 1.0]:
+		var f := _node(head, Vector3(sx * 0.06, -0.06, -0.12))
+		f.rotation = Vector3(0.35, 0, sx * 0.15)
+		_capsule(f, 0.04, 0.2, rust, Vector3(0, -0.08, 0))
+		_cyl(f, 0.0, 0.032, 0.09, Color("7a2a18"), Vector3(0, -0.2, -0.01), Vector3(PI, 0, 0))
+		_glow(f, 0.022, acid, 1.6, Vector3(0, -0.25, -0.01))
+		_wiggle(f, Vector3(0, 0, sx), 0.12, 7.0, 0.1)
+		_box(head, Vector3(0.035, 0.05, 0.02), bone, Vector3(sx * 0.02, -0.1, -0.15))   # little teeth
+	# eight legs: hip on the thorax, knee high and out, foot on the ground (quad_legs swing them in pairs)
+	var zs := [-0.2, -0.08, 0.04, 0.16]
+	for i in 4:
+		for sx in [-1.0, 1.0]:
+			var leg := _node(torso, Vector3(sx * 0.16, 0.42, zs[i]))
+			leg.rotation.y = -sx * (0.55 - i * 0.37)
+			var knee := Vector3(sx * 0.32, 0.2, 0)
+			var foot := Vector3(sx * 0.52, -0.4, 0)
+			_seg(leg, Vector3.ZERO, knee, 0.05, dark)
+			_sphere(leg, 0.055, rust, knee)
+			_seg(leg, knee, foot.lerp(knee, 0.22), 0.045, dark)
+			_seg(leg, foot.lerp(knee, 0.22), foot, 0.035, bone)
+			_sphere(leg, 0.045, rust, Vector3.ZERO)
+			quad_legs.append(leg)
+
+## Flame warden: a squat executioner in bronze plate and teal scale mail, a spiked round collar around a carved
+## face crowned with fire, chains hanging from the belt and a great stone hammer marked with a burning sun rune.
+func _build_warden() -> void:
+	var bronze := Color("c3843e")
+	var bronze_d := Color("8a5a2a")
+	var mail := Color("3f5f60")
+	var iron := Color("5a5560")
+	var stone := Color("3d3a42")
+	var fire := Color("ff8a2a")
+	var flame := Color("ffd24a")
+	leg_l = _node(torso, Vector3(-0.15, 0.24, 0))
+	leg_r = _node(torso, Vector3(0.15, 0.24, 0))
+	for leg in [leg_l, leg_r]:
+		_cyl(leg, 0.09, 0.1, 0.24, mail.darkened(0.2), Vector3(0, -0.1, 0))
+		_sphere(leg, 0.085, bronze, Vector3(0, -0.04, -0.05), Vector3(1, 1, 0.8))   # knee plate
+		_sphere(leg, 0.11, iron.darkened(0.3), Vector3(0, -0.21, -0.04), Vector3(1, 0.6, 1.35))   # boot
+	# scale-mail body, bronze belly plate and belt, chain skirt
+	_sphere(torso, 0.33, mail, Vector3(0, 0.55, 0.02), Vector3(1.1, 0.95, 0.95))
+	_sphere(torso, 0.24, bronze, Vector3(0, 0.5, -0.17), Vector3(1.05, 0.95, 0.5))
+	_torus(torso, 0.27, 0.33, bronze_d, Vector3(0, 0.36, 0), Vector3.ZERO, Vector3(1.1, 1.4, 1.0))
+	_torus(torso, 0.07, 0.11, bronze, Vector3(0, 0.36, -0.31), Vector3(PI * 0.5, 0, 0))   # belt ring
+	for i in 9:
+		var x := -0.24 + i * 0.06
+		var chain := _node(torso, Vector3(x, 0.34, -0.26 + absf(x) * 0.25))
+		for j in 3:
+			_torus(chain, 0.012, 0.026, iron.lightened(0.15), Vector3(0, -0.035 - j * 0.045, 0), Vector3(0, (j % 2) * PI * 0.5, PI * 0.5))
+		_wiggle(chain, Vector3(1, 0, 0), 0.08, 3.0 + i * 0.3, 0.25)
+	_torus(torso, 0.22, 0.26, _team_col(), Vector3(0, 0.4, 0.02), Vector3.ZERO, Vector3(1.15, 1.2, 1.0))
+	# spiked collar: a bronze ring standing up round the head
+	head = _node(torso, Vector3(0, 0.88, -0.06))
+	_torus(head, 0.13, 0.25, bronze, Vector3(0, -0.02, 0.02), Vector3(PI * 0.5 - 0.25, 0, 0))
+	_torus(head, 0.2, 0.25, bronze_d, Vector3(0, -0.02, 0.04), Vector3(PI * 0.5 - 0.25, 0, 0))
+	for i in 7:
+		var a := TAU * i / 7.0 + 0.45
+		var sp := _node(head, Vector3(cos(a) * 0.24, sin(a) * 0.22 - 0.02, 0.0))
+		sp.rotation = Vector3(-0.25, 0, a - PI * 0.5)
+		_cyl(sp, 0.0, 0.04, 0.11, fire.darkened(0.15), Vector3(0, 0.05, 0))
+	# carved face inside the collar, fire crown on top
+	_sphere(head, 0.12, Color("8a4e2c"), Vector3(0, 0.0, -0.04), Vector3(1, 1.05, 0.9))
+	_box(head, Vector3(0.14, 0.035, 0.03), Color("5a2e18"), Vector3(0, 0.035, -0.14))   # heavy brow
+	for sx in [-1.0, 1.0]:
+		_glow(head, 0.022, flame, 2.4, Vector3(sx * 0.045, 0.0, -0.145), Vector3(1.3, 0.7, 0.5))
+	_box(head, Vector3(0.09, 0.03, 0.02), Color("3a1a10"), Vector3(0, -0.06, -0.145))
+	for sx in [-1.0, 0.0, 1.0]:   # beard braids
+		_capsule(head, 0.018, 0.08, Color("a0461e"), Vector3(sx * 0.035, -0.1, -0.13))
+	var crown := _node(head, Vector3(0, 0.1, -0.02))
+	for i in 5:
+		var f := _node(crown, Vector3((i - 2) * 0.045, 0, absf(i - 2.0) * 0.02))
+		f.rotation.z = (i - 2) * -0.2
+		_flame(f, 0.05, 0.26 - absf(i - 2.0) * 0.06, fire if i % 2 == 0 else flame, Vector3.ZERO)
+		_wiggle(f, Vector3(0, 0, 1), 0.18, 9.0 + i, 0.0)
+	# huge pauldrons and gauntlets
+	arm_l = _node(torso, Vector3(-0.38, 0.72, 0))
+	arm_r = _node(torso, Vector3(0.38, 0.72, 0))
+	for arm in [arm_l, arm_r]:
+		var sx := -1.0 if arm == arm_l else 1.0
+		_sphere(arm, 0.16, bronze, Vector3(sx * 0.02, 0.02, 0), Vector3(1.1, 0.85, 1.05))
+		for k in 2:
+			_sphere(arm, 0.025, bronze_d, Vector3(sx * (0.06 + k * 0.06), 0.13, -0.08 + k * 0.12))
+		_capsule(arm, 0.08, 0.26, mail, Vector3(sx * 0.04, -0.15, 0), Vector3(0, 0, sx * 0.15))
+		_cyl(arm, 0.1, 0.12, 0.14, bronze, Vector3(sx * 0.06, -0.27, 0))
+		_sphere(arm, 0.12, bronze_d.lightened(0.1), Vector3(sx * 0.07, -0.38, -0.02))
+	weapon = _node(arm_r, Vector3(0.07, -0.38, -0.02))
+	weapon.rotation = Vector3(-0.35, 0, -0.5)   # hammer held out to the side, head high
+	_capsule(weapon, 0.03, 0.9, Color("5a3a22"), Vector3(0, 0.12, 0))   # haft
+	_box(weapon, Vector3(0.3, 0.34, 0.16), stone, Vector3(0, 0.58, 0))   # stone hammer head
+	_box(weapon, Vector3(0.32, 0.05, 0.18), iron, Vector3(0, 0.43, 0))
+	_glow(weapon, 0.045, flame, 2.6, Vector3(0, 0.6, -0.09), Vector3(1, 1, 0.3))
+	_glow_box(weapon, Vector3(0.018, 0.18, 0.01), fire, 2.0, Vector3(0, 0.6, -0.085))
+	_glow_box(weapon, Vector3(0.14, 0.018, 0.01), fire, 2.0, Vector3(0, 0.6, -0.085))
+	var hf := _node(weapon, Vector3(0.08, 0.75, 0))
+	for i in 3:
+		_flame(hf, 0.045, 0.22 - i * 0.04, fire if i != 1 else flame, Vector3(-0.08 + i * 0.08, 0, 0))
+	_wiggle(hf, Vector3(0, 0, 1), 0.15, 8.0)
+	for j in 4:   # chain off the haft's end
+		_torus(weapon, 0.014, 0.03, iron.lightened(0.15), Vector3(0, -0.36 - j * 0.05, 0), Vector3(0, (j % 2) * PI * 0.5, PI * 0.5))
+
+## Murloc body shared by the trio: stubby legs, a pear-shaped fish body with a pale belly and a huge head
+## merged into it — bulging yellow eyes on top, a wide toothy mouth, a fin crest down the back.
+func _murloc(skin: Color, belly: Color, vest := Color(0, 0, 0, 0)) -> void:
+	leg_l = _node(torso, Vector3(-0.1, 0.14, 0.02))
+	leg_r = _node(torso, Vector3(0.1, 0.14, 0.02))
+	for leg in [leg_l, leg_r]:
+		_capsule(leg, 0.065, 0.2, skin.darkened(0.12), Vector3(0, -0.05, 0))
+		_sphere(leg, 0.085, skin.darkened(0.2), Vector3(0, -0.12, -0.05), Vector3(1.2, 0.55, 1.5))   # flipper foot
+	_sphere(torso, 0.24, skin, Vector3(0, 0.33, 0.02), Vector3(1.05, 1.0, 0.95))
+	_sphere(torso, 0.18, belly, Vector3(0, 0.3, -0.1), Vector3(1.05, 1.0, 0.6))
+	if vest.a > 0.0:
+		for sx in [-1.0, 1.0]:
+			_sphere(torso, 0.17, vest, Vector3(sx * 0.11, 0.36, -0.04), Vector3(0.6, 1.0, 1.05))
+	_torus(torso, 0.2, 0.24, _team_col(), Vector3(0, 0.2, 0.01), Vector3.ZERO, Vector3(1.05, 1.3, 0.95))
+	head = _node(torso, Vector3(0, 0.55, -0.02))
+	_sphere(head, 0.23, skin, Vector3.ZERO, Vector3(1.0, 0.85, 1.0))
+	_sphere(head, 0.17, belly, Vector3(0, -0.08, -0.1), Vector3(1.15, 0.6, 0.7))   # pale jaw
+	_sphere(head, 0.15, Color("4a1a26"), Vector3(0, -0.058, -0.155), Vector3(1.0, 0.24, 0.5))   # wide mouth
+	for i in 6:   # teeth along the grin
+		_cyl(head, 0.0, 0.022, 0.06, Color("fff1c8"), Vector3(-0.12 + i * 0.048, -0.03, -0.215), Vector3(PI, 0, 0))
+	for i in 4:
+		_cyl(head, 0.0, 0.018, 0.045, Color("fff1c8"), Vector3(-0.07 + i * 0.047, -0.09, -0.21))
+	for sx in [-1.0, 1.0]:   # bulging eyes on top, pupils looking forward
+		_sphere(head, 0.075, Color("f2e86a"), Vector3(sx * 0.12, 0.13, -0.1))
+		_sphere(head, 0.03, Color("1a1410"), Vector3(sx * 0.125, 0.135, -0.172), Vector3(1, 1, 0.5))
+		_sphere(head, 0.04, skin.darkened(0.15), Vector3(sx * 0.12, 0.19, -0.08), Vector3(1.2, 0.4, 1))   # lid
+		_cyl(head, 0.0, 0.05, 0.1, skin.lightened(0.15), Vector3(sx * 0.22, 0.0, 0.02), Vector3(0, 0, -sx * 1.3))   # gill fins
+	var crest := _node(head, Vector3(0, 0.17, 0.08))
+	for i in 4:
+		_box(crest, Vector3(0.02, 0.1 - i * 0.012, 0.06), belly.darkened(0.1), Vector3(0, 0.02 - i * 0.04, i * 0.06), Vector3(-0.5 - i * 0.2, 0, 0))
+	_wiggle(crest, Vector3(0, 0, 1), 0.08, 5.0, 0.15)
+	arm_l = _node(torso, Vector3(-0.22, 0.4, 0))
+	arm_r = _node(torso, Vector3(0.22, 0.4, 0))
+	_capsule(arm_l, 0.055, 0.22, skin.darkened(0.06), Vector3(-0.03, -0.09, 0), Vector3(0, 0, -0.35))
+	_capsule(arm_r, 0.055, 0.22, skin.darkened(0.06), Vector3(0.03, -0.09, 0), Vector3(0, 0, 0.35))
+	_sphere(arm_l, 0.07, skin.darkened(0.1), Vector3(-0.07, -0.19, 0))
+	_sphere(arm_r, 0.07, skin.darkened(0.1), Vector3(0.07, -0.19, 0))
+	weapon = _node(arm_r, Vector3(0.07, -0.19, 0))
+
+## Archpriest: violet-blue murloc with a glowing anglerfish lure, gold bracers, a shell pendant on a swirl sash
+## and a crab-claw staff.
+func _build_mur_priest() -> void:
+	var skin := Color("6f86d8")
+	var gold := Color("e0a63a")
+	_murloc(skin, Color("cfe2ff"))
+	_cyl(torso, 0.16, 0.25, 0.22, Color("3f9aa0"), Vector3(0, 0.14, 0))   # swirl sash skirt
+	for i in 3:
+		_torus(torso, 0.04, 0.055, Color("9fe8e0"), Vector3(-0.1 + i * 0.1, 0.12, -0.21), Vector3(PI * 0.5, 0, 0))
+	_sphere(torso, 0.06, Color("f2b06a"), Vector3(0, 0.44, -0.21), Vector3(1.2, 0.9, 0.5))   # shell pendant
+	for arm in [arm_l, arm_r]:
+		var sx := -1.0 if arm == arm_l else 1.0
+		_torus(arm, 0.05, 0.075, gold, Vector3(sx * 0.06, -0.15, 0), Vector3(0, 0, sx * 0.35))
+	var s1 := _node(head, Vector3(0, 0.18, -0.02))
+	s1.rotation.x = -0.4
+	_capsule(s1, 0.02, 0.22, skin.darkened(0.2), Vector3(0, 0.1, 0))
+	var s2 := _node(s1, Vector3(0, 0.21, 0))
+	s2.rotation.x = -1.1
+	_capsule(s2, 0.018, 0.18, skin.darkened(0.2), Vector3(0, 0.08, 0))
+	_glow(s2, 0.06, Color("fff27a"), 2.6, Vector3(0, 0.18, 0))
+	_glow(s2, 0.09, Color(1.0, 0.95, 0.5, 0.35), 1.2, Vector3(0, 0.18, 0))
+	_wiggle(s1, Vector3(1, 0, 0.4), 0.12, 2.5, 0.2)
+	# crab-claw staff
+	_capsule(weapon, 0.022, 0.62, Color("4e8a5a"), Vector3(0, 0.16, 0))
+	for i in 3:
+		_torus(weapon, 0.022, 0.034, gold, Vector3(0, -0.05 + i * 0.16, 0))
+	var claw := _node(weapon, Vector3(0, 0.5, 0))
+	_sphere(claw, 0.08, gold, Vector3.ZERO, Vector3(1, 1.2, 0.8))
+	for sx in [-1.0, 1.0]:
+		var p := _node(claw, Vector3(sx * 0.04, 0.06, 0))
+		p.rotation.z = -sx * 0.45
+		_capsule(p, 0.04, 0.18, gold.lightened(0.1), Vector3(0, 0.08, 0), Vector3.ZERO, Vector3(1, 1, 0.6))
+		_cyl(p, 0.0, 0.03, 0.06, gold.darkened(0.3), Vector3(sx * -0.02, 0.18, 0), Vector3(0, 0, sx * 0.5))
+
+## Whip: grizzled murloc, one eye stitched shut, a ragged vest, a fishing hook on a rope at the hip and a huge
+## red crab claw lashed to a pole.
+func _build_mur_whip() -> void:
+	var skin := Color("3f7f92")
+	_murloc(skin, Color("b8dcd8"), Color("3a3446"))
+	_sphere(head, 0.078, skin.darkened(0.1), Vector3(-0.12, 0.13, -0.1))   # the stitched-shut eye
+	_box(head, Vector3(0.06, 0.014, 0.014), Color("1a1418"), Vector3(-0.12, 0.14, -0.178), Vector3(0, 0, 0.7))
+	_box(head, Vector3(0.06, 0.014, 0.014), Color("1a1418"), Vector3(-0.12, 0.14, -0.178), Vector3(0, 0, -0.7))
+	var hook := _node(torso, Vector3(-0.2, 0.26, -0.12))
+	_capsule(hook, 0.008, 0.16, Color("d8c09a"), Vector3(0, -0.06, 0))
+	_torus(hook, 0.03, 0.042, Color("c8ccd6"), Vector3(0, -0.16, 0), Vector3(PI * 0.5, 0, 0), Vector3(1, 1, 1.4))
+	_sphere(hook, 0.035, Color("ff5a4a"), Vector3(0.03, -0.24, 0))   # bobber
+	_wiggle(hook, Vector3(1, 0, 0), 0.25, 4.0, 0.3)
+	_capsule(weapon, 0.024, 0.7, Color("8a5a34"), Vector3(0, 0.2, 0))
+	for i in 3:
+		_torus(weapon, 0.024, 0.036, Color("d8c09a"), Vector3(0, i * 0.05, 0))
+	var claw := _node(weapon, Vector3(0, 0.56, 0))
+	claw.rotation.z = 0.2
+	var red := Color("e2603a")
+	_capsule(claw, 0.08, 0.36, red, Vector3(0, 0.12, 0), Vector3.ZERO, Vector3(1, 1, 0.6))
+	var pin := _node(claw, Vector3(0.06, 0.06, 0))
+	pin.rotation.z = -0.5
+	_capsule(pin, 0.05, 0.24, red.darkened(0.1), Vector3(0, 0.1, 0), Vector3.ZERO, Vector3(1, 1, 0.6))
+	for i in 4:
+		_sphere(claw, 0.015, Color("f2c0a0"), Vector3(-0.03 + (i % 2) * 0.05, 0.05 + i * 0.06, -0.045))
+
+## Spear: young murloc in a vest with a rope-bound harpoon spear.
+func _build_mur_spear() -> void:
+	var skin := Color("4fb4c0")
+	_murloc(skin, Color("d8f2ec"), Color("4a4256"))
+	weapon.rotation.x = -0.9
+	_capsule(weapon, 0.022, 0.9, Color("6b4428"), Vector3(0, 0.2, 0))
+	for i in 3:
+		_torus(weapon, 0.022, 0.034, Color("e0b85a"), Vector3(0, 0.46 + i * 0.03, 0))
+	_cyl(weapon, 0.0, 0.06, 0.2, Color("dfe6ee"), Vector3(0, 0.74, 0), Vector3.ZERO, Vector3(1, 1, 0.35))   # blade
+	_cyl(weapon, 0.0, 0.03, 0.08, Color("dfe6ee"), Vector3(0.05, 0.62, 0), Vector3(0, 0, 2.4), Vector3(1, 1, 0.35))   # barb
+
+## Three-headed flytrap: a mossy stone bulb on stubby stone feet, wrapped in roots, a skirt of spotted leaves and
+## three vines carrying pink trap-flower heads that snap and spit spiked seeds.
+func _build_flytrap() -> void:
+	var stone := Color("8c9096")
+	var leaf := Color("6cbf52")
+	var leaf_d := Color("4f9a3e")
+	var spot := Color("e8dcb0")
+	var pink := Color("ec7078")
+	var root := Color("6a5236")
+	for sx in [-1.0, 1.0]:
+		_cyl(torso, 0.06, 0.07, 0.12, stone.darkened(0.15), Vector3(sx * 0.12, 0.05, 0))   # stone feet
+	_sphere(torso, 0.3, stone, Vector3(0, 0.36, 0), Vector3(1.0, 0.92, 1.0))
+	for i in 5:   # pocks
+		var a := TAU * i / 5.0 + 0.3
+		_sphere(torso, 0.03, stone.darkened(0.2), Vector3(cos(a) * 0.24, 0.3 + (i % 2) * 0.1, sin(a) * 0.2 - 0.08))
+	for i in 3:   # roots wrapping the bulb
+		_torus(torso, 0.27, 0.31, root, Vector3(0, 0.3 + i * 0.06, 0), Vector3(0.3 - i * 0.3, i * 1.1, 0.25 * (i - 1)), Vector3(1, 0.6, 1))
+	for i in 6:   # leaf skirt
+		var a := TAU * i / 6.0 + 0.2
+		var lf := _node(torso, Vector3(cos(a) * 0.2, 0.42, sin(a) * 0.2))
+		lf.rotation = Vector3(0, -a, 0)
+		var blade := _node(lf, Vector3.ZERO)
+		blade.rotation.z = -0.9
+		_sphere(blade, 0.2, leaf if i % 2 == 0 else leaf_d, Vector3(0.18, 0, 0), Vector3(1.2, 0.2, 0.62))
+		for k in 3:
+			_sphere(blade, 0.022, spot, Vector3(0.1 + k * 0.1, 0.035, (k % 2) * 0.05 - 0.025))
+		_wiggle(lf, Vector3(0, 0, 1), 0.06, 2.0 + i * 0.3)
+	# three vines with trap-flower heads (the middle one is the "head")
+	var bases := [Vector3(-0.15, 0.55, 0.0), Vector3(0, 0.6, -0.04), Vector3(0.15, 0.55, 0.0)]
+	for i in 3:
+		var v := _node(torso, bases[i])
+		v.rotation.z = (1 - i) * 0.45
+		var s1 := _node(v, Vector3.ZERO)
+		_capsule(s1, 0.04, 0.3, leaf, Vector3(0, 0.13, 0))
+		for k in 2:
+			_sphere(s1, 0.02, spot, Vector3(0.03, 0.08 + k * 0.1, -0.03))
+		var s2 := _node(s1, Vector3(0, 0.28, 0))
+		s2.rotation = Vector3(-0.7, 0, -(1 - i) * 0.35)
+		_capsule(s2, 0.035, 0.26, leaf, Vector3(0, 0.11, 0))
+		var fh := _node(s2, Vector3(0, 0.26, 0))
+		fh.rotation.x = 0.9
+		for k in 5:   # petals
+			var a := TAU * k / 5.0
+			_cyl(fh, 0.0, 0.07, 0.13, pink.darkened(0.08), Vector3(cos(a) * 0.08, -0.02, sin(a) * 0.08), Vector3(sin(a) * 1.1, 0, -cos(a) * 1.1))
+		_sphere(fh, 0.12, pink, Vector3.ZERO, Vector3(1, 0.9, 1))
+		_sphere(fh, 0.09, pink.lightened(0.2), Vector3(0, 0.05, -0.05), Vector3(1, 0.6, 0.8))
+		_box(fh, Vector3(0.16, 0.025, 0.02), Color("5a1424"), Vector3(0, -0.01, -0.11))   # mouth slit
+		for k in 4:
+			_cyl(fh, 0.0, 0.014, 0.04, Color("fff6e0"), Vector3(-0.05 + k * 0.035, 0.012, -0.115), Vector3(PI, 0, 0))
+		_wiggle(s1, Vector3(1, 0, 0.3 * (i - 1)), 0.1, 2.2 + i * 0.4, 0.0, i * 1.7)
+		_wiggle(s2, Vector3(1, 0, 0), 0.14, 2.6 + i * 0.3, 0.0, i * 1.1)
+		if i == 1:
+			head = fh
+	_sphere(torso, 0.07, leaf_d, Vector3(0.2, 0.62, 0.12))   # a seed pod ripening on the side
+	_glow(torso, 0.04, Color("b8ff6a"), 1.4, Vector3(0.2, 0.62, 0.07))
+
 # ------------------------------------------------------------------ animation
 func _process(delta: float) -> void:
 	_t += delta
@@ -1013,7 +1347,7 @@ func _process(delta: float) -> void:
 			arm_l.rotation.x -= hk * 1.0
 			arm_r.rotation.x -= hk * 1.0
 	for i in quad_legs.size():
-		var sgn := 1.0 if i == 0 or i == 3 else -1.0
+		var sgn := 1.0 if i % 4 == 0 or i % 4 == 3 else -1.0   # diagonal pairs (the spider has four such sets)
 		quad_legs[i].rotation.x = sin(_t * 12.0 + _phase) * 0.65 * walk * sgn
 	for w in _wiggles:
 		var a: float = sin(_t * w["f"] + _phase + w["p"]) * (w["a"] + w["wa"] * walk)
@@ -1024,6 +1358,12 @@ func _process(delta: float) -> void:
 		squash.position.y += hover + sin(_t * 3.2 + _phase) * 0.035
 
 var _arm_busy := false
+
+## Lean forward (+) / back (-) to v over dur (boss wind-ups).
+func lean_to(v: float, dur: float) -> Tween:
+	var tw := create_tween()
+	tw.tween_property(self, "attack_lean", v, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	return tw
 
 ## Squash impulse: goes to (sx, sy) then springs back with overshoot.
 func punch_scale(sx: float, sy: float, dur := 0.35) -> void:

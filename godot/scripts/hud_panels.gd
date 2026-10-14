@@ -9,7 +9,8 @@ var game: Node
 ## Dimmed full-screen modal with a pop-in card. Registers itself as hud.overlay.
 ## header_h > 0: 뚜까펫식 보라 체크무늬 머리띠(제목은 그 안에 흰 글자). dark: 어두운 정보 창.
 func _modal(card_size: Vector2, y := 0.0, replace := false, header_h := 0.0, dark := false) -> Control:
-	if replace and hud.has_overlay():
+	var refresh := replace and hud.has_overlay()   # the same window rebuilt in place: no fade / pop again
+	if refresh:
 		hud.overlay.queue_free()
 		hud.overlay = null
 	else:
@@ -23,12 +24,17 @@ func _modal(card_size: Vector2, y := 0.0, replace := false, header_h := 0.0, dar
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(dim)
-	dim.create_tween().tween_property(dim, "color:a", 0.62 if UiTheme.tt() else 0.5, 0.3)
+	var dim_a := 0.62 if UiTheme.tt() else 0.5
+	if refresh:
+		dim.color.a = dim_a
+	else:
+		dim.create_tween().tween_property(dim, "color:a", dim_a, 0.3)
 	var card := hud.panel(Color("fff4e0"), Rect2(Vector2.ZERO, card_size), 28, 6)
 	card.add_theme_stylebox_override("panel", UiTheme.night_card() if dark else UiTheme.cream_card(28, header_h))
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(hud.place(card, Vector2(0.5, 0.5), Vector2(-card_size.x * 0.5, -card_size.y * 0.5 + y), card_size))
-	hud.pop_in(card, 0.4, 0.4)
+	if not refresh:
+		hud.pop_in(card, 0.4, 0.4)
 	hud.overlay = root
 	return card
 

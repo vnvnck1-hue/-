@@ -2,7 +2,9 @@ extends Node3D
 ## Lobby: a slowly turning toy diorama (the trio + a teaser of both March themes), the banked currencies,
 ## the expedition card (pick a chapter: one region of the march, beat its mid-boss to open the next),
 ## the endless march card, the [장비] screen (GearScreen: permanent gear, storage merges, slot levels) and the
-## [유물] screen (RelicScreen: the relic collection, the worn relic slots, ★ merges).
+## [유물] screen (RelicScreen: the relic collection, the worn relic slots, ★ merges), and the daily pair:
+## [토벌] (RaidScreen: the daily boss raid against the region bosses), [탤런트] (TalentScreen: gold talents, the gold sink), [모닥불] (CampScreen: idle rewards piling up at the campfire on the diorama) and [출석] (AttendScreen: the
+## repeating 7-day attendance, opened by itself on the first lobby visit of a day with an unclaimed day).
 ## (The classic 6x8 board mode was retired from the lobby.)
 ## Dev: --mode=march jumps straight in; --autoplay / --test=... default to march.
 
@@ -19,6 +21,12 @@ var _leaving := false
 var _settings: Control      # 설정 창(열려 있을 때만)
 var _gear: GearScreen       # 장비 창(열려 있을 때만)
 var _relic: RelicScreen     # 유물 창(열려 있을 때만)
+var _daily: GearScreen      # 모닥불·출석·탤런트 창(열려 있을 때만)
+static var _attend_shown := false   # 출석 창 자동 열기는 실행당 한 번(닫고 돌아올 때마다 다시 뜨지 않게)
+## The lobby reloads itself after one of its own screens closes (currencies / badges / stage refresh) — that
+## reload must not replay the buttons' entrance pop. Set right before such a reload, consumed by the next _ready.
+static var _quiet_reload := false
+var _quiet := false         # building the UI without the entrance pop (this lobby came from _quiet_reload)
 var _chapter_l: Label
 var _chapter_s: Label
 var _preview_ms := 0        # 효과음 미리듣기 간격 제한
@@ -45,7 +53,10 @@ func _ready() -> void:
 	Music.play("lobby")
 	add_child(Sfx.new())
 	_build_stage()
+	_quiet = _quiet_reload
+	_quiet_reload = false
 	_build_ui()
+	_quiet = false
 	var ch := Chatter.new()   # the trio chats on the diorama too
 	ch.cam = cam3d
 	ch.font = font
@@ -54,6 +65,9 @@ func _ready() -> void:
 			return {"n": m, "key": m.kind, "ctx": "lobby", "h": 1.05 * m.scale.y / Actor.MODEL_SCALE + 0.15})
 	root.add_child(ch)
 	root.move_child(ch, 0)
+	if shots == "" and not _attend_shown and Meta.can_attend():
+		_attend_shown = true
+		get_tree().create_timer(0.7).timeout.connect(_open_attend)
 	if shots != "":
 		await get_tree().create_timer(1.6).timeout
 		await RenderingServer.frame_post_draw
@@ -108,7 +122,45 @@ func _ready() -> void:
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png(shots + "/relic.png")
 			await _dev_merge_shots(shots, "relic")
+		if Array(OS.get_cmdline_user_args()).has("--open=talent"):   # dev: the gold talent screen and one press
+			Meta.gold += 3000
+			_open_talent()
+			await _dev_shot(shots, "talent")
+			_daily._press()
+			await get_tree().create_timer(0.5).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(shots + "/talent_spin.png")
+			await _dev_shot(shots, "talent_land")
+			_daily.get_parent().queue_free()
+			_daily = null
+		if Array(OS.get_cmdline_user_args()).has("--open=raid"):   # dev: the boss raid screen
+			_open_raid()
+			await _dev_shot(shots, "raid")
+			_daily.pick = "murlocs"
+			_daily._rebuild()
+			await _dev_shot(shots, "raid_murlocs")
+			_daily.get_parent().queue_free()
+			_daily = null
+		if Array(OS.get_cmdline_user_args()).has("--open=daily"):   # dev: the campfire and attendance screens
+			Meta.camp_since -= 5 * 3600 + 23 * 60
+			_open_camp()
+			await _dev_shot(shots, "camp")
+			_daily._claim()
+			await _dev_shot(shots, "camp_claimed")
+			_daily.get_parent().queue_free()
+			_daily = null
+			Meta.att_day = 6
+			Meta.att_date = "2000-01-01"
+			_open_attend()
+			await _dev_shot(shots, "attend")
+			_daily._claim()
+			await _dev_shot(shots, "attend_claimed")
 		Music.quit()
+
+func _dev_shot(shots: String, tag: String) -> void:
+	await get_tree().create_timer(0.7).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [shots, tag])
 
 ## Dev: press the open screen's [모두 합성] and capture the cutscene at its beats.
 func _dev_merge_shots(shots: String, tag: String) -> void:
@@ -141,7 +193,7 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
-		if _gear or _relic:
+		if _gear or _relic or _daily:
 			return
 		if _settings:
 			_close_settings()
@@ -150,10 +202,11 @@ func _unhandled_input(ev: InputEvent) -> void:
 	elif ev is InputEventKey and ev.pressed and ev.keycode == KEY_F2:
 		_toggle_preset()
 
-func _go(mode: String, expedition := false) -> void:
-	if _leaving or _gear or _relic:
+func _go(mode: String, expedition := false, raid := "") -> void:
+	if _leaving or _gear or _relic or _daily:
 		return
 	Meta.expedition = expedition
+	Meta.raid = raid
 	_leaving = true
 	Sfx.play("chime", -6.0, 1.2)
 	var fade := ColorRect.new()
@@ -200,6 +253,7 @@ func _build_stage() -> void:
 	MarchProps.crystals(stage, Vector3(2.5, 0.2, -0.2), rng, 1.1)
 	MarchProps.cart(stage, Vector3(1.0, 0.2, -1.9), rng, 0.9)
 	MarchProps.glow_shrooms(stage, Vector3(2.0, 0.2, 0.6), rng, 1.2)
+	MarchProps.campfire(stage, Vector3(0, 0.07, 2.0), Color("8a8478"))   # [모닥불]: the trio rests here between runs
 	var xs := {"warrior": Vector3(-0.85, 0.07, 0.75), "ranger": Vector3(0.0, 0.07, 1.15), "mage": Vector3(0.85, 0.07, 0.75)}
 	for cls in Defs.HERO_ORDER:
 		var m := UnitModel.new().build(cls, Defs.TEAM_HERO)
@@ -261,6 +315,10 @@ func _build_ui() -> void:
 
 	_gear_button()
 	_relic_button()
+	_camp_button()
+	_attend_button()
+	_talent_button()
+	_raid_button()
 	_expedition_card()
 	_mode_card("march", "끝없는 행군", "1무리부터 끝없이 전진! 최고 기록에 도전", Color("4cb860"), -246, false)
 	var hint := _label("Esc: 종료", 22, Color(1, 1, 1, 0.8), 6)
@@ -445,7 +503,7 @@ func _toggle_preset() -> void:
 	_leaving = true
 	Sfx.play("click", -6.0)
 	UiTheme.set_preset(UiTheme.next_preset())
-	get_tree().reload_current_scene.call_deferred()
+	_reload_quiet()
 
 func _mode_card(mode: String, title: String, desc: String, col: Color, y: float, is_new: bool) -> void:
 	var sz := Vector2(640, 190)
@@ -632,7 +690,7 @@ func _relic_button() -> void:
 	_pop(b, 0.14)
 
 func _open_relic() -> void:
-	if _leaving or _gear or _relic or _settings:
+	if _leaving or _gear or _relic or _daily or _settings:
 		return
 	Sfx.play("click", -6.0)
 	var layer := CanvasLayer.new()
@@ -644,10 +702,10 @@ func _open_relic() -> void:
 	_relic.closed.connect(func():
 		_relic = null
 		layer.queue_free()
-		get_tree().reload_current_scene.call_deferred())
+		_reload_quiet())
 
 func _open_gear() -> void:
-	if _leaving or _gear or _relic or _settings:
+	if _leaving or _gear or _relic or _daily or _settings:
 		return
 	Sfx.play("click", -6.0)
 	var layer := CanvasLayer.new()
@@ -659,7 +717,113 @@ func _open_gear() -> void:
 	_gear.closed.connect(func():
 		_gear = null
 		layer.queue_free()
-		get_tree().reload_current_scene.call_deferred())   # currencies / badges refresh
+		_reload_quiet())   # currencies / badges refresh
+
+## [모닥불] / [출석]: square buttons on the left / right edge under the currency pills, each with a red badge
+## when something is waiting (a pile worth an hour or more / a full fire; an unclaimed attendance day).
+func _camp_button() -> void:
+	var m := Meta.camp_minutes()
+	_side_button("모닥불", UiTheme.ORANGE, Color("ff9f1c"), 0.0, "가득!" if Meta.camp_full() else ("받기!" if m >= 60 else ""), _open_camp, CampScreen.FireIcon.new(), 322.0)
+
+func _attend_button() -> void:
+	var cal := CalendarIcon.new()
+	cal.day = Meta.att_day + 1 if Meta.can_attend() else (Meta.att_day if Meta.att_day > 0 else 7)
+	_side_button("출석", UiTheme.GREEN, Color("27c6b0"), 1.0, "받기!" if Meta.can_attend() else "", _open_attend, cal, 322.0)
+
+## [탤런트]: under [모닥불]; badged while the next level is affordable.
+func _talent_button() -> void:
+	_side_button("탤런트", UiTheme.NAVY, Color("6f6cf0"), 0.0, "강화!" if Meta.can_gold_talent() == "" else "", _open_talent, Hud.CoinIcon.new(), 470.0)
+
+func _side_button(text: String, tt_col: Color, classic_col: Color, side: float, badge_t: String, on_press: Callable, icon: Control, y: float) -> void:
+	var sz := Vector2(132, 132)
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	_skin_button(b, tt_col, classic_col, 22, 26)
+	var x := 16.0 if side == 0.0 else -16.0 - sz.x
+	root.add_child(_place(b, Vector2(side, 0), Vector2(x, y), sz))
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = Vector2(26, 6)
+	icon.size = Vector2(80, 80)
+	b.add_child(icon)
+	var l := _label(text, 28, Color.WHITE, 8)
+	l.position = Vector2(0, 82)
+	l.size = Vector2(sz.x, 40)
+	b.add_child(l)
+	if badge_t != "":
+		var badge := _panel(UiTheme.RED, Vector2(96, 38), 19, 3)
+		badge.position = Vector2(sz.x - 70 if side == 0.0 else -26, -14)   # the right button's badge leans inward (screen edge)
+		badge.rotation = 0.1 if side == 0.0 else -0.1
+		b.add_child(badge)
+		var bl := _label(badge_t, 20, Color.WHITE, 6)
+		bl.size = Vector2(96, 38)
+		badge.add_child(bl)
+		var tw := badge.create_tween().set_loops()
+		badge.pivot_offset = Vector2(48, 19)
+		tw.tween_property(badge, "scale", Vector2(1.1, 1.1), 0.45).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(badge, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_SINE)
+	b.button_down.connect(func():
+		_press_tween(b).tween_property(b, "scale", Vector2(0.92, 0.92), 0.06))
+	b.button_up.connect(func():
+		_press_tween(b).tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
+	b.pressed.connect(on_press)
+	_pop(b, 0.12)
+
+## Little calendar page: red binding on top, the cycle's day number in the middle.
+class CalendarIcon extends Control:
+	var day := 1
+	func _draw() -> void:
+		var r := Rect2(size * 0.12, size * 0.76)
+		draw_rect(r.grow(3), Color("2a1b3d"), true)
+		draw_rect(r, Color.WHITE, true)
+		draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * 0.28)), Color("ff5f6a"), true)
+		var f := ThemeDB.fallback_font
+		var t := str(day)
+		var fs := int(r.size.y * 0.52)
+		var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string(f, Vector2(r.get_center().x - w * 0.5, r.end.y - r.size.y * 0.16), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2a1b3d"))
+
+func _open_camp() -> void:
+	_open_daily(CampScreen.new())
+
+## [토벌]: right side under [출석]; badged while today's tries remain.
+func _raid_button() -> void:
+	var ic := ItemIcon.new(Inventory.make("equip", "axe4"))
+	_side_button("토벌", UiTheme.RED, Color("ff5f6a"), 1.0, "도전!" if Meta.raid_left() > 0 else "", _open_raid, ic, 470.0)
+
+func _open_raid() -> void:
+	if _leaving or _gear or _relic or _daily or _settings:
+		return
+	var scr := RaidScreen.new()
+	scr.start_raid.connect(func(key: String):
+		if not Meta.use_raid_try():
+			return
+		var layer := scr.get_parent()
+		_daily = null
+		layer.queue_free()
+		_go("march", false, key))
+	_open_daily(scr)
+
+func _open_talent() -> void:
+	_open_daily(TalentScreen.new())
+
+func _open_attend() -> void:
+	_open_daily(AttendScreen.new())
+
+func _open_daily(scr: GearScreen) -> void:
+	if _leaving or _gear or _relic or _daily or _settings:
+		scr.free()
+		return
+	Sfx.play("click", -6.0)
+	var layer := CanvasLayer.new()
+	layer.layer = 6
+	add_child(layer)
+	_daily = scr
+	layer.add_child(scr)
+	scr.open(font)
+	scr.closed.connect(func():
+		_daily = null
+		layer.queue_free()
+		_reload_quiet())   # currencies / badges refresh
 
 ## 뚜까펫 스테이지 카드: 검정 턱 → 모드 색 테두리 → 청록 선 → 남보라 본문.
 func _ttukka_card(c: Color) -> StyleBox:
@@ -754,7 +918,14 @@ func _press_tween(c: Control) -> Tween:
 	c.set_meta("press_tw", tw)
 	return tw
 
+## Rebuild the lobby (fresh currencies, badges, worn gear on the stage) without replaying the entrance pop.
+func _reload_quiet() -> void:
+	_quiet_reload = true
+	get_tree().reload_current_scene.call_deferred()
+
 func _pop(c: Control, delay: float) -> void:
+	if _quiet:
+		return
 	c.scale = Vector2.ZERO
 	var tw := c.create_tween()
 	tw.tween_interval(delay)

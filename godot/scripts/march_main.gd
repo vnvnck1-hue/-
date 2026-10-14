@@ -136,15 +136,22 @@ func _ready() -> void:
 	var dev_wave := args.any(func(a): return a.begins_with("--wave="))
 	var dev := args.any(func(a): return a == "--autoplay" or a.begins_with("--test="))
 	var forced := args.filter(func(a): return a.begins_with("--chapter="))   # dev: play expedition chapter N (1-based)
-	expedition = not forced.is_empty() or (Meta.expedition and not dev_wave and not dev)
+	var forced_raid := args.filter(func(a): return a.begins_with("--raid="))   # dev: boss raid against that boss key
+	raid = forced_raid[0].substr(7) if not forced_raid.is_empty() else Meta.raid
+	if Defs.raid_boss(raid).is_empty():
+		raid = ""
+	expedition = raid != "" or not forced.is_empty() or (Meta.expedition and not dev_wave and not dev)
 	if expedition:
-		if not forced.is_empty() or dev:
+		if not forced.is_empty() or not forced_raid.is_empty() or dev:
 			Meta.path = "user://trio_save_test.json"
 		Meta.load_save()
 		chapter = clampi(Meta.chapter, 0, Meta.cleared)
 		if not forced.is_empty():
 			chapter = maxi(0, int(forced[0].substr(10)) - 1)
 		wave = Meta.chapter_first_group(chapter)
+		if raid != "":
+			chapter = Meta.raid_chapter() + 1   # hero level / head start of the chapter after it (≈ at its mid-boss)
+			_raid_setup()
 	super._ready()
 	hud.talent_btn.visible = false
 	hud.fight_btn.visible = false
@@ -162,9 +169,13 @@ func _ready() -> void:
 	if wave > 1:   # expedition chapter (or dev --wave=N): start on the approach to group N
 		var r := Regions.of_group(wave)
 		dist = mw.region_start(r) + 0.1 if expedition and r > 0 else mw.arena_s(wave - 1)
+		if raid != "":
+			dist = mw.arena_s(wave) - 9.0   # a few steps before the boss
 		mw.set_dist(dist)
 		_set_bounds()
-	if expedition:
+	if raid != "":
+		_raid_hud()
+	elif expedition:
 		var info: Dictionary = Regions.info(chapter)
 		if UiTheme.tt():
 			hud.ribbon_banner(Meta.chapter_name(chapter), "중간 보스를 쓰러뜨리면 원정 성공!", MapHud.ACCENT[info["theme"]], 1.2, -300)
@@ -327,6 +338,8 @@ func _process(delta: float) -> void:
 					_battle_tick(delta)
 					if phase == P.BATTLE:
 						_auto_cast_ults()
+					if raid != "" and phase == P.BATTLE:
+						_raid_tick(delta)
 		P.TRANSITION:
 			if speed > 0.0:
 				speed = move_toward(speed, 0.0, delta * BRAKE)
@@ -495,7 +508,7 @@ func chat_ctx(u: Actor) -> String:
 
 # ---------------------------------------------------------------- enemy camps
 func _ensure_pending() -> void:
-	for k in [wave, wave + 1]:
+	for k in ([wave] if raid != "" else [wave, wave + 1]):
 		if not pending.has(k) and mw.arena_s(k) - dist < SPAWN_AHEAD:
 			_make_group(k)
 
@@ -504,7 +517,10 @@ func _make_group(k: int) -> void:
 	var g := ""
 	var list := []   # [{kind, pos}] — pos is in camp coordinates (field-centre relative, local z at engagement)
 	var roster: String = Regions.info(Regions.of_group(k)).get("roster", "")
-	if MarchWorld.is_boss(k):
+	if raid != "" and k == wave:
+		g = "giantBoss"
+		list = Defs.boss_lineup(raid)
+	elif MarchWorld.is_boss(k):
 		g = "giantBoss"
 		list = _boss_list(k, roster)
 	else:
@@ -524,6 +540,8 @@ func _make_group(k: int) -> void:
 		fire = c / list.size()
 		fire.x = clampf(fire.x, -1.5, 1.5)
 	var mult := Defs.scaling(k)
+	if raid != "":   # the raid line-up has the raid chapter's mid-boss numbers, wherever its arena is
+		mult = Defs.scaling(Meta.chapter_first_group(Meta.raid_chapter()) + Regions.PER_REGION - 1)
 	var arr: Array = []
 	for s in list:
 		var u := Actor.new()
@@ -534,6 +552,14 @@ func _make_group(k: int) -> void:
 		u.set_meta("idle", _new_idle(u, fire, k))
 		arr.append(u)
 	_pair_sparrers(arr)
+	if raid != "":
+		raid_unit = 0.0
+		for u in arr:
+			u.endless = true
+			u.max_hp = floorf(u.max_hp * Meta.RAID_HP)
+			u.hp = u.max_hp
+			raid_unit += u.max_hp
+		raid_unit = maxf(1.0, raid_unit)
 	pending[k] = {"enemies": arr, "gimmick": g, "fire": fire}
 	# the campfire lives on the track itself
 	var ak := mw.arena_s(k)
@@ -550,8 +576,9 @@ func _make_group(k: int) -> void:
 ## the wide field plus escorts drawn from the classic mix: melee guards on the flanks and ranged support
 ## (one, two from the 4th escort on) standing back beside the boss.
 func _boss_list(k: int, roster := "") -> Array:
-	var out := [{"kind": Defs.skin("giant", roster), "pos": Vector3(0, 0, -4.4)}]
-	var n := mini(2 + int(k / 10.0), 6)
+	var key: String = Regions.info(Regions.of_group(k)).get("boss", "")
+	var out: Array = Defs.boss_lineup(key) if key != "" else [{"kind": Defs.skin("giant", roster), "pos": Vector3(0, 0, -4.4)}]
+	var n := mini(2 + int(k / 10.0), 6) - (out.size() - 1)   # the murloc trio brings fewer escorts
 	var ranged := []
 	var melee := []
 	for s in Waves.normal(k):
@@ -719,10 +746,16 @@ func _engage() -> void:
 	if boss:
 		var bk := "giant"
 		for e in enemies:
-			if Defs.is_huge(e.kind):
-				bk = e.kind
+			if Defs.is_region_boss(e.kind):
+				bk = e.def.get("boss_key", e.kind)
 		var bi: Dictionary = Defs.BOSS_INFO.get(bk, Defs.BOSS_INFO["giant"])
-		hud.set_gimmick(bi["title"], bi["hint"])
+		if raid != "":
+			hud.set_gimmick("보스 토벌! %d초 동안 최대한 많은 피해를" % int(Meta.RAID_TIME), bi["hint"])
+			get_tree().create_timer(4.0, false).timeout.connect(func():   # then out of the way of the fight
+				if is_instance_valid(hud) and phase == P.BATTLE:
+					hud.set_gimmick("", ""))
+		else:
+			hud.set_gimmick(bi["title"], bi["hint"])
 	elif gimmick != "":
 		var info: Dictionary = Waves.GIMMICK_INFO[gimmick]
 		hud.set_gimmick(info["title"], info["hint"])
@@ -1043,7 +1076,7 @@ func _pickup_chest(c: Dictionary) -> void:
 func _boss_chest() -> void:
 	var at := Vector3.ZERO
 	for e in enemies:
-		if is_instance_valid(e) and Defs.is_huge(e.kind):
+		if is_instance_valid(e) and Defs.is_region_boss(e.kind):
 			at = e.global_position
 	var top := at + Vector3(0, 1.4, 0)
 	hud.callout(top + Vector3(0, 0.6, 0), "희귀 보물상자!", Color("8fd0ff"))
@@ -1055,6 +1088,9 @@ func _boss_chest() -> void:
 ## A wipe-out costs every run perk; the game-over card then offers to resume from the region's first group.
 func game_over() -> void:
 	if phase == P.GAMEOVER:
+		return
+	if raid != "":
+		_raid_end(false)
 		return
 	_lost_perks = clear_perks()
 	super.game_over()
@@ -1156,6 +1192,9 @@ func _run_test() -> void:
 		return
 	if test_mode == "bestiary":
 		await _test_bestiary()
+		return
+	if test_mode == "bosslook":
+		await _test_bosslook()
 		return
 	if test_mode == "subwave":
 		await _test_subwave()
@@ -1693,7 +1732,7 @@ func _test_bestiary() -> void:
 	await get_tree().create_timer(0.4).timeout
 	for u in made:
 		u.queue_free()
-	for k in ["mammoth", "abyss"]:
+	for k in ["mammoth", "abyss", "spider", "warden", "flytrap", "murPriest", "murWhip", "murSpear"]:
 		var b := Actor.new()
 		units_root.add_child(b)
 		b.setup(k, Defs.TEAM_ENEMY, self, 1.0)
@@ -1709,6 +1748,53 @@ func _test_bestiary() -> void:
 		_shot_later(0.0, "boss_" + k + "_side")
 		await get_tree().create_timer(0.3).timeout
 		b.queue_free()
+	await get_tree().create_timer(0.3).timeout
+	Music.quit()
+
+## --test=bosslook: the region bosses one by one, close up from the front, 3/4 and the side, mid-stride and
+## mid-swing; the murloc trio also lined up together.
+func _test_bosslook() -> void:
+	set_process(false)
+	for h in heroes:
+		h.visible = false
+	hud.visible = false
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--boss="):
+			only = a.substr(7)
+	for k in ["spider", "warden", "flytrap", "murPriest", "murWhip", "murSpear"]:
+		if only != "" and k != only:
+			continue
+		var b := Actor.new()
+		units_root.add_child(b)
+		b.setup(k, Defs.TEAM_ENEMY, self, 1.0)
+		b.position = Vector3.ZERO
+		var h: float = 1.1 if Defs.is_huge(k) else 0.7
+		cam.set_base(Vector3(0, h, 0) + Vector3(0, 3.0, 6.2) * (1.0 if Defs.is_huge(k) else 0.62), Vector3(0, h, 0))
+		for v in [["front", PI], ["q", PI + 0.7], ["side", PI + 1.57]]:
+			b.model.rotation.y = v[1]
+			await get_tree().create_timer(0.5).timeout
+			_shot_later(0.0, "look_%s_%s" % [k, v[0]])
+			await get_tree().create_timer(0.15).timeout
+		b.model.rotation.y = PI + 0.5
+		b.model.play_attack("melee")
+		await get_tree().create_timer(0.12).timeout
+		_shot_later(0.0, "look_%s_swing" % k)
+		await get_tree().create_timer(0.5).timeout
+		b.queue_free()
+	if only == "" or only == "murlocs":
+		var made := []
+		for s in Defs.boss_lineup("murlocs"):
+			var u := Actor.new()
+			units_root.add_child(u)
+			u.setup(s["kind"], Defs.TEAM_ENEMY, self, 1.0)
+			u.position = Vector3(s["pos"].x, 0, s["pos"].z + 4.4)
+			u.model.rotation.y = PI
+			made.append(u)
+		cam.set_base(Vector3(0, 3.6, 6.4), Vector3(0, 0.5, 0))
+		await get_tree().create_timer(0.6).timeout
+		_shot_later(0.0, "look_murlocs")
+		await get_tree().create_timer(0.3).timeout
 	await get_tree().create_timer(0.3).timeout
 	Music.quit()
 
@@ -1888,3 +1974,147 @@ func _test_ui() -> void:
 	_shot_later(0.0, "ui_after_ult")
 	await get_tree().create_timer(0.5, true, false, true).timeout
 	Music.quit()
+
+# ---------------------------------------------------------------- boss raid (보스 토벌)
+## The raid reuses the march field: the trio starts a few steps before the boss's region arena (its theme), at the
+## raid chapter's level and head start. The boss line-up never falls — an emptied bar fills again (Actor.endless)
+## and every point of damage counts. After Meta.RAID_TIME seconds (or a wipe-out) the tier is settled and banked.
+var raid := ""
+var raid_t := 0.0
+var raid_dmg := 0.0
+var raid_unit := 1.0       # one "bar": the summed max hp of the line-up
+var raid_bars := 0         # bars emptied so far (shown as xN)
+var _raid_l: Label
+var _raid_sub: Label
+const RAID_HUD_Y := 790.0
+
+func _raid_setup() -> void:
+	var b := Defs.raid_boss(raid)
+	wave = int(b.get("region", 0)) * Regions.PER_REGION + Regions.PER_REGION
+
+func _raid_hud() -> void:
+	_raid_l = hud.label("", 40, Color("fff2b0"), 12)
+	hud.root.add_child(hud.place(_raid_l, Vector2(0.5, 0), Vector2(-320, RAID_HUD_Y), Vector2(640, 52)))   # below the trio, above the skill row
+	_raid_sub = hud.label("", 24, Color("ffd27a"), 8)
+	hud.root.add_child(hud.place(_raid_sub, Vector2(0.5, 0), Vector2(-320, RAID_HUD_Y + 48), Vector2(640, 34)))
+	_raid_refresh()
+	var b := Defs.raid_boss(raid)
+	if UiTheme.tt():
+		hud.ribbon_banner("보스 토벌", b.get("name", ""), b.get("col", UiTheme.ORANGE), 1.2, -300)
+	else:
+		hud.banner("보스 토벌 · " + str(b.get("name", "")), Color.WHITE, 1.0, 56, -200)
+
+func _raid_refresh() -> void:
+	if _raid_l == null:
+		return
+	var left := maxf(0.0, Meta.RAID_TIME - raid_t)
+	_raid_l.text = "%d:%02d   피해 %s" % [int(left) / 60, int(left) % 60, _num(int(raid_dmg))]
+	var bars := raid_dmg / raid_unit
+	var t := Meta.raid_tier_of(bars)
+	var next: float = Meta.RAID_TIER_BARS[t] if t < Meta.RAID_TIER_BARS.size() else 0.0
+	_raid_sub.text = "%d단계%s" % [t, "  ·  다음 단계까지 %d%%" % int(clampf((bars - (Meta.RAID_TIER_BARS[t - 1] if t > 0 else 0.0)) / (next - (Meta.RAID_TIER_BARS[t - 1] if t > 0 else 0.0)), 0.0, 0.99) * 100.0) if next > 0.0 else "  ·  최고 단계!"]
+
+static func _num(v: int) -> String:
+	var s := str(v)
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.substr(s.length() - 3) + out
+		s = s.substr(0, s.length() - 3)
+	return s + out
+
+## Actor.endless: every hit on the line-up lands here.
+func raid_hit(amount: float) -> void:
+	raid_dmg += amount
+
+func raid_bar_broken(e: Actor) -> void:
+	raid_bars += 1
+	hud.callout(e.global_position + Vector3(0, e.def.get("bar_h", 1.05) * e.model.scale.y / Actor.MODEL_SCALE + 1.0, 0), "체력 바 파괴! ×%d" % raid_bars, Color("ffd23f"))
+	Sfx.play("chime", -6.0, 1.3)
+	e.model.flash(Color(1, 0.9, 0.4), 2.0, 0.3)
+	_raid_refresh()
+
+func _raid_tick(delta: float) -> void:
+	raid_t += delta
+	_raid_refresh()
+	if raid_t >= Meta.RAID_TIME:
+		_raid_end(true)
+
+func _raid_end(timeout: bool) -> void:
+	if phase == P.GAMEOVER:
+		return
+	phase = P.GAMEOVER
+	Skills.cancel(self)
+	Cinematic.reset(self)
+	_reset_field_time()
+	for e in enemies:
+		if is_instance_valid(e):
+			e.busy = true
+			e.model.walk = 0.0
+	var bars := raid_dmg / raid_unit
+	var res := Meta.raid_finish(raid, int(raid_dmg), bars)
+	print("[Raid] end boss=", raid, " timeout=", timeout, " dmg=", int(raid_dmg), " bars=", snappedf(bars, 0.01), " tier=", res["tier"], " t=", snappedf(raid_t, 0.1))
+	end_run(false, true)   # the trio's gear back to the lobby (nothing else to bank: the line-up drops nothing)
+	if timeout:
+		Sfx.play("chime", -2.0, 1.0)
+		for h in alive_heroes():
+			_victory_hop(h)
+	else:
+		Sfx.play("sad", -4.0)
+	Music.duck(-10.0, 0.6, 2.0)
+	_raid_result(res, bars, timeout)
+	_shot_later(1.2, "raid_result")
+	if autoplay:
+		await get_tree().create_timer(3.0).timeout
+		Music.quit()
+
+func _raid_result(res: Dictionary, bars: float, timeout: bool) -> void:
+	var b := Defs.raid_boss(raid)
+	var layer := CanvasLayer.new()
+	layer.layer = 8
+	add_child(layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0.05, 0.03, 0.12, 0.0)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(dim)
+	dim.create_tween().tween_property(dim, "color:a", 0.65, 0.3)
+	var sz := Vector2(620, 700)
+	var card := Panel.new()
+	card.add_theme_stylebox_override("panel", UiTheme.night_card() if UiTheme.tt() else UiTheme.flat(Color("5a57c8"), 30, 6, UiTheme.ink()))
+	dim.add_child(hud.place(card, Vector2(0.5, 0.5), -sz * 0.5, sz))
+	var y := 26.0
+	var rows := [
+		["보스 토벌 결과" if timeout else "파티 전멸!", 48, UiTheme.TXT_YELLOW if UiTheme.tt() else Color("ffd23f")],
+		[str(b.get("name", "")), 28, Color.WHITE],
+		["총 피해 " + _num(int(raid_dmg)), 40, Color("fff2b0")],
+		["체력 바 %s개 · 시간 %d초" % [str(snappedf(bars, 0.1)), int(minf(raid_t, Meta.RAID_TIME))], 24, Color("cfe8ff")],
+		["%d단계 달성!" % res["tier"] if res["tier"] > 0 else "1단계에 조금 모자랐어요", 44, Color("ffd23f")],
+		["★ 최고 기록 갱신! ★" if res["best"] else "최고 기록 " + _num(int(Meta.raid_best.get(raid, 0))), 26, Color("ff9ad0") if res["best"] else Color("a9a4cb")],
+	]
+	for r in rows:
+		var l := hud.label(r[0], r[1], r[2], 10)
+		l.position = Vector2(0, y)
+		l.size = Vector2(sz.x, r[1] + 16)
+		card.add_child(l)
+		y += r[1] + 26
+	var rw: Dictionary = res["reward"]
+	var line := "보상 없음"
+	if not rw.is_empty():
+		line = "골드 +%d · 강화석 +%d · 결정 +%d" % [rw["gold"], rw["stones"], rw["crystals"]]
+		if not rw.get("items", []).is_empty():
+			line += "\n장비: " + ", ".join(rw["items"].map(func(e): return Inventory.name_of(e)))
+	var rl := hud.label(line, 24, Color.WHITE, 8)
+	rl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rl.position = Vector2(30, y)
+	rl.size = Vector2(sz.x - 60, 80)
+	card.add_child(rl)
+	var go := hud.juicy_button("로비로", UiTheme.YELLOW, Rect2(0, 0, 300, 90), 36)
+	go.position = Vector2(sz.x * 0.5 - 150, sz.y - 120)
+	go.size = Vector2(300, 90)
+	card.add_child(go)
+	go.pressed.connect(func():
+		Sfx.play("click", -6.0)
+		Meta.raid = ""
+		go_lobby())
+	card.scale = Vector2.ZERO
+	card.create_tween().tween_property(card, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

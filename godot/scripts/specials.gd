@@ -19,6 +19,15 @@ static func move(game: Node, a: Actor, delta := 0.0) -> bool:
 	match a.kind:
 		"mammoth", "abyss":
 			return BossSkills.tick(game, a)
+		"spider", "warden", "murPriest", "murWhip", "murSpear":
+			return BossSkills.tick2(game, a)
+		"flytrap":   # rooted: casts, shoots whoever comes in range, never walks
+			if BossSkills.tick2(game, a):
+				return true
+			if out_of_range:
+				a.model.walk = lerpf(a.model.walk, 0.0, 0.2)
+				a._face(Actor._flat(a.target.global_position - a.global_position), delta, 6.0)
+				return true
 		"ninja":
 			if out_of_range and game.now - a.special_t >= NINJA_JUMP_CD:
 				a.special_t = game.now

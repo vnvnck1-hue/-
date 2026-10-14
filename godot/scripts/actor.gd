@@ -50,6 +50,7 @@ var knockback_immune := false
 var corpse := false        # hydra: stays on the board while dead
 var dead_at := 0.0
 var special_t := -99.0     # ninja leap / sprinter dash timer (game clock)
+var endless := false       # boss raid line-up: an emptied bar fills again, the damage goes to game.raid_hit
 
 # combat state
 var target: Actor
@@ -339,6 +340,11 @@ func apply_damage(amount: float, from: Actor, crit := false, show := true, push 
 	if not alive or hp <= 0.0:
 		return false
 	hp -= amount
+	if endless:
+		game.raid_hit(amount)
+		while hp <= 0.0:
+			hp += max_hp
+			game.raid_bar_broken(self)
 	model.flash()
 	model.punch_scale(1.22, 0.78, 0.35)
 	var away := _flat(global_position - from.global_position).normalized() if from else Vector3.ZERO

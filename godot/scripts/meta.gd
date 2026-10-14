@@ -30,6 +30,12 @@ static var cleared := 0           # expedition chapters cleared (chapter c is op
 static var chapter := 0           # chapter picked in the lobby
 static var expedition := true    # lobby choice for the March scene: chapter expedition (true) or endless march
 static var _loaded := false
+static var camp_since := 0       # unix seconds the campfire started piling up rewards (lobby [모닥불])
+static var quick_day := ""       # local date ("YYYY-MM-DD") of the [빠른 정비] uses counted in quick_used
+static var quick_used := 0
+static var att_day := 0          # 7-day attendance: index (0..6) of the next day to claim; wraps back to 0 after day 7
+static var att_date := ""        # local date of the last claim ("" = never)
+static var gold_talents := {}    # GOLD_TALENTS id -> level (lobby [탤런트]: gold sink, random stat +1 per press)
 static var _fx_cache := {}       # cls -> fx(cls) result; cleared whenever the talents change
 
 const SLOTS := ["weapon", "armor", "accessory"]
@@ -93,6 +99,24 @@ static func load_save() -> void:
 	if typeof(b) == TYPE_DICTIONARY:
 		for m in b:
 			best[str(m)] = _int(b[m])
+	camp_since = _int(d.get("camp_since", 0))
+	if camp_since <= 0 or camp_since > _now():   # older save (the fire is lit now) / a clock set back
+		camp_since = _now()
+	quick_day = str(d.get("quick_day", ""))
+	quick_used = maxi(0, _int(d.get("quick_used", 0)))
+	att_day = clampi(_int(d.get("att_day", 0)), 0, ATTEND.size() - 1)
+	att_date = str(d.get("att_date", ""))
+	raid_day = str(d.get("raid_day", ""))
+	raid_used = maxi(0, _int(d.get("raid_used", 0)))
+	raid_best = {}
+	raid_tier = {}
+	for k in _dict(d.get("raid_best", {})):
+		raid_best[str(k)] = maxi(0, _int(d["raid_best"][k]))
+	for k in _dict(d.get("raid_tier", {})):
+		raid_tier[str(k)] = clampi(_int(d["raid_tier"][k]), 0, RAID_TIER_BARS.size())
+	var gt = d.get("gold_talents", {})
+	for g in GOLD_TALENTS:
+		gold_talents[g["id"]] = clampi(_int(_dict(gt).get(g["id"], 0)), 0, g["max"])
 	if _settled:
 		_settled = false
 		save()
@@ -146,6 +170,18 @@ static func _defaults() -> void:
 	chapter = 0
 	loadout = {}
 	slot_lv = {}
+	camp_since = _now()
+	quick_day = ""
+	quick_used = 0
+	att_day = 0
+	att_date = ""
+	raid_day = ""
+	raid_used = 0
+	raid_best = {}
+	raid_tier = {}
+	gold_talents = {}
+	for t in GOLD_TALENTS:
+		gold_talents[t["id"]] = 0
 	_fx_cache.clear()
 	for cls in Defs.HERO_ORDER:
 		loadout[cls] = {}
@@ -174,7 +210,9 @@ static func save() -> void:
 			lo[cls][slot] = Inventory.to_save(e) if e else null
 	f.store_string(JSON.stringify({"crystals": crystals, "talents": talents, "relic_slots": relic_slots.map(_relic_save), "relic_bag": relic_bag.map(_relic_save), "tutorial_done": tutorial_done,
 		"best": best, "gold": gold, "stones": stones, "cleared": cleared, "chapter": chapter, "slot_lv": slot_lv, "loadout": lo,
-		"storage": storage.map(Inventory.to_save), "run_gear": run_gear.map(Inventory.to_save), "kept_rest": kept_rest}))
+		"storage": storage.map(Inventory.to_save), "run_gear": run_gear.map(Inventory.to_save), "kept_rest": kept_rest,
+		"camp_since": camp_since, "quick_day": quick_day, "quick_used": quick_used, "att_day": att_day, "att_date": att_date,
+		"gold_talents": gold_talents, "raid_day": raid_day, "raid_used": raid_used, "raid_best": raid_best, "raid_tier": raid_tier}))
 	var ok := f.get_error() == OK
 	f.close()
 	if ok:
@@ -235,6 +273,11 @@ static func fx(cls: String) -> Dictionary:
 			continue
 		for k in t["fx"]:
 			out[k] = out.get(k, 0.0) + t["fx"][k] * lv
+	if cls == "":   # gold talents are party-wide (atk / hp multipliers reach each hero through Stats.talent_fx)
+		for t in GOLD_TALENTS:
+			var lv := gold_talent_level(t["id"])
+			if lv > 0:
+				out[t["stat"]] = out.get(t["stat"], 0.0) + t["per"] * lv
 	out.make_read_only()
 	_fx_cache[cls] = out
 	return out
@@ -532,3 +575,243 @@ static func on_chapter_cleared(c: int) -> bool:
 	chapter = mini(c + 1, cleared)
 	save()
 	return first
+
+# ---------------------------------------------------------------- campfire (idle rewards)
+## The trio rests at the lobby campfire while the game is away: gold / 강화석 / time crystals pile up per minute
+## (rates grow with the chapters cleared) for up to CAMP_MAX_MIN. [받기] banks the pile; [빠른 정비] hands over
+## QUICK_MIN worth at once, QUICK_PER_DAY times a day (free for now: the ad / energy hook comes with the BM layer).
+const CAMP_MAX_MIN := 720
+const QUICK_MIN := 120
+const QUICK_PER_DAY := 3
+
+static func _now() -> int:
+	return int(Time.get_unix_time_from_system())
+
+static func _today() -> String:
+	return Time.get_date_string_from_system()
+
+## Per hour at the current progress: {"gold", "stones", "crystals"} (floats).
+static func camp_rate() -> Dictionary:
+	var m := 1.0 + float(fx("").get("campMult", 0.0))   # gold talent 야영 숙련
+	return {"gold": (100.0 + 40.0 * cleared) * m, "stones": (3.0 + cleared) * m, "crystals": (1.0 + 0.5 * cleared) * m}
+
+## Whole minutes piled up (a clock set back counts as none).
+static func camp_minutes() -> int:
+	return clampi((_now() - camp_since) / 60, 0, CAMP_MAX_MIN)
+
+static func camp_full() -> bool:
+	return camp_minutes() >= CAMP_MAX_MIN
+
+## What `minutes` of rest is worth: {"gold", "stones", "crystals"} (ints).
+static func camp_reward(minutes: int) -> Dictionary:
+	var r := camp_rate()
+	var out := {}
+	for k in r:
+		out[k] = int(floor(r[k] * minutes / 60.0))
+	return out
+
+static func _bank(r: Dictionary) -> void:
+	gold += int(r.get("gold", 0))
+	stones += int(r.get("stones", 0))
+	crystals += int(r.get("crystals", 0))
+
+## Bank the pile. The unpaid part of a started minute keeps counting; a full pile restarts from now.
+## Returns what was given ({} when nothing had piled up yet).
+static func claim_camp() -> Dictionary:
+	var m := camp_minutes()
+	var r := camp_reward(m)
+	if r.values().all(func(v): return v <= 0):
+		return {}
+	_bank(r)
+	camp_since = _now() if m >= CAMP_MAX_MIN or camp_since > _now() else camp_since + m * 60
+	save()
+	return r
+
+static func quick_left() -> int:
+	return QUICK_PER_DAY - (quick_used if quick_day == _today() else 0)
+
+## [빠른 정비]: QUICK_MIN of rest right now (the pile at the fire is untouched). {} when today's uses are gone.
+static func quick_camp() -> Dictionary:
+	if quick_left() <= 0:
+		return {}
+	if quick_day != _today():
+		quick_day = _today()
+		quick_used = 0
+	quick_used += 1
+	var r := camp_reward(QUICK_MIN)
+	_bank(r)
+	save()
+	return r
+
+# ---------------------------------------------------------------- 7-day attendance
+## One claim per local day, days 1..7 in order, then the table starts over at day 1. A missed day does not
+## reset the cycle: the next visit simply claims the next day. Day 7 adds a gear piece (one grade above the
+## chapter's usual roll) to the storage.
+const ATTEND := [
+	{"gold": 500},
+	{"stones": 15},
+	{"crystals": 20},
+	{"gold": 1000},
+	{"stones": 30},
+	{"crystals": 40},
+	{"gold": 1500, "stones": 30, "gear": 1},
+]
+
+static func can_attend() -> bool:
+	return att_date == "" or _today() > att_date   # ISO dates compare as strings; a clock set back never re-opens a day
+
+## Claim today's day. Returns {"day": 1..7, "reward": the ATTEND row, "gear": entry or null}, or {} if already claimed.
+static func attend() -> Dictionary:
+	if not can_attend():
+		return {}
+	var day := att_day
+	var row: Dictionary = ATTEND[day]
+	_bank(row)
+	var gear = null
+	if int(row.get("gear", 0)) > 0:
+		var k := chapter_first_group(cleared)
+		gear = Inventory.make_found(Gear.key(Gear.roll_family(k), Gear.roll_grade(k) + 1), k)
+		storage.append(gear)
+	att_day = (day + 1) % ATTEND.size()
+	att_date = _today()
+	save()
+	return {"day": day + 1, "reward": row, "gear": gear}
+
+# ---------------------------------------------------------------- gold talents
+## Archero-style gold sink: [강화] pays gold_talent_cost() and raises one random (not maxed) talent by 1.
+## The cost grows with the total level bought, so banked gold always has somewhere to go.
+## stat: the Meta.fx("") key it adds to (campMult only feeds camp_rate); per: added per level.
+const GOLD_TALENTS := [
+	{"id": "gAtk", "name": "공격 훈련", "short": "공", "stat": "atkMult", "per": 0.01, "max": 50, "fmt": "공격력 +%s%%", "col": Color("ff7a5a")},
+	{"id": "gHp", "name": "체력 단련", "short": "체", "stat": "hpMult", "per": 0.015, "max": 50, "fmt": "최대 체력 +%s%%", "col": Color("5fcf5a")},
+	{"id": "gDef", "name": "철갑", "short": "방", "stat": "dmgReduce", "per": 0.004, "max": 30, "fmt": "받는 피해 -%s%%", "col": Color("6fa8ff")},
+	{"id": "gCrit", "name": "날카로운 눈", "short": "치", "stat": "critChance", "per": 0.004, "max": 25, "fmt": "치명타 확률 +%s%%", "col": Color("ff5f9a")},
+	{"id": "gGold", "name": "황금 손", "short": "금", "stat": "goldMult", "per": 0.02, "max": 25, "fmt": "적 처치 골드 +%s%%", "col": Color("ffd23f")},
+	{"id": "gCamp", "name": "야영 숙련", "short": "불", "stat": "campMult", "per": 0.03, "max": 20, "fmt": "모닥불 보상 +%s%%", "col": Color("ff9f1c")},
+]
+
+static func gold_talent_level(id: String) -> int:
+	return int(gold_talents.get(id, 0))
+
+static func gold_talent_total() -> int:
+	var n := 0
+	for id in gold_talents:
+		n += int(gold_talents[id])
+	return n
+
+static func gold_talent_def(id: String) -> Dictionary:
+	for t in GOLD_TALENTS:
+		if t["id"] == id:
+			return t
+	return {}
+
+## "공격력 +5%" at level lv.
+static func gold_talent_text(id: String, lv: int) -> String:
+	var t := gold_talent_def(id)
+	return t["fmt"] % str(snappedf(t["per"] * lv * 100.0, 0.1)).trim_suffix(".0")
+
+## Gold for the next press (by the total level bought so far): 100, 140, 190, ... ~24k at level 100.
+static func gold_talent_cost() -> int:
+	var n := gold_talent_total()
+	return int(roundf((100.0 + 40.0 * n + 2.0 * n * n) / 10.0) * 10.0)
+
+## "" when [강화] can be pressed now, otherwise the reason ("max" / "gold").
+static func can_gold_talent() -> String:
+	if GOLD_TALENTS.all(func(t): return gold_talent_level(t["id"]) >= t["max"]):
+		return "max"
+	if gold < gold_talent_cost():
+		return "gold"
+	return ""
+
+## Pay and raise one random unmaxed talent. Returns its id ("" when it could not be bought).
+static func buy_gold_talent() -> String:
+	if can_gold_talent() != "":
+		return ""
+	var open := GOLD_TALENTS.filter(func(t): return gold_talent_level(t["id"]) < t["max"])
+	var t: Dictionary = open[randi() % open.size()]
+	gold -= gold_talent_cost()
+	gold_talents[t["id"]] = gold_talent_level(t["id"]) + 1
+	_fx_cache.clear()
+	save()
+	return t["id"]
+
+# ---------------------------------------------------------------- boss raid (보스 토벌)
+## RAID_TRIES a day (shared by every boss). A raid is RAID_TIME seconds against an endless boss line-up
+## (Defs.RAID_BOSSES): each time the boss's bar empties it fills again, and the damage dealt sets the tier
+## (RAID_TIER_BARS, in boss bars). Tier rewards bank at once; [소탕] replays a boss's best tier without fighting.
+## The fight is tuned to the hardest chapter cleared (raid_chapter): hero start level / head start and boss numbers.
+const RAID_TRIES := 3
+const RAID_TIME := 90.0
+const RAID_TIER_BARS := [0.25, 0.5, 1.0, 1.5, 2.5, 4.0, 6.0, 9.0, 13.0, 18.0, 25.0, 35.0, 50.0, 70.0, 100.0]
+const RAID_HP := 4.0               # the raid line-up's bar is this many times the mid-boss's hp
+static var raid := ""              # boss key picked in the lobby for the next March scene ("" = no raid)
+static var raid_day := ""
+static var raid_used := 0
+static var raid_best := {}         # boss key -> best damage
+static var raid_tier := {}         # boss key -> best tier (0 = never fought)
+
+static func raid_chapter() -> int:
+	return maxi(0, cleared - 1)
+
+static func raid_left() -> int:
+	return RAID_TRIES - (raid_used if raid_day == _today() else 0)
+
+static func use_raid_try() -> bool:
+	if raid_left() <= 0:
+		return false
+	if raid_day != _today():
+		raid_day = _today()
+		raid_used = 0
+	raid_used += 1
+	save()
+	return true
+
+## Tier reached with `bars` boss bars of damage (0 = below the first tier).
+static func raid_tier_of(bars: float) -> int:
+	var t := 0
+	for i in RAID_TIER_BARS.size():
+		if bars >= RAID_TIER_BARS[i]:
+			t = i + 1
+	return t
+
+## Rewards of tier t at the current raid chapter: {"gold", "stones", "crystals", "gear": count}.
+static func raid_reward(t: int) -> Dictionary:
+	if t <= 0:
+		return {}
+	var c := raid_chapter()
+	return {"gold": (200 + 60 * c) * t, "stones": (4 + c) * t, "crystals": 3 * t, "gear": (1 if t >= 5 else 0) + (1 if t >= 8 else 0) + (1 if t >= 12 else 0)}
+
+## Bank a tier's rewards (gear pieces go to the storage). Returns the reward with "items": [gear entries].
+static func _grant_raid(t: int) -> Dictionary:
+	var r := raid_reward(t)
+	if r.is_empty():
+		return {}
+	_bank(r)
+	var k := chapter_first_group(raid_chapter()) + Regions.PER_REGION - 1
+	var items := []
+	for i in int(r["gear"]):
+		var e := Inventory.make_found(Gear.key(Gear.roll_family(k), Gear.roll_grade(k, true)), k)
+		storage.append(e)
+		items.append(e)
+	r["items"] = items
+	return r
+
+## A raid ended with `dmg` damage worth `bars` bars. Returns {"tier", "best" (new record), "reward"}.
+static func raid_finish(key: String, dmg: int, bars: float) -> Dictionary:
+	var t := raid_tier_of(bars)
+	var best := dmg > int(raid_best.get(key, 0))
+	if best:
+		raid_best[key] = dmg
+	raid_tier[key] = maxi(int(raid_tier.get(key, 0)), t)
+	var r := _grant_raid(t)
+	save()
+	return {"tier": t, "best": best, "reward": r}
+
+## [소탕]: the boss's best tier again, for one of today's tries. {} when it can't.
+static func raid_sweep(key: String) -> Dictionary:
+	var t := int(raid_tier.get(key, 0))
+	if t <= 0 or not use_raid_try():
+		return {}
+	var r := _grant_raid(t)
+	save()
+	return r

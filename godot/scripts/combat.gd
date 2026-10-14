@@ -91,6 +91,8 @@ const ENEMY_SHOTS := {
 	"rock": {"anim": "fireball", "speed": 8.5, "col": Color("d8c8a8")},
 	"quarrel": {"anim": "arrow", "speed": 15.0, "col": Color("ffd0a0")},
 	"hex": {"anim": "fireball", "speed": 7.0, "col": Color("c27aff")},
+	"bubble": {"anim": "fireball", "speed": 7.5, "col": Color("6fd0ff")},   # murloc archpriest
+	"seed": {"anim": "fireball", "speed": 6.5, "col": Color("8fe04a")},     # flytrap
 }
 
 static func enemy_attack(game: Node, e: Actor, t: Actor) -> void:

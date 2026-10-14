@@ -647,6 +647,23 @@ class Projectile extends Node3D:
 			arc = 0.6 + dist * 0.1
 			_part(Vfx._sphere_mesh(0.08), Mats.shared("vfx/hex_core", func() -> Material: return Mats.glow(Color(1.0, 0.85, 1.0), 2.4)))
 			_part(Vfx._sphere_mesh(0.16), Mats.shared("vfx/hex_shell", func() -> Material: return Mats.fx(Color(1.8, 0.45, 1.6, 0.7), true)))
+		elif kind == "bubble":
+			# murloc water orb: pale core in a sea-blue shell, wobbling arc
+			arc = 0.5 + dist * 0.1
+			_part(Vfx._sphere_mesh(0.07), Mats.shared("vfx/bubble_core", func() -> Material: return Mats.glow(Color(0.85, 1.0, 1.0), 2.2)))
+			_part(Vfx._sphere_mesh(0.15), Mats.shared("vfx/bubble_shell", func() -> Material: return Mats.fx(Color(0.3, 0.9, 2.0, 0.6), true)))
+		elif kind == "seed" or kind == "web" or kind == "hook":
+			# flytrap spiked seed (lobbed high), spider web blob, murloc hook
+			arc = (1.8 + dist * 0.2) if kind == "seed" else (0.25 + dist * 0.05)
+			var col: Color = {"seed": Color("6cbf52"), "web": Color("eef2f8"), "hook": Color("b8bcc8")}[kind]
+			var r := 0.13 if kind == "seed" else (0.12 if kind == "web" else 0.07)
+			_part(Vfx._sphere_mesh(r), Mats.shared("vfx/" + kind, func() -> Material: return Mats.prop(col)))
+			if kind == "seed":
+				for i in 6:
+					var sp := _part(Vfx._box_mesh(Vector3(0.05, 0.05, 0.05)), Mats.shared("vfx/seed_spike", func() -> Material: return Mats.prop(Color("e8dcb0"))))
+					var a := TAU * i / 6.0
+					sp.position = Vector3(cos(a), (i % 2) * 0.6 - 0.3, sin(a)) * 0.13
+				_part(Vfx._sphere_mesh(0.06), Mats.shared("vfx/seed_glow", func() -> Material: return Mats.glow(Color(0.7, 1.0, 0.35), 2.0)))
 		elif kind == "quarrel":
 			# crossbow bolt: short, heavy, flat and fast
 			arc = 0.08 + dist * 0.02
@@ -723,6 +740,12 @@ class Projectile extends Node3D:
 				Vfx.puff(p, Color(1.0, 0.8, 0.98), randf_range(0.11, 0.16), Vector3(0, 0.1, 0), 0.45)
 			elif kind == "rock":
 				Vfx.puff(p, Color(0.85, 0.8, 0.72), 0.05, Vector3.ZERO, 0.2)
+			elif kind == "bubble":
+				Vfx.puff(p, Color(0.75, 0.95, 1.0), randf_range(0.08, 0.12), Vector3(0, 0.1, 0), 0.4)
+			elif kind == "seed":
+				Vfx.puff(p, Color(0.75, 1.0, 0.55), 0.09, Vector3.ZERO, 0.35)
+			elif kind == "web" or kind == "hook":
+				Vfx.puff(p, Color(0.95, 0.97, 1.0), 0.04, Vector3.ZERO, 0.5)
 			else:
 				Vfx.puff(p, Color(1, 1, 1), 0.06, Vector3.ZERO, 0.22)
 		if t >= 1.0:

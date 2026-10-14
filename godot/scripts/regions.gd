@@ -4,18 +4,19 @@ extends RefCounted
 ## Region r holds groups 10r+1 .. 10r+10 (its mid-boss guards the exit). The march field takes its ground,
 ## light and props from the region's theme, so the map always tells where the trio is marching.
 ##   gear: featured equipment families (drop x Gear.FEATURED_W) — the region's "specialty" for merges.
-##   roster: which creature line camps there (Defs.ROSTERS: beasts / monsters, each with its own mid-boss).
+##   roster: which creature line camps there (Defs.ROSTERS: beasts / monsters).
+##   boss: the region's mid-boss (Defs.RAID_BOSSES key; the boss raid fights the same line-up).
 ##   map: island centre on the world map (x, z) in map units; size: island radius; tilt: outline phase.
 
 const PER_REGION := 10
 
 const LIST := [
-	{"name": "햇살 왕국", "theme": "meadow", "gear": ["sword", "shield", "helmet"], "roster": "beast", "desc": "왕성 아래 펼쳐진 햇살 가득한 초원", "map": Vector2(0.55, -0.35), "size": 1.95, "seed": 3},
-	{"name": "거목의 숲", "theme": "forest", "gear": ["bow", "staff", "amulet"], "roster": "beast", "desc": "푸른 정령이 깃든 거목이 지키는 깊은 숲", "map": Vector2(-2.85, -2.6), "size": 1.62, "seed": 11},
-	{"name": "황금 모래톱", "theme": "desert", "gear": ["axe", "ring", "helmet"], "roster": "monster", "desc": "선인장과 바위 언덕이 이어지는 뜨거운 모래땅", "map": Vector2(-2.55, 2.35), "size": 1.66, "seed": 23},
-	{"name": "불꽃 화산", "theme": "volcano", "gear": ["axe", "sword", "shield"], "roster": "monster", "desc": "용암 강이 흐르는 검은 현무암 대지", "map": Vector2(0.85, 4.55), "size": 1.8, "seed": 31},
-	{"name": "황혼 광산", "theme": "mine", "gear": ["staff", "ring", "amulet"], "roster": "monster", "desc": "수정과 거대 버섯이 빛나는 보랏빛 갱도", "map": Vector2(3.2, 1.55), "size": 1.5, "seed": 47},
-	{"name": "서리 봉우리", "theme": "frost", "gear": ["bow", "shield", "amulet"], "roster": "beast", "desc": "구름 위에 떠 있는 눈과 얼음의 섬", "map": Vector2(0.15, -5.35), "size": 1.5, "seed": 59},
+	{"name": "햇살 왕국", "theme": "meadow", "gear": ["sword", "shield", "helmet"], "roster": "beast", "boss": "mammoth", "desc": "왕성 아래 펼쳐진 햇살 가득한 초원", "map": Vector2(0.55, -0.35), "size": 1.95, "seed": 3},
+	{"name": "거목의 숲", "theme": "forest", "gear": ["bow", "staff", "amulet"], "roster": "beast", "boss": "flytrap", "desc": "푸른 정령이 깃든 거목이 지키는 깊은 숲", "map": Vector2(-2.85, -2.6), "size": 1.62, "seed": 11},
+	{"name": "황금 모래톱", "theme": "desert", "gear": ["axe", "ring", "helmet"], "roster": "monster", "boss": "murlocs", "desc": "선인장과 바위 언덕이 이어지는 뜨거운 모래땅", "map": Vector2(-2.55, 2.35), "size": 1.66, "seed": 23},
+	{"name": "불꽃 화산", "theme": "volcano", "gear": ["axe", "sword", "shield"], "roster": "monster", "boss": "warden", "desc": "용암 강이 흐르는 검은 현무암 대지", "map": Vector2(0.85, 4.55), "size": 1.8, "seed": 31},
+	{"name": "황혼 광산", "theme": "mine", "gear": ["staff", "ring", "amulet"], "roster": "monster", "boss": "spider", "desc": "수정과 거대 버섯이 빛나는 보랏빛 갱도", "map": Vector2(3.2, 1.55), "size": 1.5, "seed": 47},
+	{"name": "서리 봉우리", "theme": "frost", "gear": ["bow", "shield", "amulet"], "roster": "beast", "boss": "abyss", "desc": "구름 위에 떠 있는 눈과 얼음의 섬", "map": Vector2(0.15, -5.35), "size": 1.5, "seed": 59},
 ]
 
 static func count() -> int:

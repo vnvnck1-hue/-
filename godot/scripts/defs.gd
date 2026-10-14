@@ -68,7 +68,51 @@ const ENEMIES := {
 		"size": 2, "knockback_immune": true, "bar_h": 1.45},
 	"abyss": {"name": "심연의 군주", "role": "giant", "hp": 620, "atk": 22, "range": 2, "speed": 2100, "move": 2700, "scale": 2.0,
 		"size": 2, "knockback_immune": true, "bar_h": 1.75},
+	# region bosses added with the boss raid (BossSkills): one per region theme, also the raid's targets
+	"spider": {"name": "독니 거미 여왕", "role": "giant", "hp": 600, "atk": 20, "range": 2, "speed": 1800, "move": 2000, "scale": 2.0,
+		"size": 2, "knockback_immune": true, "bar_h": 1.15},
+	"warden": {"name": "화염 집행자", "role": "giant", "hp": 680, "atk": 22, "range": 2, "speed": 2300, "move": 3000, "scale": 2.0,
+		"size": 2, "knockback_immune": true, "bar_h": 1.85},
+	"flytrap": {"name": "세머리 파리지옥", "role": "giant", "hp": 640, "atk": 20, "range": 3.6, "speed": 2400, "move": 99999, "scale": 2.0,
+		"size": 2, "knockback_immune": true, "bar_h": 1.6, "attack": "seed", "splash": 0.9, "rooted": true},
+	# the murloc trio: three bosses fighting together (the archpriest leads and counts as the giant)
+	"murPriest": {"name": "멀록 대사제", "role": "giant", "hp": 240, "atk": 11, "range": 3.4, "speed": 2200, "move": 1500, "scale": 1.45,
+		"knockback_immune": true, "bar_h": 1.35, "attack": "bubble", "kite": true, "boss_key": "murlocs"},
+	"murWhip": {"name": "멀록 조련사", "role": "boss", "hp": 260, "atk": 12, "range": 1.8, "speed": 1700, "move": 1300, "scale": 1.4,
+		"knockback_immune": true, "bar_h": 1.3, "boss_key": "murlocs"},
+	"murSpear": {"name": "멀록 작살병", "role": "boss", "hp": 280, "atk": 13, "range": 1.3, "speed": 1500, "move": 1150, "scale": 1.35,
+		"knockback_immune": true, "bar_h": 1.2, "boss_key": "murlocs"},
 }
+
+## Region bosses and the boss raid's line-up. kinds: who steps out (the murlocs come as three).
+const RAID_BOSSES := [
+	{"key": "mammoth", "name": "철갑 전쟁 맘모스", "region": 0, "kinds": ["mammoth"], "col": Color("c98a5a")},
+	{"key": "flytrap", "name": "세머리 파리지옥", "region": 1, "kinds": ["flytrap"], "col": Color("7cc85a")},
+	{"key": "murlocs", "name": "멀록 삼총사", "region": 2, "kinds": ["murPriest", "murWhip", "murSpear"], "col": Color("4fb8c8")},
+	{"key": "warden", "name": "화염 집행자", "region": 3, "kinds": ["warden"], "col": Color("ff8a3a")},
+	{"key": "spider", "name": "독니 거미 여왕", "region": 4, "kinds": ["spider"], "col": Color("9ad43a")},
+	{"key": "abyss", "name": "심연의 군주", "region": 5, "kinds": ["abyss"], "col": Color("c86bff")},
+]
+
+static func raid_boss(key: String) -> Dictionary:
+	for b in RAID_BOSSES:
+		if b["key"] == key:
+			return b
+	return {}
+
+## The boss line-up of region r: [{kind, pos}] in camp coordinates (the trio stands around x 0, local z 0..4).
+static func boss_lineup(key: String) -> Array:
+	var b := raid_boss(key)
+	if b.is_empty():
+		return [{"kind": "giant", "pos": Vector3(0, 0, -4.4)}]
+	if key == "murlocs":
+		return [{"kind": "murPriest", "pos": Vector3(0, 0, -5.0)}, {"kind": "murWhip", "pos": Vector3(-1.6, 0, -3.8)},
+			{"kind": "murSpear", "pos": Vector3(1.6, 0, -3.6)}]
+	return [{"kind": b["kinds"][0], "pos": Vector3(0, 0, -4.4)}]
+
+## Region bosses (giant role or the murloc trio) count as the camp's mid-boss.
+static func is_region_boss(kind: String) -> bool:
+	return is_huge(kind) or ENEMIES.get(kind, {}).has("boss_key")
 
 ## Which creature stands in for each classic role, per region roster (Regions.LIST "roster").
 const ROSTERS := {
@@ -80,6 +124,10 @@ const BOSS_INFO := {
 	"giant": {"title": "중간 보스!", "hint": "거대 골렘과 호위병 — 넉백 면역, 매우 높은 체력"},
 	"mammoth": {"title": "중간 보스! 철갑 전쟁 맘모스", "hint": "앞발을 들면 피하세요 — 주변을 내리찍는 대지 진동"},
 	"abyss": {"title": "중간 보스! 심연의 군주", "hint": "보랏빛 낙인이 찍힌 자리에 심연 폭발이 떨어집니다"},
+	"spider": {"title": "중간 보스! 독니 거미 여왕", "hint": "초록 원이 생기면 그 자리로 뛰어듭니다 — 거미줄에 걸리면 느려져요"},
+	"warden": {"title": "중간 보스! 화염 집행자", "hint": "망치를 치켜들면 한 줄로 용암이 터집니다 — 옆으로 비키세요"},
+	"murlocs": {"title": "중간 보스! 멀록 삼총사", "hint": "대사제의 해일 · 조련사의 갈고리 · 작살병의 돌진 — 셋이 함께 싸워요"},
+	"flytrap": {"title": "중간 보스! 세머리 파리지옥", "hint": "가시 씨앗이 떨어진 자리에 독안개가 남아요 — 안개 밖으로!"},
 }
 
 ## Classic role a kind plays (rewards, drop rates, hit weight).
