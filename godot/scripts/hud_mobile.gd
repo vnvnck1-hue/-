@@ -3,7 +3,7 @@ extends Node
 ## Mobile-game style chrome for March mode:
 ##   - bottom navigation bar with 5 main buttons (상점 / 영웅 / 전투 / 특성 / 도감). Only 특성 works
 ##     (opens the talent tree); the others are placeholders that look real but don't react.
-##   - a row of small round skill indicators right above the bag: each hero's mana skill and ultimate,
+##   - a row of small round skill indicators right above the hero status strip (which sits on the bag): each hero's mana skill and ultimate,
 ##     showing charge / cooldown and flashing when the skill is cast, in real time.
 
 var INK: Color = UiTheme.ink()
@@ -119,7 +119,7 @@ func _build_dials() -> void:
 	var row := Control.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var w := 3 * (58 * 2 + 6) + 2 * 30.0
-	hud.root.add_child(hud.place(row, Vector2(0.5, 1), Vector2(-w * 0.5, -412), Vector2(w, 64)))
+	hud.root.add_child(hud.place(row, Vector2(0.5, 1), Vector2(-w * 0.5, Hud.STATUS_ROW_Y - 70.0), Vector2(w, 64)))
 	var x := 0.0
 	for cls in Defs.HERO_ORDER:
 		for kind in ["active", "ult"]:

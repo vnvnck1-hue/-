@@ -341,7 +341,7 @@ func apply_damage(amount: float, from: Actor, crit := false, show := true, push 
 		return false
 	hp -= amount
 	if endless:
-		game.raid_hit(amount)
+		game.raid_hit(amount, crit, self)
 		while hp <= 0.0:
 			hp += max_hp
 			game.raid_bar_broken(self)

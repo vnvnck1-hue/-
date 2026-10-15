@@ -114,6 +114,17 @@ static func load_save() -> void:
 		raid_best[str(k)] = maxi(0, _int(d["raid_best"][k]))
 	for k in _dict(d.get("raid_tier", {})):
 		raid_tier[str(k)] = clampi(_int(d["raid_tier"][k]), 0, RAID_TIER_BARS.size())
+	mis_day = str(d.get("mis_day", ""))
+	mis_counts = _dict(d.get("mis_counts", {})).duplicate()
+	mis_claimed = _arr(d.get("mis_claimed", [])).duplicate()
+	mis_points = maxi(0, _int(d.get("mis_points", 0)))
+	mis_boxes = _arr(d.get("mis_boxes", [])).map(func(v): return _int(v))
+	mis_week = str(d.get("mis_week", ""))
+	wk_counts = _dict(d.get("wk_counts", {})).duplicate()
+	wk_claimed = _arr(d.get("wk_claimed", [])).duplicate()
+	for dct in [mis_counts, wk_counts]:
+		for k in dct.keys():
+			dct[k] = _int(dct[k])
 	var gt = d.get("gold_talents", {})
 	for g in GOLD_TALENTS:
 		gold_talents[g["id"]] = clampi(_int(_dict(gt).get(g["id"], 0)), 0, g["max"])
@@ -175,6 +186,14 @@ static func _defaults() -> void:
 	quick_used = 0
 	att_day = 0
 	att_date = ""
+	mis_day = ""
+	mis_counts = {}
+	mis_claimed = []
+	mis_points = 0
+	mis_boxes = []
+	mis_week = ""
+	wk_counts = {}
+	wk_claimed = []
 	raid_day = ""
 	raid_used = 0
 	raid_best = {}
@@ -212,7 +231,9 @@ static func save() -> void:
 		"best": best, "gold": gold, "stones": stones, "cleared": cleared, "chapter": chapter, "slot_lv": slot_lv, "loadout": lo,
 		"storage": storage.map(Inventory.to_save), "run_gear": run_gear.map(Inventory.to_save), "kept_rest": kept_rest,
 		"camp_since": camp_since, "quick_day": quick_day, "quick_used": quick_used, "att_day": att_day, "att_date": att_date,
-		"gold_talents": gold_talents, "raid_day": raid_day, "raid_used": raid_used, "raid_best": raid_best, "raid_tier": raid_tier}))
+		"gold_talents": gold_talents, "raid_day": raid_day, "raid_used": raid_used, "raid_best": raid_best, "raid_tier": raid_tier,
+		"mis_day": mis_day, "mis_counts": mis_counts, "mis_claimed": mis_claimed, "mis_points": mis_points, "mis_boxes": mis_boxes,
+		"mis_week": mis_week, "wk_counts": wk_counts, "wk_claimed": wk_claimed}))
 	var ok := f.get_error() == OK
 	f.close()
 	if ok:
@@ -335,6 +356,7 @@ static func upgrade(cls: String, slot: String) -> bool:
 	stones -= int(c["stones"])
 	slot_lv[cls][slot] = slot_level(cls, slot) + 1
 	save()
+	track("gear_up")
 	return true
 
 ## Merge every group of 3 in the storage (same rules as the old bag merge: family gear by slot + grade climbs
@@ -348,6 +370,7 @@ static func merge_all() -> Array:
 		k = _find_merge()
 	if not made.is_empty():
 		save()
+		track("gear_up")
 	return made
 
 ## Groups in storage that already hold 3 or more (what [합성] would do right now).
@@ -574,6 +597,7 @@ static func on_chapter_cleared(c: int) -> bool:
 		cleared = c + 1
 	chapter = mini(c + 1, cleared)
 	save()
+	track("chapter_clear")
 	return first
 
 # ---------------------------------------------------------------- campfire (idle rewards)
@@ -625,6 +649,7 @@ static func claim_camp() -> Dictionary:
 	_bank(r)
 	camp_since = _now() if m >= CAMP_MAX_MIN or camp_since > _now() else camp_since + m * 60
 	save()
+	track("camp")
 	return r
 
 static func quick_left() -> int:
@@ -641,6 +666,7 @@ static func quick_camp() -> Dictionary:
 	var r := camp_reward(QUICK_MIN)
 	_bank(r)
 	save()
+	track("camp")
 	return r
 
 # ---------------------------------------------------------------- 7-day attendance
@@ -733,6 +759,7 @@ static func buy_gold_talent() -> String:
 	gold_talents[t["id"]] = gold_talent_level(t["id"]) + 1
 	_fx_cache.clear()
 	save()
+	track("talent")
 	return t["id"]
 
 # ---------------------------------------------------------------- boss raid (보스 토벌)
@@ -764,6 +791,7 @@ static func use_raid_try() -> bool:
 		raid_used = 0
 	raid_used += 1
 	save()
+	track("raid")
 	return true
 
 ## Tier reached with `bars` boss bars of damage (0 = below the first tier).
@@ -814,4 +842,150 @@ static func raid_sweep(key: String) -> Dictionary:
 		return {}
 	var r := _grant_raid(t)
 	save()
+	return r
+
+# ---------------------------------------------------------------- missions (일일 · 주간)
+## Daily missions reset at local midnight, weekly ones on Monday. track(event) counts progress from wherever
+## the thing happens (lobby, runs, raid). A finished daily mission is claimed for ACTIVITY points; the activity
+## track opens DAILY_BOXES at 20 / 40 / 60 / 80 / 100. A finished weekly mission pays its reward directly.
+## Events: run_start, raid, camp, talent, gear_up, group_clear, chapter_clear, daily_full.
+const DAILY := [
+	{"id": "run", "text": "원정 또는 행군 출발", "event": "run_start", "goal": 1},
+	{"id": "raid", "text": "보스 토벌 도전 (소탕 포함)", "event": "raid", "goal": 1},
+	{"id": "camp", "text": "모닥불 보상 받기", "event": "camp", "goal": 1},
+	{"id": "talent", "text": "골드 탤런트 강화", "event": "talent", "goal": 1},
+	{"id": "gear", "text": "장비 강화 또는 합성", "event": "gear_up", "goal": 1},
+	{"id": "groups", "text": "적 무리 처치", "event": "group_clear", "goal": 15},
+]
+const ACTIVITY := 20           # points per claimed daily mission
+const DAILY_BOXES := [
+	{"at": 20, "reward": {"gold": 300}},
+	{"at": 40, "reward": {"stones": 12}},
+	{"at": 60, "reward": {"crystals": 15}},
+	{"at": 80, "reward": {"gold": 800, "stones": 15}},
+	{"at": 100, "reward": {"crystals": 30, "gear": 1}},
+]
+const WEEKLY := [
+	{"id": "w_daily", "text": "활동 점수 100 달성 (일)", "event": "daily_full", "goal": 5, "reward": {"crystals": 100, "gear": 2}},
+	{"id": "w_raid", "text": "보스 토벌 도전", "event": "raid", "goal": 10, "reward": {"crystals": 60, "gear": 1}},
+	{"id": "w_clear", "text": "원정 챕터 클리어", "event": "chapter_clear", "goal": 5, "reward": {"gold": 3000, "stones": 60}},
+	{"id": "w_groups", "text": "적 무리 처치", "event": "group_clear", "goal": 100, "reward": {"gold": 2000, "stones": 30}},
+	{"id": "w_talent", "text": "골드 탤런트 강화", "event": "talent", "goal": 10, "reward": {"stones": 40, "crystals": 30}},
+]
+static var mis_day := ""          # local date the daily state belongs to
+static var mis_counts := {}       # daily mission id -> progress
+static var mis_claimed: Array = []   # daily mission ids claimed today
+static var mis_points := 0        # today's activity points
+static var mis_boxes: Array = []  # DAILY_BOXES indices opened today
+static var mis_week := ""         # Monday (local date) the weekly state belongs to
+static var wk_counts := {}
+static var wk_claimed: Array = []
+
+## Local date of this week's Monday ("YYYY-MM-DD").
+static func _week_key() -> String:
+	var d := Time.get_date_dict_from_system()
+	var u := Time.get_unix_time_from_datetime_dict(d)   # the local date read as UTC midnight: fine for day steps
+	return Time.get_date_string_from_unix_time(u - ((int(d["weekday"]) + 6) % 7) * 86400)
+
+## Start a new day / week when the clock has moved on (called before every read or write).
+static func _mis_roll() -> void:
+	if mis_day != _today():
+		mis_day = _today()
+		mis_counts = {}
+		mis_claimed = []
+		mis_points = 0
+		mis_boxes = []
+	if mis_week != _week_key():
+		mis_week = _week_key()
+		wk_counts = {}
+		wk_claimed = []
+
+## Count `n` of `event` toward every daily and weekly mission that listens to it.
+static func track(event: String, n := 1) -> void:
+	_mis_roll()
+	for m in DAILY:
+		if m["event"] == event:
+			mis_counts[m["id"]] = mini(int(m["goal"]), int(mis_counts.get(m["id"], 0)) + n)
+	for m in WEEKLY:
+		if m["event"] == event:
+			wk_counts[m["id"]] = mini(int(m["goal"]), int(wk_counts.get(m["id"], 0)) + n)
+	save()
+
+static func mission_progress(id: String, weekly := false) -> int:
+	_mis_roll()
+	return int((wk_counts if weekly else mis_counts).get(id, 0))
+
+static func _mission_def(id: String, weekly: bool) -> Dictionary:
+	for m in (WEEKLY if weekly else DAILY):
+		if m["id"] == id:
+			return m
+	return {}
+
+## "claim" (done, not claimed), "done" (claimed) or "open".
+static func mission_state(id: String, weekly := false) -> String:
+	_mis_roll()
+	var m := _mission_def(id, weekly)
+	if (wk_claimed if weekly else mis_claimed).has(id):
+		return "done"
+	return "claim" if mission_progress(id, weekly) >= int(m.get("goal", 1)) else "open"
+
+## Claim a finished mission: daily -> ACTIVITY points, weekly -> its reward. Returns the reward ({} if nothing).
+static func claim_mission(id: String, weekly := false) -> Dictionary:
+	if mission_state(id, weekly) != "claim":
+		return {}
+	if weekly:
+		wk_claimed.append(id)
+		var r := _grant(_mission_def(id, true)["reward"])
+		save()
+		return r
+	mis_claimed.append(id)
+	var before := mis_points
+	mis_points = mini(DAILY_BOXES[-1]["at"], mis_points + ACTIVITY)
+	if before < DAILY_BOXES[-1]["at"] and mis_points >= DAILY_BOXES[-1]["at"]:
+		track("daily_full")   # saves
+	else:
+		save()
+	return {"points": ACTIVITY}
+
+## "claim" / "done" / "open" for activity box i.
+static func box_state(i: int) -> String:
+	_mis_roll()
+	if mis_boxes.has(i):
+		return "done"
+	return "claim" if mis_points >= int(DAILY_BOXES[i]["at"]) else "open"
+
+static func open_box(i: int) -> Dictionary:
+	if box_state(i) != "claim":
+		return {}
+	mis_boxes.append(i)
+	var r := _grant(DAILY_BOXES[i]["reward"])
+	save()
+	return r
+
+## Anything to collect on the [미션] screen (lobby badge).
+static func missions_ready() -> int:
+	var n := 0
+	for m in DAILY:
+		if mission_state(m["id"]) == "claim":
+			n += 1
+	for m in WEEKLY:
+		if mission_state(m["id"], true) == "claim":
+			n += 1
+	for i in DAILY_BOXES.size():
+		if box_state(i) == "claim":
+			n += 1
+	return n
+
+## Bank a reward dictionary (gold / stones / crystals, "gear": pieces of the current chapter's grade +1 into the
+## storage). Returns it with "items": [gear entries].
+static func _grant(reward: Dictionary) -> Dictionary:
+	var r := reward.duplicate()
+	_bank(r)
+	var k := chapter_first_group(maxi(0, cleared - 1)) + Regions.PER_REGION - 1
+	var items := []
+	for i in int(r.get("gear", 0)):
+		var e := Inventory.make_found(Gear.key(Gear.roll_family(k), Gear.roll_grade(k, true)), k)
+		storage.append(e)
+		items.append(e)
+	r["items"] = items
 	return r

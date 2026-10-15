@@ -35,6 +35,7 @@ var _as: Array[float] = [0.0]    # encounter k: distance where the trio meets gr
 var _ph := Vector3.ZERO          # curve phases
 var _noise := FastNoiseLite.new()
 var _gmat: StandardMaterial3D
+var arena: RaidArena    # boss raid: the sealed canyon replaces the road (use_arena)
 
 func build() -> void:
 	_env()
@@ -94,6 +95,8 @@ func _seg(s: float) -> int:
 
 ## Gently winding centreline (two slow sine waves, flattened at the start).
 func center_x(s: float) -> float:
+	if arena:   # the raid arena is straight: no winding offsets
+		return 0.0
 	var x := 1.5 * sin(s * 0.105 + _ph.x) + 0.9 * sin(s * 0.043 + _ph.y)
 	var x0 := 1.5 * sin(_ph.x) + 0.9 * sin(_ph.y)
 	return x - x0 * (1.0 - smoothstep(0.0, 12.0, s))
@@ -206,6 +209,9 @@ func set_dim(k: float) -> void:
 func _apply_light() -> void:
 	if sun == null:
 		return
+	if arena:
+		_arena_light()
+		return
 	var m := view_mix
 	var k := _dim_k
 	WebLook.light_color(sun, tcol(m, "sun"))
@@ -218,6 +224,38 @@ func _apply_light() -> void:
 	env.fog_light_color = tcol(m, "fog").lerp(Color("141026"), k).lerp(env.background_color, sky_fade)
 	env.adjustment_saturation = lerpf(tnum(m, "sat"), 0.85, k)
 	env.glow_intensity = WebLook.glow(lerpf(tnum(m, "glow"), 0.65, k))
+
+# ---------------------------------------------------------------- raid arena
+## Dim, cold, violet light for the raid canyon (dimmed further by ultimates like the road's).
+const ARENA_LIGHT := {"sun": Color("c9b4ff"), "sun_e": 0.95, "fill": Color("4fd8c8"), "fill_e": 0.5, "amb": Color("6a58a8"), "amb_e": 0.7,
+	"sky": Color("1c1234"), "fog": Color("2c1c4a"), "sat": 1.12, "glow": 0.95}
+
+## The raid fights in a sealed canyon: the road is hidden, the arena takes its place and the light turns gloomy.
+func use_arena() -> void:
+	if arena:
+		return
+	arena = RaidArena.new()
+	add_child(arena)
+	arena.build()
+	track.visible = false
+	env.set("fog_depth_begin", 14.0)
+	env.set("fog_depth_end", 38.0)
+	env.fog_density = 0.85
+	_apply_light()
+
+func _arena_light() -> void:
+	var L := ARENA_LIGHT
+	var k := _dim_k
+	WebLook.light_color(sun, L["sun"])
+	sun.light_energy = lerpf(L["sun_e"], 0.12, k)
+	WebLook.light_color(fill, L["fill"])
+	fill.light_energy = lerpf(L["fill_e"], 0.04, k)
+	env.ambient_light_color = WebLook.ambient(L["amb"])
+	env.ambient_light_energy = lerpf(L["amb_e"], 0.1, k)
+	env.background_color = (L["sky"] as Color).lerp(Color("0c0818"), k)
+	env.fog_light_color = (L["fog"] as Color).lerp(Color("0c0818"), k)
+	env.adjustment_saturation = lerpf(L["sat"], 0.85, k)
+	env.glow_intensity = WebLook.glow(lerpf(L["glow"], 0.65, k))
 
 # ---------------------------------------------------------------- ground chunk
 func _build_chunk(i: int) -> Node3D:

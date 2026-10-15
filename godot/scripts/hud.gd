@@ -72,7 +72,7 @@ func _ready() -> void:
 	debug_hud.hud = self
 	debug_hud.game = game
 	add_child(debug_hud)
-	debug_hud.build(STATUS_Y + 3 * STATUS_STEP + 8.0)
+	debug_hud.build(STATUS_Y)   # the hero status moved to the bottom strip: the top-left is free
 	flash_rect = ColorRect.new()
 	flash_rect.color = Color(1, 1, 1, 0)
 	flash_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -277,53 +277,64 @@ var status_rows := {}   # cls -> {root, badge, hp, hp_lag, mana, lv, ult, hp_t, 
 ## Hero status column (top-left); the centre message band sits right below it (region chip: top right).
 const STATUS_Y := TRACK_Y + TRACK_H + 16.0
 const STATUS_STEP := 52.0
-const STATUS_BAR_W := 66.0
+const STATUS_BAR_W := 118.0
+## Hero status strip: three capsules in one row at the bottom, between the skill dials and the bag.
+const STATUS_ROW_Y := -404.0      # top of the strip (from the screen bottom); the bag starts at -342
+const STATUS_W := 214.0
+const STATUS_H := 46.0
+const STATUS_GAP := 9.0
+var status_strip: Control         # the strip (MarchMain keeps units above it)
 const NOTICE_Y := STATUS_Y + 3 * STATUS_STEP + 22.0
 
 func _build_hero_status() -> void:
-	var y := STATUS_Y
+	var sw := 3.0 * STATUS_W + 2.0 * STATUS_GAP
+	status_strip = Control.new()
+	status_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(place(status_strip, Vector2(0.5, 1), Vector2(-sw * 0.5, STATUS_ROW_Y), Vector2(sw, STATUS_H)))
+	var x := 0.0
 	for cls in Defs.HERO_ORDER:
-		var row := panel(Color.WHITE, Rect2(0, 0, 150, 40), 20, 0)
-		row.add_theme_stylebox_override("panel", UiTheme.capsule(20))
-		root.add_child(place(row, Vector2(0, 0), Vector2(22, y), Vector2(150, 40)))
+		var row := panel(Color.WHITE, Rect2(x, 0, STATUS_W, STATUS_H), 23, 0)
+		row.add_theme_stylebox_override("panel", UiTheme.capsule(int(STATUS_H * 0.5)))
+		row.pivot_offset = row.size * 0.5
+		status_strip.add_child(row)
+		x += STATUS_W + STATUS_GAP
 		# tap the row (face) to open that hero's info
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
 		row.gui_input.connect(func(ev: InputEvent):
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
 				_on_status_tap(cls))
-		var badge := panel(HERO_COL[cls], Rect2(-8, -6, 52, 52), 26, 4)
+		var badge := panel(HERO_COL[cls], Rect2(-6, -5, 56, 56), 28, 4)
 		badge.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
 		row.add_child(badge)
 		var face := _portrait(cls)
 		face.position = Vector2(2, 2)
-		face.size = Vector2(48, 48)
+		face.size = Vector2(52, 52)
 		badge.add_child(face)
-		var hbg := panel(INK, Rect2(48, 7, STATUS_BAR_W + 4, 14), 6, 0)
+		var hbg := panel(INK, Rect2(54, 9, STATUS_BAR_W + 4, 15), 6, 0)
 		row.add_child(hbg)
-		var lag := panel(UiTheme.trail_col(), Rect2(50, 9, STATUS_BAR_W, 10), 4, 0)
+		var lag := panel(UiTheme.trail_col(), Rect2(56, 11, STATUS_BAR_W, 11), 4, 0)
 		row.add_child(lag)
-		var hp := panel(UiTheme.hp_col(), Rect2(50, 9, STATUS_BAR_W, 10), 4, 0)
+		var hp := panel(UiTheme.hp_col(), Rect2(56, 11, STATUS_BAR_W, 11), 4, 0)
 		row.add_child(hp)
-		var mbg := panel(INK, Rect2(48, 23, STATUS_BAR_W + 4, 9), 4, 0)
+		var mbg := panel(INK, Rect2(54, 26, STATUS_BAR_W + 4, 10), 4, 0)
 		row.add_child(mbg)
-		var mana := panel(Defs.COL_MANA, Rect2(50, 25, 0, 5), 2, 0)
+		var mana := panel(Defs.COL_MANA, Rect2(56, 28, 0, 6), 2, 0)
 		row.add_child(mana)
-		var lv := label("1", 17, Defs.COL_GOLD, 6)
-		lv.position = Vector2(118, 0)
-		lv.size = Vector2(30, 40)
+		var lv := label("1", 19, Defs.COL_GOLD, 6)
+		lv.position = Vector2(STATUS_W - 36, 0)
+		lv.size = Vector2(32, STATUS_H)
 		row.add_child(lv)
-		var ult := panel(Color(0, 0, 0, 0), Rect2(-3, -3, 156, 46), 23, 0)
-		ult.add_theme_stylebox_override("panel", box(Color(0, 0, 0, 0), 23, 3, Color("ffe04a")))
+		var ult := panel(Color(0, 0, 0, 0), Rect2(-3, -3, STATUS_W + 6, STATUS_H + 6), 26, 0)
+		ult.add_theme_stylebox_override("panel", box(Color(0, 0, 0, 0), 26, 3, Color("ffe04a")))
 		ult.visible = false
 		row.add_child(ult)
 		var rsp := label("", 15, Color.WHITE, 5)
-		rsp.position = Vector2(48, 2)
+		rsp.position = Vector2(54, 3)
 		rsp.size = Vector2(STATUS_BAR_W + 4, 24)
 		rsp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		rsp.visible = false
 		row.add_child(rsp)
 		status_rows[cls] = {"root": row, "badge": badge, "hp": hp, "lag": lag, "mana": mana, "lv": lv, "ult": ult, "rsp": rsp, "lag_v": 1.0, "shown": 1.0, "dead": false}
-		y += STATUS_STEP
 
 func _on_status_tap(cls: String) -> void:
 	if game == null or has_overlay():

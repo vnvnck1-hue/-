@@ -170,7 +170,9 @@ func _ready() -> void:
 		var r := Regions.of_group(wave)
 		dist = mw.region_start(r) + 0.1 if expedition and r > 0 else mw.arena_s(wave - 1)
 		if raid != "":
-			dist = mw.arena_s(wave) - 9.0   # a few steps before the boss
+			dist = mw.arena_s(wave) - ENGAGE_LEAD - 3.0   # the boss strides in across the arena, then the fight starts
+			mw.use_arena()
+			Actor.clamp_fn = func(p: Vector3, m: float) -> Vector3: return RaidArena.clamp_local(p, m, _field_z_max)
 		mw.set_dist(dist)
 		_set_bounds()
 	if raid != "":
@@ -298,7 +300,7 @@ func enter_placement() -> void:
 	hud.talent_btn.visible = false   # the talent tree lives in the bottom navigation bar
 	_hud_dist = -1
 	_update_march_hud()
-	if wave == 1 and dist < 1.0:
+	if wave == 1 and dist < 1.0 and raid == "":
 		hud.banner("행군 시작!", Color.WHITE, 0.4, 96, -160)
 	_shot_later(0.8, "march")
 
@@ -311,7 +313,7 @@ func _update_march_hud() -> void:
 	var to_boss := MarchWorld.BOSS_EVERY - ((wave - 1) % MarchWorld.BOSS_EVERY) - 1
 	hud.sub_label.text = "중간 보스!" if MarchWorld.is_boss(wave) else "보스까지 %d무리" % to_boss
 	var left := int(ceilf(maxf(0.0, mw.arena_s(wave) - dist)))
-	if left != _hud_dist and phase == P.PLACEMENT:
+	if left != _hud_dist and phase == P.PLACEMENT and raid == "":
 		_hud_dist = left
 		hud.set_phase("다음 무리까지 %dm" % left)
 
@@ -474,11 +476,15 @@ func _end_drag(cancel: bool, sp := Vector2.ZERO) -> void:
 ## Pull the camera back while a mid-boss field is near.
 func _update_camera(delta: float) -> void:
 	var goal := mw.boss_k(dist)
-	if phase == P.BATTLE and MarchWorld.is_boss(wave):
+	if (phase == P.BATTLE and MarchWorld.is_boss(wave)) or raid != "":
 		goal = 1.0
 	_boss_cam = lerpf(_boss_cam, goal, 1.0 - exp(-delta * 3.0))
 	var look := Vector3(0, 0, -1.0 - 0.6 * _boss_cam)
-	cam.set_base(look + MARCH_CAM * (1.0 + BOSS_ZOOM * _boss_cam), look)
+	var zoom := 1.0 + BOSS_ZOOM * _boss_cam
+	if raid != "":   # the raid arena: pull back a bit more so the canyon walls frame the fight
+		look.z -= 0.6
+		zoom += 0.14
+	cam.set_base(look + MARCH_CAM * zoom, look)
 	_field_z_max = _bag_z_limit()
 
 ## Local z where the gameplay framing (no shake / cinematic dolly) meets the bag panel's top edge, so a fight
@@ -488,7 +494,10 @@ func _bag_z_limit() -> float:
 	if inv == null or not inv.is_visible_in_tree():
 		return FIELD_Z_MAX
 	var vp := get_viewport().get_visible_rect().size
-	var sy := inv.get_global_rect().position.y - BAG_CLEAR_PX
+	var top := inv.get_global_rect().position.y
+	if hud.status_strip and hud.status_strip.is_visible_in_tree():   # the hero status strip sits on the bag
+		top = minf(top, hud.status_strip.get_global_rect().position.y)
+	var sy := top - BAG_CLEAR_PX
 	var d := Basis.looking_at(cam.base_look - cam.base_pos, Vector3.UP) * cam.project_local_ray_normal(Vector2(vp.x * 0.5, sy))
 	if d.y > -0.0001:
 		return FIELD_Z_MAX
@@ -751,6 +760,11 @@ func _engage() -> void:
 		var bi: Dictionary = Defs.BOSS_INFO.get(bk, Defs.BOSS_INFO["giant"])
 		if raid != "":
 			hud.set_gimmick("보스 토벌! %d초 동안 최대한 많은 피해를" % int(Meta.RAID_TIME), bi["hint"])
+			if _raid_hud_panel:   # the boss bar bursts in as the line-up turns hostile
+				_raid_refresh()
+				_raid_hud_panel.intro()
+				for b in [[0.12, "raid_intro_a"], [0.45, "raid_intro_b"], [1.0, "raid_intro_c"], [2.2, "raid_intro_d"]]:
+					_shot_later(b[0], b[1])
 			get_tree().create_timer(4.0, false).timeout.connect(func():   # then out of the way of the fight
 				if is_instance_valid(hud) and phase == P.BATTLE:
 					hud.set_gimmick("", ""))
@@ -799,6 +813,7 @@ func finish_wave() -> void:
 	Cinematic.reset(self)
 	var cleared := wave
 	var boss := MarchWorld.is_boss(cleared)
+	Meta.track("group_clear")
 	print("[March] clear group=", cleared, " dist=", int(dist), " gimmick=", gimmick, " gold=", gold, " lv=", heroes.map(func(x): return x.level), " inv=", inventory.size())
 	gimmick = ""
 	hud.set_gimmick("", "")
@@ -1984,19 +1999,21 @@ var raid_t := 0.0
 var raid_dmg := 0.0
 var raid_unit := 1.0       # one "bar": the summed max hp of the line-up
 var raid_bars := 0         # bars emptied so far (shown as xN)
-var _raid_l: Label
-var _raid_sub: Label
-const RAID_HUD_Y := 790.0
+var _raid_hud_panel: RaidHud   # centred top HUD: boss HP (layered bar), time gauge, damage / tier (replaces the chapter track)
 
 func _raid_setup() -> void:
 	var b := Defs.raid_boss(raid)
 	wave = int(b.get("region", 0)) * Regions.PER_REGION + Regions.PER_REGION
 
 func _raid_hud() -> void:
-	_raid_l = hud.label("", 40, Color("fff2b0"), 12)
-	hud.root.add_child(hud.place(_raid_l, Vector2(0.5, 0), Vector2(-320, RAID_HUD_Y), Vector2(640, 52)))   # below the trio, above the skill row
-	_raid_sub = hud.label("", 24, Color("ffd27a"), 8)
-	hud.root.add_child(hud.place(_raid_sub, Vector2(0.5, 0), Vector2(-320, RAID_HUD_Y + 48), Vector2(640, 34)))
+	if atlas and atlas.track:   # no chapter to track in a raid: the raid panel takes the track's place
+		atlas.track.get_parent().visible = false
+	hud.sub_label.visible = false
+	_raid_hud_panel = RaidHud.new()
+	_raid_hud_panel.build(hud, str(Defs.raid_boss(raid).get("name", "")))
+	hud.root.add_child(hud.place(_raid_hud_panel, Vector2(0.5, 0), Vector2(-RaidHud.W * 0.5, Hud.TRACK_Y - 4), Vector2(RaidHud.W, RaidHud.H)))
+	_raid_hud_panel.pivot_offset = Vector2(RaidHud.W * 0.5, RaidHud.TRACK.position.y + RaidHud.TRACK.size.y * 0.5)
+	_raid_hud_panel.z_index = 5   # the boss bar stays readable over ultimate name banners
 	_raid_refresh()
 	var b := Defs.raid_boss(raid)
 	if UiTheme.tt():
@@ -2005,14 +2022,21 @@ func _raid_hud() -> void:
 		hud.banner("보스 토벌 · " + str(b.get("name", "")), Color.WHITE, 1.0, 56, -200)
 
 func _raid_refresh() -> void:
-	if _raid_l == null:
+	if _raid_hud_panel == null:
 		return
-	var left := maxf(0.0, Meta.RAID_TIME - raid_t)
-	_raid_l.text = "%d:%02d   피해 %s" % [int(left) / 60, int(left) % 60, _num(int(raid_dmg))]
 	var bars := raid_dmg / raid_unit
 	var t := Meta.raid_tier_of(bars)
-	var next: float = Meta.RAID_TIER_BARS[t] if t < Meta.RAID_TIER_BARS.size() else 0.0
-	_raid_sub.text = "%d단계%s" % [t, "  ·  다음 단계까지 %d%%" % int(clampf((bars - (Meta.RAID_TIER_BARS[t - 1] if t > 0 else 0.0)) / (next - (Meta.RAID_TIER_BARS[t - 1] if t > 0 else 0.0)), 0.0, 0.99) * 100.0) if next > 0.0 else "  ·  최고 단계!"]
+	var maxed := t >= Meta.RAID_TIER_BARS.size()
+	var lo: float = Meta.RAID_TIER_BARS[t - 1] if t > 0 else 0.0
+	var frac := 1.0 if maxed else clampf((bars - lo) / (Meta.RAID_TIER_BARS[t] - lo), 0.0, 0.99)
+	_raid_hud_panel.set_state(maxf(0.0, Meta.RAID_TIME - raid_t), Meta.RAID_TIME, int(raid_dmg), t, frac, maxed)
+	var hp := 0.0
+	var mx := 0.0
+	for e in enemies:
+		if is_instance_valid(e) and e.endless:
+			hp += e.hp
+			mx += e.max_hp
+	_raid_hud_panel.set_hp(hp / mx if mx > 0.0 else 1.0, raid_bars)
 
 static func _num(v: int) -> String:
 	var s := str(v)
@@ -2023,17 +2047,24 @@ static func _num(v: int) -> String:
 	return s + out
 
 ## Actor.endless: every hit on the line-up lands here.
-func raid_hit(amount: float) -> void:
+func raid_hit(amount: float, crit := false, e: Actor = null) -> void:
 	raid_dmg += amount
+	if _raid_hud_panel:
+		_raid_hud_panel.hit(amount, crit, e.max_hp if e else raid_unit)
 
 func raid_bar_broken(e: Actor) -> void:
 	raid_bars += 1
-	hud.callout(e.global_position + Vector3(0, e.def.get("bar_h", 1.05) * e.model.scale.y / Actor.MODEL_SCALE + 1.0, 0), "체력 바 파괴! ×%d" % raid_bars, Color("ffd23f"))
+	if raid_bars <= 2:
+		_shot_later(0.02, "raid_break")
+	if raid_bars == 1:   # later breaks only punch the top panel (a callout per bar buried the fight)
+		hud.callout(e.global_position + Vector3(0, e.def.get("bar_h", 1.05) * e.model.scale.y / Actor.MODEL_SCALE + 1.0, 0), "체력 바 파괴!", Color("ffd23f"))
 	Sfx.play("chime", -6.0, 1.3)
 	e.model.flash(Color(1, 0.9, 0.4), 2.0, 0.3)
 	_raid_refresh()
 
 func _raid_tick(delta: float) -> void:
+	if raid_t < Meta.RAID_TIME - 4.0 and raid_t + delta >= Meta.RAID_TIME - 4.0:
+		_shot_later(0.0, "raid_low_time")
 	raid_t += delta
 	_raid_refresh()
 	if raid_t >= Meta.RAID_TIME:
@@ -2061,6 +2092,11 @@ func _raid_end(timeout: bool) -> void:
 	else:
 		Sfx.play("sad", -4.0)
 	Music.duck(-10.0, 0.6, 2.0)
+	if _raid_hud_panel:   # the boss bar takes its bow first
+		_raid_hud_panel.outro()
+		_shot_later(0.1, "raid_outro_a")
+		_shot_later(0.6, "raid_outro_b")
+		await _raid_hud_panel.outro_done
 	_raid_result(res, bars, timeout)
 	_shot_later(1.2, "raid_result")
 	if autoplay:

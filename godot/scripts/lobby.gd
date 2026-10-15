@@ -3,7 +3,7 @@ extends Node3D
 ## the expedition card (pick a chapter: one region of the march, beat its mid-boss to open the next),
 ## the endless march card, the [장비] screen (GearScreen: permanent gear, storage merges, slot levels) and the
 ## [유물] screen (RelicScreen: the relic collection, the worn relic slots, ★ merges), and the daily pair:
-## [토벌] (RaidScreen: the daily boss raid against the region bosses), [탤런트] (TalentScreen: gold talents, the gold sink), [모닥불] (CampScreen: idle rewards piling up at the campfire on the diorama) and [출석] (AttendScreen: the
+## [미션] (MissionScreen: daily / weekly missions and the activity boxes), [토벌] (RaidScreen: the daily boss raid against the region bosses), [탤런트] (TalentScreen: gold talents, the gold sink), [모닥불] (CampScreen: idle rewards piling up at the campfire on the diorama) and [출석] (AttendScreen: the
 ## repeating 7-day attendance, opened by itself on the first lobby visit of a day with an unclaimed day).
 ## (The classic 6x8 board mode was retired from the lobby.)
 ## Dev: --mode=march jumps straight in; --autoplay / --test=... default to march.
@@ -19,6 +19,7 @@ var _trio: Array = []
 var _t := 0.0
 var _leaving := false
 var _settings: Control      # 설정 창(열려 있을 때만)
+var _debug_dirty := false   # 디버그 버튼이 저장을 바꿨다: 설정을 닫을 때 로비를 다시 그린다
 var _gear: GearScreen       # 장비 창(열려 있을 때만)
 var _relic: RelicScreen     # 유물 창(열려 있을 때만)
 var _daily: GearScreen      # 모닥불·출석·탤런트 창(열려 있을 때만)
@@ -133,6 +134,27 @@ func _ready() -> void:
 			await _dev_shot(shots, "talent_land")
 			_daily.get_parent().queue_free()
 			_daily = null
+		if Array(OS.get_cmdline_user_args()).has("--open=mission"):   # dev: the mission screen (daily, then weekly)
+			for i in 3:
+				Meta.track(["run_start", "camp", "talent"][i])
+			Meta.track("group_clear", 8)
+			Meta.claim_mission("run")
+			_open_mission()
+			await _dev_shot(shots, "mission_daily")
+			_daily.weekly = true
+			_daily._rebuild()
+			await _dev_shot(shots, "mission_weekly")
+			_daily.get_parent().queue_free()
+			_daily = null
+		if Array(OS.get_cmdline_user_args()).has("--open=settings"):   # dev: the settings panel with the debug menu
+			Meta.raid_used = Meta.RAID_TRIES
+			Meta.raid_day = Time.get_date_string_from_system()
+			_open_settings()
+			await _dev_shot(shots, "settings")
+			var dbg: Button = _settings.find_children("*", "Button", true, false).filter(func(x): return x.text.begins_with("토벌"))[0]
+			dbg.pressed.emit()
+			print("[Debug] raid tickets after press: ", Meta.raid_left())
+			await _dev_shot(shots, "settings_after")
 		if Array(OS.get_cmdline_user_args()).has("--open=raid"):   # dev: the boss raid screen
 			_open_raid()
 			await _dev_shot(shots, "raid")
@@ -207,6 +229,8 @@ func _go(mode: String, expedition := false, raid := "") -> void:
 		return
 	Meta.expedition = expedition
 	Meta.raid = raid
+	if raid == "":
+		Meta.track("run_start")   # daily mission: 원정 또는 행군 출발
 	_leaving = true
 	Sfx.play("chime", -6.0, 1.2)
 	var fade := ColorRect.new()
@@ -319,6 +343,7 @@ func _build_ui() -> void:
 	_attend_button()
 	_talent_button()
 	_raid_button()
+	_mission_button()
 	_expedition_card()
 	_mode_card("march", "끝없는 행군", "1무리부터 끝없이 전진! 최고 기록에 도전", Color("4cb860"), -246, false)
 	var hint := _label("Esc: 종료", 22, Color(1, 1, 1, 0.8), 6)
@@ -378,7 +403,7 @@ func _open_settings() -> void:
 	dim.create_tween().tween_property(dim, "color:a", 0.6, 0.2)
 	_settings = dim
 
-	var sz := Vector2(600, 600)
+	var sz := Vector2(600, 790)   # volume sliders, then the debug section
 	var card := Panel.new()
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	card.add_theme_stylebox_override("panel", UiTheme.night_card() if tt else _box(Color("5a57c8"), 30, 6))
@@ -416,6 +441,8 @@ func _open_settings() -> void:
 		s.drag_ended.connect(func(_changed: bool): Music.save_volumes())
 		y += 130.0
 
+	_debug_section(card, sz, y)
+
 	var close := Button.new()
 	close.focus_mode = Control.FOCUS_NONE
 	close.text = "닫기"
@@ -428,9 +455,51 @@ func _open_settings() -> void:
 	close.pressed.connect(_close_settings)
 	_pop(card, 0.0)
 
+## 디버그: test shortcuts for playtesting (they change the real save).
+func _debug_section(card: Control, sz: Vector2, y: float) -> void:
+	var tt := UiTheme.tt()
+	var line := ColorRect.new()
+	line.color = Color(1, 1, 1, 0.18)
+	line.position = Vector2(40, y + 4)
+	line.size = Vector2(sz.x - 80, 3)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(line)
+	var t := _label("디버그", 30, UiTheme.TXT_YELLOW if tt else Color("ffd23f"), 8)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	t.position = Vector2(56, y + 16)
+	t.size = Vector2(300, 44)
+	card.add_child(t)
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_override("font", font)
+	b.add_theme_font_size_override("font_size", 26)
+	_skin_button(b, UiTheme.RED, Color("ff5f6a"), 18, 22)
+	_text_color(b, Color.WHITE)
+	b.add_theme_color_override("font_outline_color", INK)
+	b.add_theme_constant_override("outline_size", 7)
+	b.position = Vector2(56, y + 66)
+	b.size = Vector2(sz.x - 112, 64)
+	card.add_child(b)
+	var refresh := func(): b.text = "토벌 티켓 충전  (남은 도전 %d/%d)" % [Meta.raid_left(), Meta.RAID_TRIES]
+	refresh.call()
+	b.pressed.connect(func():
+		Meta.raid_day = Time.get_date_string_from_system()
+		Meta.raid_used = 0
+		Meta.save()
+		_debug_dirty = true
+		Sfx.play("chime", -6.0, 1.3)
+		refresh.call()
+		_press_tween(b).tween_property(b, "scale", Vector2(1.06, 1.06), 0.06)
+		_press_tween(b).tween_property(b, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT))
+	b.pivot_offset = b.size * 0.5
+
 func _close_settings() -> void:
 	if _settings == null:
 		return
+	if _debug_dirty:   # badges / counts on the lobby read the save again
+		_debug_dirty = false
+		_leaving = true
+		get_tree().reload_current_scene.call_deferred()
 	Music.save_volumes()
 	Sfx.play("click", -6.0)
 	var dim := _settings
@@ -723,31 +792,35 @@ func _open_gear() -> void:
 ## when something is waiting (a pile worth an hour or more / a full fire; an unclaimed attendance day).
 func _camp_button() -> void:
 	var m := Meta.camp_minutes()
-	_side_button("모닥불", UiTheme.ORANGE, Color("ff9f1c"), 0.0, "가득!" if Meta.camp_full() else ("받기!" if m >= 60 else ""), _open_camp, CampScreen.FireIcon.new(), 322.0)
+	_side_button("모닥불", UiTheme.ORANGE, Color("ff9f1c"), 0.0, "가득!" if Meta.camp_full() else ("받기!" if m >= 60 else ""), _open_camp, CampScreen.FireIcon.new(), SIDE_Y[0])
 
 func _attend_button() -> void:
 	var cal := CalendarIcon.new()
 	cal.day = Meta.att_day + 1 if Meta.can_attend() else (Meta.att_day if Meta.att_day > 0 else 7)
-	_side_button("출석", UiTheme.GREEN, Color("27c6b0"), 1.0, "받기!" if Meta.can_attend() else "", _open_attend, cal, 322.0)
+	_side_button("출석", UiTheme.GREEN, Color("27c6b0"), 1.0, "받기!" if Meta.can_attend() else "", _open_attend, cal, SIDE_Y[0])
 
 ## [탤런트]: under [모닥불]; badged while the next level is affordable.
 func _talent_button() -> void:
-	_side_button("탤런트", UiTheme.NAVY, Color("6f6cf0"), 0.0, "강화!" if Meta.can_gold_talent() == "" else "", _open_talent, Hud.CoinIcon.new(), 470.0)
+	_side_button("탤런트", UiTheme.NAVY, Color("6f6cf0"), 0.0, "강화!" if Meta.can_gold_talent() == "" else "", _open_talent, Hud.CoinIcon.new(), SIDE_Y[1])
+
+## Side buttons: three per side between the currency pills and the 장비 / 유물 row.
+const SIDE_SZ := Vector2(116, 98)
+const SIDE_Y := [318.0, 424.0, 530.0]
 
 func _side_button(text: String, tt_col: Color, classic_col: Color, side: float, badge_t: String, on_press: Callable, icon: Control, y: float) -> void:
-	var sz := Vector2(132, 132)
+	var sz := SIDE_SZ
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	_skin_button(b, tt_col, classic_col, 22, 26)
 	var x := 16.0 if side == 0.0 else -16.0 - sz.x
 	root.add_child(_place(b, Vector2(side, 0), Vector2(x, y), sz))
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.position = Vector2(26, 6)
-	icon.size = Vector2(80, 80)
+	icon.position = Vector2((sz.x - 60) * 0.5, 3)
+	icon.size = Vector2(60, 60)
 	b.add_child(icon)
-	var l := _label(text, 28, Color.WHITE, 8)
-	l.position = Vector2(0, 82)
-	l.size = Vector2(sz.x, 40)
+	var l := _label(text, 24, Color.WHITE, 7)
+	l.position = Vector2(0, 62)
+	l.size = Vector2(sz.x, 34)
 	b.add_child(l)
 	if badge_t != "":
 		var badge := _panel(UiTheme.RED, Vector2(96, 38), 19, 3)
@@ -788,7 +861,7 @@ func _open_camp() -> void:
 ## [토벌]: right side under [출석]; badged while today's tries remain.
 func _raid_button() -> void:
 	var ic := ItemIcon.new(Inventory.make("equip", "axe4"))
-	_side_button("토벌", UiTheme.RED, Color("ff5f6a"), 1.0, "도전!" if Meta.raid_left() > 0 else "", _open_raid, ic, 470.0)
+	_side_button("토벌", UiTheme.RED, Color("ff5f6a"), 1.0, "도전!" if Meta.raid_left() > 0 else "", _open_raid, ic, SIDE_Y[1])
 
 func _open_raid() -> void:
 	if _leaving or _gear or _relic or _daily or _settings:
@@ -802,6 +875,26 @@ func _open_raid() -> void:
 		layer.queue_free()
 		_go("march", false, key))
 	_open_daily(scr)
+
+## [미션]: right side, third row; badged while something can be collected.
+func _mission_button() -> void:
+	_side_button("미션", Color("4aa8ff"), Color("4aa8ff"), 1.0, "받기!" if Meta.missions_ready() > 0 else "", _open_mission, ClipboardIcon.new(), SIDE_Y[2])
+
+func _open_mission() -> void:
+	_open_daily(MissionScreen.new())
+
+## Clipboard with ticked lines (the mission list).
+class ClipboardIcon extends Control:
+	func _draw() -> void:
+		var ink := UiTheme.ink()
+		var r := Rect2(size.x * 0.18, size.y * 0.14, size.x * 0.64, size.y * 0.8)
+		draw_rect(r.grow(3), ink)
+		draw_rect(r, Color("f4ead2"))
+		draw_rect(Rect2(r.position.x + r.size.x * 0.28, r.position.y - 6, r.size.x * 0.44, 10), Color("8a5a34"))   # clip
+		for i in 3:
+			var y := r.position.y + r.size.y * (0.28 + i * 0.24)
+			draw_polyline(PackedVector2Array([Vector2(r.position.x + 7, y), Vector2(r.position.x + 11, y + 4), Vector2(r.position.x + 18, y - 4)]), Color("3aa84a"), 3.0)
+			draw_line(Vector2(r.position.x + 23, y), Vector2(r.end.x - 6, y), Color("8a86a8"), 3.0)
 
 func _open_talent() -> void:
 	_open_daily(TalentScreen.new())
