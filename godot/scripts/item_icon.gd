@@ -36,7 +36,7 @@ static func icon_id(e: Dictionary) -> String:
 		"relic", "special":
 			return e["key"]
 		"skillbook":
-			return ""   # drawn: the cover takes the book's grade colour (the catalog art is a locked book)
+			return "skillbook%d" % Inventory.book_grade(e)   # one painted cover per book grade
 	return ""
 
 static func texture_for(e: Dictionary) -> Texture2D:

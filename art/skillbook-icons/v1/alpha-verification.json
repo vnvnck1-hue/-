@@ -1,0 +1,58 @@
+﻿[
+    {
+        "filename":  "skillbook1.png",
+        "width":  1254,
+        "height":  1254,
+        "pixelFormat":  "Format32bppArgb",
+        "hasAlpha":  true,
+        "cornerAlpha":  [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+        "passed":  true
+    },
+    {
+        "filename":  "skillbook2.png",
+        "width":  1254,
+        "height":  1254,
+        "pixelFormat":  "Format32bppArgb",
+        "hasAlpha":  true,
+        "cornerAlpha":  [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+        "passed":  true
+    },
+    {
+        "filename":  "skillbook3.png",
+        "width":  1254,
+        "height":  1254,
+        "pixelFormat":  "Format32bppArgb",
+        "hasAlpha":  true,
+        "cornerAlpha":  [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+        "passed":  true
+    },
+    {
+        "filename":  "skillbook4.png",
+        "width":  1254,
+        "height":  1254,
+        "pixelFormat":  "Format32bppArgb",
+        "hasAlpha":  true,
+        "cornerAlpha":  [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+        "passed":  true
+    }
+]

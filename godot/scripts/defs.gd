@@ -251,8 +251,8 @@ const ACTIVE_SKILLS := {
 const ULTIMATES := {
 	"warrior": {"name": "충격파", "desc": "모든 적에게 큰 피해를 주고 밀어내며 기절시킵니다.", "type": "shockwave",
 		"mult": 2.0, "stun": 1000, "cooldown": 8500},
-	"ranger": {"name": "집중 포화", "desc": "조준한 방향의 부채꼴에 2초간 화살비를 퍼붓습니다.", "type": "cone",
-		"length": 6.4, "angle": PI / 7.0, "tick_mult": 0.6, "tick": 250, "channel": 2000, "cooldown": 7000},
+	"ranger": {"name": "집중 포화", "desc": "조준한 방향의 부채꼴에 1초간 화살을 난사해 적마다 7회 공격합니다.", "type": "cone",
+		"length": 6.4, "angle": PI / 7.0, "tick_mult": 0.7, "hits": 7, "channel": 1000, "cooldown": 7000},
 	"mage": {"name": "체인 라이트닝", "desc": "적 사이를 튕기는 번개를 날립니다.", "type": "chain",
 		"bounces": 5, "mult": 1.45, "cooldown": 10000},
 }

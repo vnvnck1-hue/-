@@ -981,7 +981,7 @@ func _roll_drops(e: Actor, pf: Dictionary) -> void:
 	var jit := func() -> Vector3: return at + Vector3(randf_range(-0.35, 0.35), 0, randf_range(-0.35, 0.35))
 	var role := Defs.role(e.kind)
 	if e.kind != "hydra":
-		if randf() < BOOK_DROP.get(role, 0.07) + Stats.g(pf, "dropBonus") * 0.5:
+		if randf() < (BOOK_DROP.get(role, 0.07) + Stats.g(pf, "dropBonus") * 0.5) * BOOK_DROP_SCALE:
 			_give(Inventory.make_skillbook(roll_book_grade(role == "boss" or role == "giant")), jit.call())
 		if randf() < STONE_DROP.get(role, 0.3):
 			_give(Inventory.make_stone(stone_amount(role)), jit.call())
@@ -1002,6 +1002,7 @@ func _roll_drops(e: Actor, pf: Dictionary) -> void:
 const GIANT_DROPS := 1
 const GEAR_DROP_SCALE := 0.12
 ## Per-kill skill book / 강화석 chances by enemy role.
+const BOOK_DROP_SCALE := 0.2   # book drops cut to 20% (incl. giant / dropBonus share)
 const BOOK_DROP := {"minion": 0.06, "fast": 0.07, "tank": 0.09, "boss": 0.30, "giant": 1.0}
 const STONE_DROP := {"minion": 0.28, "fast": 0.3, "tank": 0.4, "boss": 0.8, "giant": 1.0}
 ## Book grade odds (일반, 희귀, 영웅, 전설) at the start of the march and how far they shift per region.

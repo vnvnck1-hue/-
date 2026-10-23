@@ -377,6 +377,9 @@ static func cast_ultimate(game: Node, h: Actor, aim: Vector3) -> void:
 				var e: Actor = path[i]
 				var from := prev
 				prev = e.global_position + Vector3(0, 0.5, 0)
+				if i == path.size() - 1:
+					game.after(i * 0.1 + SKY_STRIKE_BEAT, func(): _sky_strike(game, h, e, ult_dmg))
+					continue
 				game.after(i * 0.1, func():
 					if not is_instance_valid(e) or not is_instance_valid(game):
 						return
@@ -393,28 +396,99 @@ static func cast_ultimate(game: Node, h: Actor, aim: Vector3) -> void:
 		"cone":
 			_cone_barrage(game, h, aim, u, maxf(1.0, floorf(ap * u["tick_mult"])))
 
-static func _cone_barrage(game: Node, h: Actor, aim: Vector3, u: Dictionary, tick_dmg: float) -> void:
+const SKY_STRIKE_BEAT := 0.08   # extra pause before the finishing bolt, so it lands as its own beat
+const SHOCK_TIME := 1.0         # s the finishing bolt electrocutes (stuns) its target
+
+## Chain lightning finisher: the last enemy in the chain is struck by a bolt from the sky under a
+## split-second blackout, then electrocuted (stunned SHOCK_TIME s, blinking blue, shuddering, arcs crawling).
+static func _sky_strike(game: Node, h: Actor, e: Actor, dmg: float) -> void:
+	if not is_instance_valid(e) or not is_instance_valid(game) or not e.alive:
+		return
+	game.world.strike_blackout(Vfx.STRIKE_HIT + 0.16)
+	Vfx.sky_strike(e.global_position)
+	Sfx.play("whoosh", -8.0, 2.4)
+	game.after(Vfx.STRIKE_HIT, func():   # the stroke reaches the ground: the hit
+		if not is_instance_valid(game):
+			return
+		game.cam.hitstop(0.04)
+		Sfx.play("boom", -2.0, 1.5)
+		Sfx.play("thud", -4.0, 2.2)
+		if not is_instance_valid(h) or not is_instance_valid(e) or not e.alive:
+			return
+		Combat.skill_damage(game, h, e, dmg)
+		if e.alive and not Combat.is_immune(game, e):
+			e.stun_until = maxf(e.stun_until, game.now + SHOCK_TIME)
+			e.model.electrocute(SHOCK_TIME)
+			var s: float = e.model.scale.y   # arcs hug the body whatever its size
+			Vfx.shock_arcs(e, SHOCK_TIME, 0.32 * s, 0.4 * s))
+
+const BARRAGE_STEP := 0.05    # s between barrage updates (new targets, filler arrows, bow anims)
+const BARRAGE_FLIGHT := 0.12   # s an ultimate arrow is in the air
+const BARRAGE_SPRAY := 3       # filler arrows sprayed across the fan per step
+const BARRAGE_JOIN := 0.6      # share of the channel during which enemies walking into the fan join the volley
+
+## Ranger ultimate: a 1 s machine-gun spray of blue arrows over the fan. Every enemy inside takes `hits`
+## arrows on its own random tempo (enemies walking in early on get theirs packed into the time left),
+## while filler arrows scatter over the rest of the fan.
+static func _cone_barrage(game: Node, h: Actor, aim: Vector3, u: Dictionary, hit_dmg: float) -> void:
 	h.busy = true
 	var origin := h.global_position
 	var yaw := _aim_yaw(origin, aim)
 	h.model.rotation.y = yaw
-	var cone := Vfx.cone_mesh(u["length"], u["angle"] * 0.5, Color(1.6, 1.2, 0.4, 0.3))
+	# dark navy at the ranger shading to a lighter blue outward, the rim fading out: the glowing arrows pop on it
+	var cone := Vfx.cone_gradient_mesh(u["length"], u["angle"] * 0.5, Color(0.0, 0.01, 0.05, 0.95), Color(0.05, 0.16, 0.5, 0.8), 0.65)
 	Vfx.root.add_child(cone)
 	cone.global_position = origin + Vector3(0, 0.04, 0)
 	cone.rotation.y = yaw
-	var ticks := int(u["channel"] / u["tick"])
-	for i in ticks:
-		await h.get_tree().create_timer(u["tick"] / 1000.0, false).timeout
+	var bow := origin + Vector3(0, 0.75, 0)
+	var dur: float = u["channel"] / 1000.0
+	var volleyed := {}
+	var t := 0.0
+	var step := 0
+	while t < dur:
 		if not is_instance_valid(h) or not h.alive or not game.in_battle():
 			break
-		h.model.play_attack("arrow")
-		Sfx.play("whoosh", -10.0, 1.6)
-		for e in cone_targets(game, origin, aim):
-			Vfx.arrow_rain(e.global_position)
-			Combat.skill_damage(game, h, e, tick_dmg)
+		if t <= dur * BARRAGE_JOIN:
+			for e in cone_targets(game, origin, aim):
+				if not volleyed.has(e):
+					volleyed[e] = true
+					_volley(game, h, e, bow, hit_dmg, u["hits"], dur - t - BARRAGE_FLIGHT)
+		for i in BARRAGE_SPRAY:
+			var a: float = yaw + PI + randf_range(-0.5, 0.5) * u["angle"]   # yaw faces -Z: the fan opens along yaw + PI
+			var d: float = randf_range(1.0, u["length"])
+			Vfx.ult_arrow(_bow_jitter(bow), null, origin + Vector3(sin(a), 0, cos(a)) * d, BARRAGE_FLIGHT * randf_range(0.8, 1.3))
+		if step % 2 == 0:
+			h.model.play_attack("arrow")
+			Sfx.play("whoosh", -12.0, randf_range(1.7, 2.1))
+		step += 1
+		await h.get_tree().create_timer(BARRAGE_STEP, false).timeout
+		t += BARRAGE_STEP
 	if is_instance_valid(cone):
 		var tw := cone.create_tween()
 		tw.tween_property(cone.material_override, "albedo_color:a", 0.0, 0.25)
 		tw.tween_callback(cone.queue_free)
 	if is_instance_valid(h):
 		h.busy = false
+
+## `n` arrows at one enemy, launched within `window` s on an irregular tempo of its own (random gaps), so
+## enemies in the fan are struck out of step with each other. Damage lands on impact.
+static func _volley(game: Node, h: Actor, e: Actor, bow: Vector3, dmg: float, n: int, window: float) -> void:
+	var gaps := []
+	var total := 0.0
+	for i in n + 1:
+		gaps.append(randf_range(0.25, 1.75))
+		total += gaps[i]
+	var at := 0.0
+	for i in n:
+		at += gaps[i]
+		game.after(maxf(0.0, window) * at / total, func():
+			if not is_instance_valid(e) or not e.alive:
+				return
+			Vfx.ult_arrow(_bow_jitter(bow), e, Vector3.ZERO, BARRAGE_FLIGHT, func():
+				if is_instance_valid(h) and is_instance_valid(e) and e.alive and is_instance_valid(game) and game.in_battle():
+					Combat.skill_damage(game, h, e, dmg)
+					Sfx.play("thud", -16.0, randf_range(1.8, 2.4))))
+
+## Arrows leave from a little spread around the bow, so the spray reads as many shafts, not one stream.
+static func _bow_jitter(bow: Vector3) -> Vector3:
+	return bow + Vector3(randf_range(-0.25, 0.25), randf_range(-0.1, 0.15), randf_range(-0.25, 0.25))

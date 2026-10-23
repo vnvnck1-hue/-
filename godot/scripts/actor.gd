@@ -192,7 +192,7 @@ func _process(delta: float) -> void:
 	if stunned and stun_fx == null:
 		_make_stun_fx()
 	if stun_fx:
-		stun_fx.visible = stunned
+		stun_fx.visible = stunned and not model.is_shocked()   # the electrocution shudder already says it
 		stun_fx.rotation.y += delta * 6.0
 		stun_fx.position.y = (1.05 * model.scale.y / MODEL_SCALE) + 0.25
 

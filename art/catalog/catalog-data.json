@@ -950,7 +950,6 @@
       "effects": [
         "sharedMana"
       ],
-      "desc": "아군 공격 시 마나를 함께 얻습니다.",
       "group": "unique",
       "grade": "고유",
       "image": "../special-icons/v1-complete/resonanceOrb.png"
@@ -966,7 +965,6 @@
       "effects": [
         "killMana"
       ],
-      "desc": "적 처치 시 마나가 가득 찹니다.",
       "group": "unique",
       "grade": "고유",
       "image": "../special-icons/v1-complete/soulReaper.png"
@@ -982,7 +980,6 @@
       "effects": [
         "knockback"
       ],
-      "desc": "공격이 적을 밀어냅니다.",
       "group": "unique",
       "grade": "고유",
       "image": "../special-icons/v1-complete/stormFist.png"
@@ -999,7 +996,6 @@
       "effects": [
         "swap"
       ],
-      "desc": "공격한 적과 위치를 바꿉니다.",
       "group": "unique",
       "grade": "고유",
       "image": "../special-icons/v1-complete/dimensionMirror.png"
@@ -1016,7 +1012,6 @@
       "effects": [
         "lightning"
       ],
-      "desc": "3번째 공격마다 번개가 튑니다.",
       "group": "unique",
       "grade": "고유",
       "image": "../special-icons/v1-complete/thunderHeart.png"
@@ -1134,7 +1129,6 @@
         "critChance": 0.2,
         "dmgReduce": 0.2
       },
-      "desc": "모든 능력치가 크게 오르는 왕관",
       "group": "unique",
       "grade": "고유",
       "image": "../special-icons/v1-complete/crown.png"
@@ -1465,15 +1459,6 @@
       "image": "../special-icons/v1-complete/fullHeal.png"
     },
     {
-      "id": "skillPoint",
-      "name": "지혜의 서",
-      "price": 600,
-      "desc": "모든 아군 스킬 포인트 +1",
-      "group": "consumable",
-      "grade": "소모품",
-      "image": "../special-icons/v1-complete/skillPoint.png"
-    },
-    {
       "id": "massKill",
       "name": "심판의 번개",
       "price": 800,
@@ -1498,6 +1483,38 @@
       "group": "book",
       "grade": "공통 템플릿",
       "image": "../special-icons/v1-complete/skillbook.png"
+    },
+    {
+      "id": "skillbook1",
+      "name": "일반 스킬북",
+      "desc": "등급별 스킬북. 열면 해당 등급 이하의 스킬 중에서 고릅니다.",
+      "group": "book",
+      "grade": "일반",
+      "image": "../skillbook-icons/v1/skillbook1.png"
+    },
+    {
+      "id": "skillbook2",
+      "name": "희귀 스킬북",
+      "desc": "등급별 스킬북. 열면 해당 등급 이하의 스킬 중에서 고릅니다.",
+      "group": "book",
+      "grade": "희귀",
+      "image": "../skillbook-icons/v1/skillbook2.png"
+    },
+    {
+      "id": "skillbook3",
+      "name": "영웅 스킬북",
+      "desc": "등급별 스킬북. 열면 해당 등급 이하의 스킬 중에서 고릅니다.",
+      "group": "book",
+      "grade": "영웅",
+      "image": "../skillbook-icons/v1/skillbook3.png"
+    },
+    {
+      "id": "skillbook4",
+      "name": "전설 스킬북",
+      "desc": "등급별 스킬북. 열면 해당 등급 이하의 스킬 중에서 고릅니다.",
+      "group": "book",
+      "grade": "전설",
+      "image": "../skillbook-icons/v1/skillbook4.png"
     }
   ]
 }

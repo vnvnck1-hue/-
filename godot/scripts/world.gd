@@ -24,6 +24,8 @@ var fill: DirectionalLight3D
 var dim_cine := 0.0    # ultimate cinematics
 var dim_focus := 0.0   # hover / drag focus on a hero (lighter)
 var dim_drag := 0.0    # gear drag stage (ultimate-like dark stage around the heroes)
+var dim_strike := 0.0  # split-second blackout under a lightning strike
+var _strike_tw: Tween
 
 func set_cine_dim(v: float) -> void:
 	dim_cine = v
@@ -37,8 +39,27 @@ func set_drag_dim(v: float) -> void:
 	dim_drag = v
 	_apply_dims()
 
+func set_strike_dim(v: float) -> void:
+	dim_strike = v
+	_apply_dims()
+
+## Snap the stage almost black for a blink (the bolt is unshaded, so it blazes on the dark), then let it back.
+func strike_blackout(hold := 0.2, fade := 0.3) -> void:
+	if _strike_tw and _strike_tw.is_valid():
+		_strike_tw.kill()
+	_strike_tw = create_tween()
+	_strike_tw.tween_method(set_strike_dim, dim_strike, 1.0, 0.03)
+	_strike_tw.tween_interval(hold)
+	_strike_tw.tween_method(set_strike_dim, 1.0, 0.0, fade).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
 func _apply_dims() -> void:
-	set_dim(maxf(maxf(dim_cine, dim_focus), dim_drag))
+	set_dim(maxf(maxf(maxf(dim_cine, dim_focus), dim_drag), dim_strike))
+	if dim_strike > 0.0:   # a strike goes past the dark stage to near black (unshaded bolt keeps blazing)
+		var k := 1.0 - 0.92 * dim_strike
+		sun.light_energy *= k
+		fill.light_energy *= k
+		env.ambient_light_energy *= k
+		env.background_color = env.background_color.lerp(Color("03030a"), dim_strike)
 
 ## Stage dimming: 0 = normal daylight, 1 = dark stage (unshaded VFX stay bright).
 func set_dim(k: float) -> void:

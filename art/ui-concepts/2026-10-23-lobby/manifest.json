@@ -1,0 +1,33 @@
+{
+  "created": "2026-10-23",
+  "generator": "built-in image_gen",
+  "artifacts": [
+    {
+      "name": "a-toy-camp.png",
+      "source": "exec-135a1258-3ba3-4624-a894-b2c05debc03f.png",
+      "width": 941,
+      "height": 1672,
+      "bytes": 1915241,
+      "sha256": "a42602d5acf80d826fc2ac5fe6f55d0584380e55cb1d6d5a96c36b8677547ecc",
+      "matchesGeneratedOutput": true
+    },
+    {
+      "name": "b-chapter-road.png",
+      "source": "exec-31b8e928-3f51-448c-bf70-96791d4501a4.png",
+      "width": 941,
+      "height": 1672,
+      "bytes": 1946584,
+      "sha256": "5b9a0ae1199726cc0da43895a1b4f9db1a45d4388e4d57b96fe679241ee686a3",
+      "matchesGeneratedOutput": true
+    },
+    {
+      "name": "c-party-deck.png",
+      "source": "exec-9354a5d8-70b2-4424-9955-e4c9bb9f04da.png",
+      "width": 941,
+      "height": 1672,
+      "bytes": 1681912,
+      "sha256": "e9ebfed7709de841a05866b8d992a6f1074c6551295499c64840e10b3b3848a3",
+      "matchesGeneratedOutput": true
+    }
+  ]
+}

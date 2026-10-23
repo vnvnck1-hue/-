@@ -1,22 +1,19 @@
 extends Node3D
-## Lobby: a slowly turning toy diorama (the trio + a teaser of both March themes), the banked currencies,
-## the expedition card (pick a chapter: one region of the march, beat its mid-boss to open the next),
-## the endless march card, the [장비] screen (GearScreen: permanent gear, storage merges, slot levels) and the
-## [유물] screen (RelicScreen: the relic collection, the worn relic slots, ★ merges), and the daily pair:
-## [미션] (MissionScreen: daily / weekly missions and the activity boxes), [토벌] (RaidScreen: the daily boss raid against the region bosses), [탤런트] (TalentScreen: gold talents, the gold sink), [모닥불] (CampScreen: idle rewards piling up at the campfire on the diorama) and [출석] (AttendScreen: the
-## repeating 7-day attendance, opened by itself on the first lobby visit of a day with an unclaimed day).
-## (The classic 6x8 board mode was retired from the lobby.)
-## Dev: --mode=march jumps straight in; --autoplay / --test=... default to march.
+## Lobby: the toy camp. LobbyCampStage draws the trio resting at the campfire with the reward chest; LobbyView is the
+## 2D layer (currencies, settings, 미션 / 출석, the 보상 받기 pill, the expedition sheet and the bottom navigation).
+## This script owns the data and the flow: it hands the view a snapshot of Meta, and opens the existing screens —
+## [장비] (GearScreen), [유물] (RelicScreen), [도전] (RaidScreen: the daily boss raid), [성장] (TalentScreen: gold
+## talents), the chest (CampScreen: idle rewards), [미션] (MissionScreen) and [출석] (AttendScreen, opened by itself on
+## the first lobby visit of a day with an unclaimed day) — then reloads itself quietly when one closes.
+## Dev: --mode=march jumps straight in; --autoplay / --test=... default to march; --shots=<dir> captures.
 
 var INK: Color = UiTheme.ink()
 const SCENES := {"march": "res://scenes/March.tscn"}
 
-var font: Font
+var font: Font              # the existing screens' font (they keep their own look)
 var root: Control
-var stage: Node3D
-var cam3d: Camera3D
-var _trio: Array = []
-var _t := 0.0
+var stage: LobbyCampStage
+var view: LobbyView
 var _leaving := false
 var _settings: Control      # 설정 창(열려 있을 때만)
 var _debug_dirty := false   # 디버그 버튼이 저장을 바꿨다: 설정을 닫을 때 로비를 다시 그린다
@@ -25,12 +22,11 @@ var _relic: RelicScreen     # 유물 창(열려 있을 때만)
 var _daily: GearScreen      # 모닥불·출석·탤런트 창(열려 있을 때만)
 static var _attend_shown := false   # 출석 창 자동 열기는 실행당 한 번(닫고 돌아올 때마다 다시 뜨지 않게)
 ## The lobby reloads itself after one of its own screens closes (currencies / badges / stage refresh) — that
-## reload must not replay the buttons' entrance pop. Set right before such a reload, consumed by the next _ready.
+## reload must not replay the entrance. Set right before such a reload, consumed by the next _ready.
 static var _quiet_reload := false
-var _quiet := false         # building the UI without the entrance pop (this lobby came from _quiet_reload)
-var _chapter_l: Label
-var _chapter_s: Label
+var _quiet := false         # building the UI without the entrance (this lobby came from _quiet_reload)
 var _preview_ms := 0        # 효과음 미리듣기 간격 제한
+var _camp_tick := 0.0       # idle-reward state re-read about once a second
 
 func _ready() -> void:
 	var mode := ""
@@ -57,15 +53,8 @@ func _ready() -> void:
 	_quiet = _quiet_reload
 	_quiet_reload = false
 	_build_ui()
+	view.enter(_quiet)
 	_quiet = false
-	var ch := Chatter.new()   # the trio chats on the diorama too
-	ch.cam = cam3d
-	ch.font = font
-	ch.provider = func() -> Array:
-		return _trio.map(func(m: UnitModel) -> Dictionary:
-			return {"n": m, "key": m.kind, "ctx": "lobby", "h": 1.05 * m.scale.y / Actor.MODEL_SCALE + 0.15})
-	root.add_child(ch)
-	root.move_child(ch, 0)
 	if shots == "" and not _attend_shown and Meta.can_attend():
 		_attend_shown = true
 		get_tree().create_timer(0.7).timeout.connect(_open_attend)
@@ -73,6 +62,8 @@ func _ready() -> void:
 		await get_tree().create_timer(1.6).timeout
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png(shots + "/lobby.png")
+		if Array(OS.get_cmdline_user_args()).has("--lobby-states"):   # dev: display edge cases (test save, never saved)
+			await _dev_lobby_states(shots)
 		if Array(OS.get_cmdline_user_args()).has("--open=gear"):   # dev: the gear screen too
 			for i in 6:
 				Meta.storage.append(Inventory.make("equip", ["sword1", "axe1", "shield1", "ring1", "helmet2", "bow2"][i]))
@@ -179,6 +170,39 @@ func _ready() -> void:
 			await _dev_shot(shots, "attend_claimed")
 		Music.quit()
 
+## Dev: huge currencies on the last open chapter (right arrow off), a cleared chapter, an empty campfire pile,
+## the first chapter (left arrow off) and a long chapter name. Only the in-memory test save changes.
+func _dev_lobby_states(shots: String) -> void:
+	var keep := [Meta.gold, Meta.stones, Meta.crystals, Meta.cleared, Meta.chapter, Meta.camp_since]
+	Meta.gold = 123_456_789
+	Meta.stones = 987_654
+	Meta.crystals = 0
+	Meta.cleared = 8
+	Meta.chapter = 8
+	_refresh_view()
+	await _dev_shot(shots, "state_big_last")
+	Meta.chapter = 3
+	Meta.camp_since = Meta._now()
+	_refresh_view()
+	await _dev_shot(shots, "state_cleared_empty")
+	Meta.chapter = 0
+	Meta.gold = 0
+	Meta.stones = 0
+	Meta.camp_since = Meta._now() - 13 * 3600
+	_refresh_view()
+	await _dev_shot(shots, "state_first_full")
+	_camp_tick = -5.0   # keep the periodic refresh off the fake name
+	var long_name := "13. 아주 길고 긴 이름의 얼어붙은 왕국 (3회차)"
+	view.refresh(_snapshot().merged({"chapter": long_name}, true))
+	await _dev_shot(shots, "state_long_name")
+	Meta.gold = keep[0]
+	Meta.stones = keep[1]
+	Meta.crystals = keep[2]
+	Meta.cleared = keep[3]
+	Meta.chapter = keep[4]
+	Meta.camp_since = keep[5]
+	_refresh_view()
+
 func _dev_shot(shots: String, tag: String) -> void:
 	await get_tree().create_timer(0.7).timeout
 	await RenderingServer.frame_post_draw
@@ -209,9 +233,14 @@ func _dev_merge_shots(shots: String, tag: String) -> void:
 		get_viewport().get_texture().get_image().save_png("%s/merge_%s_after.png" % [shots, tag])
 
 func _process(delta: float) -> void:
-	_t += delta
-	if stage:
-		stage.rotation.y = sin(_t * 0.25) * 0.5
+	if view == null:
+		return
+	view.blocked = _leaving or _gear != null or _relic != null or _daily != null or _settings != null
+	view.reward_pos = stage.chest_screen_pos()
+	_camp_tick += delta
+	if _camp_tick >= 1.0:   # the pile grows while we sit here: label / dot follow
+		_camp_tick = 0.0
+		_refresh_view()
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and ev.keycode == KEY_ESCAPE:
@@ -225,7 +254,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		_toggle_preset()
 
 func _go(mode: String, expedition := false, raid := "") -> void:
-	if _leaving or _gear or _relic or _daily:
+	if _leaving or _gear or _relic or _daily or _settings:
 		return
 	Meta.expedition = expedition
 	Meta.raid = raid
@@ -241,53 +270,11 @@ func _go(mode: String, expedition := false, raid := "") -> void:
 	tw.tween_property(fade, "color:a", 1.0, 0.3)
 	tw.tween_callback(func(): get_tree().change_scene_to_file(SCENES[mode]))
 
-# ---------------------------------------------------------------- 3D diorama
+# ---------------------------------------------------------------- 3D camp + 2D view
 func _build_stage() -> void:
-	var w := World.new()
-	add_child(w)
-	w._env()
-	w.env.background_color = Color("8fd0f0")
-	var cam := Camera3D.new()
-	cam.keep_aspect = Camera3D.KEEP_WIDTH
-	cam.fov = 44.0
-	add_child(cam)
-	cam.position = Vector3(0, 4.6, 8.6)
-	cam.look_at(Vector3(0, -1.9, 0), Vector3.UP)
-	cam.current = true
-	cam3d = cam
-	stage = Node3D.new()
+	stage = LobbyCampStage.new()
 	add_child(stage)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 11
-	# meadow half (left) and twilight mine half (right) on one toy island
-	MarchProps._cyl(stage, 2.9, 2.6, 0.7, Color("c7834c"), Vector3(0, -0.36, 0), Vector3.ZERO, 40)
-	MarchProps._cyl(stage, 3.0, 3.0, 0.18, Color("9ad050"), Vector3(0, -0.02, 0), Vector3.ZERO, 40)
-	var mine := Node3D.new()
-	stage.add_child(mine)
-	MarchProps._rb(mine, Vector3(2.4, 0.3, 2.6), Color("4f4874"), Vector3(1.75, 0.0, -0.9), Vector3(0, 0.3, 0), 0.25)
-	MarchProps._rb(mine, Vector3(2.5, 0.12, 2.7), Color("4f7f72"), Vector3(1.75, 0.15, -0.9), Vector3(0, 0.3, 0), 0.3)
-	MarchProps.pine(stage, Vector3(-2.1, 0.06, -1.2), rng, 1.25)
-	MarchProps.blob_bush(stage, Vector3(-2.4, 0.06, 0.4), rng, 0.8, true)
-	MarchProps.cube_tree(stage, Vector3(-1.2, 0.06, -2.0), rng, 0.9)
-	MarchProps.lily(stage, Vector3(-1.6, 0.06, 1.3), rng, 1.3)
-	MarchProps.mushrooms(stage, Vector3(-2.3, 0.06, 1.2), rng, 1.0)
-	MarchProps.daisies(stage, Vector3(-0.6, 0.06, 1.9), rng, 1.0)
-	MarchProps.big_mushroom(stage, Vector3(2.1, 0.2, -1.5), rng, 1.0)
-	MarchProps.lantern(stage, Vector3(1.4, 0.2, 0.1), rng, 1.0, true)
-	MarchProps.crystals(stage, Vector3(2.5, 0.2, -0.2), rng, 1.1)
-	MarchProps.cart(stage, Vector3(1.0, 0.2, -1.9), rng, 0.9)
-	MarchProps.glow_shrooms(stage, Vector3(2.0, 0.2, 0.6), rng, 1.2)
-	MarchProps.campfire(stage, Vector3(0, 0.07, 2.0), Color("8a8478"))   # [모닥불]: the trio rests here between runs
-	var xs := {"warrior": Vector3(-0.85, 0.07, 0.75), "ranger": Vector3(0.0, 0.07, 1.15), "mage": Vector3(0.85, 0.07, 0.75)}
-	for cls in Defs.HERO_ORDER:
-		var m := UnitModel.new().build(cls, Defs.TEAM_HERO)
-		stage.add_child(m)
-		m.position = xs[cls]
-		m.rotation.y = PI
-		m.scale = Vector3.ONE * Defs.HEROES[cls]["scale"] * Actor.MODEL_SCALE
-		_trio.append(m)
 
-# ---------------------------------------------------------------- UI
 func _build_ui() -> void:
 	var latin := SystemFont.new()
 	latin.font_names = PackedStringArray(["Lilita One", "Arial Rounded MT Bold", "Segoe UI Black", "Arial Black"])
@@ -313,79 +300,57 @@ func _build_ui() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root)
+	view = LobbyView.new()
+	root.add_child(view)
+	view.equipment_requested.connect(_open_gear)
+	view.relics_requested.connect(_open_relic)
+	view.camp_requested.connect(func(): Sfx.play("pop", -10.0))   # already home
+	view.reward_requested.connect(_open_camp)
+	view.challenge_requested.connect(_open_raid)
+	view.growth_requested.connect(_open_talent)
+	view.mission_requested.connect(_open_mission)
+	view.attendance_requested.connect(_open_attend)
+	view.settings_requested.connect(_open_settings)
+	view.chapter_step_requested.connect(_pick_chapter)
+	view.expedition_requested.connect(func():
+		Sfx.play("click", -6.0)
+		_go("march", true))
+	view.endless_requested.connect(func():
+		Sfx.play("click", -6.0)
+		_go("march", false))
+	_pick_chapter(0)
 
-	var title := _label("TRIO CHESS", 104, Color("ffd23f"), 20)
-	root.add_child(_place(title, Vector2(0.5, 0), Vector2(-360, 70), Vector2(720, 120)))
-	var sub := _label("트리오 체스", 40, Color.WHITE, 12)
-	root.add_child(_place(sub, Vector2(0.5, 0), Vector2(-360, 180), Vector2(720, 56)))
-	_pop(title, 0.0)
-	_pop(sub, 0.1)
+## What the view shows, read fresh from Meta.
+func _snapshot() -> Dictionary:
+	var c := Meta.chapter
+	var m := Meta.camp_minutes()
+	var pile := Meta.camp_reward(m)
+	var has := pile.values().any(func(v): return int(v) > 0)
+	return {
+		"gold": Meta.gold, "stones": Meta.stones, "crystals": Meta.crystals,
+		"chapter": Meta.chapter_name(c), "first": c <= 0, "last": c >= Meta.cleared,
+		"objective": "클리어 완료" if c < Meta.cleared else "%d무리 돌파" % Regions.PER_REGION,
+		"gear_alert": Meta.merge_ready() > 0,
+		"camp": "full" if Meta.camp_full() else ("ready" if has else ""),
+		"camp_alert": m >= 60 or Meta.camp_full(),
+	}
 
-	# banked currencies: gold, 강화석, time crystals
-	var cur := [[Hud.CoinIcon.new(), Meta.gold, Defs.COL_GOLD], [Hud.StoneIcon.new(), Meta.stones, ItemIcon.STONE_COL], [Hud.GemIcon.new(), Meta.crystals, Defs.COL_CRYSTAL]]
-	for i in cur.size():
-		var pill := _panel(Color(0.1, 0.08, 0.2, 0.5), Vector2(206, 58), 29, 0)
-		pill.add_theme_stylebox_override("panel", UiTheme.capsule(29))
-		root.add_child(_place(pill, Vector2(0.5, 0), Vector2(-327 + i * 224, 246), Vector2(206, 58)))
-		var ic: Control = cur[i][0]
-		ic.position = Vector2(8, 6)
-		ic.size = Vector2(46, 46)
-		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		pill.add_child(ic)
-		var v := _label(str(cur[i][1]), 32, cur[i][2], 8)
-		v.position = Vector2(56, 0)
-		v.size = Vector2(142, 58)
-		pill.add_child(v)
+func _refresh_view() -> void:
+	if view:
+		view.refresh(_snapshot())
 
-	_gear_button()
-	_relic_button()
-	_camp_button()
-	_attend_button()
-	_talent_button()
-	_raid_button()
-	_mission_button()
-	_expedition_card()
-	_mode_card("march", "끝없는 행군", "1무리부터 끝없이 전진! 최고 기록에 도전", Color("4cb860"), -246, false)
-	var hint := _label("Esc: 종료", 22, Color(1, 1, 1, 0.8), 6)
-	root.add_child(_place(hint, Vector2(0.5, 1), Vector2(-200, -40), Vector2(400, 36)))
-	_preset_button()
-	_settings_button()
+func _pick_chapter(step: int) -> void:
+	var c := clampi(Meta.chapter + step, 0, Meta.cleared)
+	if step != 0 and c != Meta.chapter:
+		Sfx.play("click", -6.0, 1.2)
+	Meta.chapter = c
+	if step != 0:
+		Meta.save()
+	_refresh_view()
 
-## UI 프리셋 전환(뚜까펫 ⇄ 클래식). 누르면 저장하고 로비를 다시 지어 바로 비교할 수 있다.
-## 게임 화면(HUD·팝업)은 다음에 모드에 들어갈 때 이 프리셋으로 만들어진다. 단축키 F2.
-func _preset_button() -> void:
-	var sz := Vector2(290, 58)
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	b.text = "UI: %s ⇄ (F2)" % UiTheme.PRESET_NAME[UiTheme.preset]
-	b.add_theme_font_override("font", font)
-	b.add_theme_font_size_override("font_size", 26)
-	_skin_button(b, UiTheme.NAVY, Color("6f6cf0"), 18, 22)
-	_text_color(b, Color.WHITE)
-	b.add_theme_color_override("font_outline_color", INK)
-	b.add_theme_constant_override("outline_size", 8)
-	root.add_child(_place(b, Vector2(0, 0), Vector2(16, 16), sz))
-	b.pressed.connect(_toggle_preset)
-
-## 설정(톱니) 버튼: 크리스탈 알약 왼쪽. 누르면 음량 설정 창.
-func _settings_button() -> void:
-	var tt := UiTheme.tt()
-	var sz := Vector2(64, 58)
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = "설정"
-	_skin_button(b, UiTheme.NAVY, Color("6f6cf0"), 18, 22)
-	root.add_child(_place(b, Vector2(1, 0), Vector2(-216 - 12 - sz.x, 16), sz))
-	var g := GearIcon.new()
-	g.ink = INK
-	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	g.position = Vector2(sz.x * 0.5, sz.y * 0.5 - (4.0 if tt else 0.0))   # 뚜까펫 버튼은 아래 턱만큼 위로
-	b.add_child(g)
-	b.button_down.connect(func(): _press_tween(g).tween_property(g, "rotation", g.rotation + PI / 4.0, 0.25).set_trans(Tween.TRANS_BACK))
-	b.pressed.connect(_open_settings)
-
+# ---------------------------------------------------------------- settings
 func _open_settings() -> void:
-	if _leaving or _settings:
+	if _leaving or _settings or _gear or _relic or _daily:
 		return
 	Sfx.play("click", -6.0)
 	var tt := UiTheme.tt()
@@ -552,20 +517,6 @@ func _knob_tex(c: Color) -> ImageTexture:
 	_knobs[key] = ImageTexture.create_from_image(img)
 	return _knobs[key]
 
-## 톱니바퀴 아이콘(글꼴에 ⚙가 없는 웹 빌드도 있어 직접 그린다). (0,0)이 중심.
-class GearIcon extends Control:
-	var ink := Color.BLACK
-	func _draw() -> void:
-		draw_colored_polygon(_gear(19.0, 14.5), ink)
-		draw_colored_polygon(_gear(16.0, 11.5), Color.WHITE)
-		draw_circle(Vector2.ZERO, 7.5, ink)
-	func _gear(r_out: float, r_in: float) -> PackedVector2Array:
-		var pts := PackedVector2Array()
-		for j in 64:   # 톱니 8개: 8칸 주기 중 앞 4칸이 이빨
-			var r := r_out if j % 8 < 4 else r_in
-			pts.append(Vector2.from_angle(TAU * (j + 0.5) / 64.0) * r)
-		return pts
-
 func _toggle_preset() -> void:
 	if _leaving:
 		return
@@ -574,190 +525,7 @@ func _toggle_preset() -> void:
 	UiTheme.set_preset(UiTheme.next_preset())
 	_reload_quiet()
 
-func _mode_card(mode: String, title: String, desc: String, col: Color, y: float, is_new: bool) -> void:
-	var sz := Vector2(640, 190)
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	var tt := UiTheme.tt()
-	for st in ["normal", "hover", "pressed"]:
-		var c := col if st == "normal" else (col.lightened(0.1) if st == "hover" else col.darkened(0.1))
-		b.add_theme_stylebox_override(st, _ttukka_card(c) if tt else _box(c, 30, 6))
-	root.add_child(_place(b, Vector2(0.5, 1), Vector2(-sz.x * 0.5, y), sz))
-	var t := _label(title, 52, Color.WHITE, 14)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	t.position = Vector2(36, 18)
-	t.size = Vector2(560, 70)
-	b.add_child(t)
-	var d := _label(desc, 25, UiTheme.TXT_DIM if tt else Color("fff8e8"), 0 if tt else 8)
-	d.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	d.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	d.position = Vector2(38, 92)
-	d.size = Vector2(440, 80)
-	if tt:
-		d.size = Vector2(410, 80)
-		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	b.add_child(d)
-	var best := int(Meta.best.get(mode, 0))
-	var unit := "무리"
-	var r := _label("최고 기록\n%s" % ("%s %d" % [unit, best] if best > 0 else "-"), 24, UiTheme.TXT_VALUE if tt else Color("fff2b0"), 8)
-	r.position = Vector2(470, 100)
-	r.size = Vector2(150, 80)
-	b.add_child(r)
-	if tt:   # 뚜까펫: 오른쪽 위 노란 "시작" 알약
-		var go := Panel.new()
-		go.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		go.add_theme_stylebox_override("panel", UiTheme.button_box(UiTheme.YELLOW, 18))
-		go.position = Vector2(462, 26)
-		go.size = Vector2(150, 64)
-		b.add_child(go)
-		var gl := _label("시작 ▶", 28, Color("3a2400"), 0)
-		gl.size = Vector2(150, 56)
-		go.add_child(gl)
-	else:
-		var arrow := _label("▶", 46, Color.WHITE, 10)
-		arrow.position = Vector2(560, 18)
-		arrow.size = Vector2(60, 70)
-		b.add_child(arrow)
-	if is_new:
-		var badge := _panel(UiTheme.RED if tt else Color("ff5f6a"), Vector2(96, 42), 21, 4)
-		badge.position = Vector2(sz.x - 120, -18)
-		badge.rotation = 0.12
-		b.add_child(badge)
-		var nl := _label("NEW", 26, Color.WHITE, 8)
-		nl.size = Vector2(96, 42)
-		badge.add_child(nl)
-	b.button_down.connect(func():
-		_press_tween(b).tween_property(b, "scale", Vector2(0.94, 0.94), 0.06)
-		Sfx.play("click", -6.0))
-	b.button_up.connect(func():
-		_press_tween(b).tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
-	b.pressed.connect(func(): _go(mode, false))
-	_pop(b, 0.2)
-
-## Expedition: one chapter per region of the march (◀ ▶ picks an opened chapter). Beat its mid-boss to open
-## the next; the run then settles (gear is permanent, gold / 강화석 banked).
-func _expedition_card() -> void:
-	var tt := UiTheme.tt()
-	var sz := Vector2(640, 250)
-	var col := Color("e0843a")
-	var card := Panel.new()
-	card.mouse_filter = Control.MOUSE_FILTER_STOP
-	card.add_theme_stylebox_override("panel", _ttukka_card(col) if tt else _box(col, 30, 6))
-	root.add_child(_place(card, Vector2(0.5, 1), Vector2(-sz.x * 0.5, -520), sz))
-	var t := _label("원정", 52, Color.WHITE, 14)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	t.position = Vector2(36, 16)
-	t.size = Vector2(300, 64)
-	card.add_child(t)
-	var d := _label("중간 보스를 쓰러뜨리면 다음 챕터가 열려요", 22, UiTheme.TXT_DIM if tt else Color("fff8e8"), 0 if tt else 8)
-	d.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	d.position = Vector2(38, 78)
-	d.size = Vector2(560, 34)
-	card.add_child(d)
-	var prev := _small_button("◀", Rect2(32, 124, 74, 74))
-	var next := _small_button("▶", Rect2(330, 124, 74, 74))
-	card.add_child(prev)
-	card.add_child(next)
-	_chapter_l = _label("", 30, Color.WHITE, 10)
-	_chapter_l.position = Vector2(106, 118)
-	_chapter_l.size = Vector2(224, 52)
-	card.add_child(_chapter_l)
-	_chapter_s = _label("", 20, UiTheme.TXT_VALUE if tt else Color("fff2b0"), 7)
-	_chapter_s.position = Vector2(106, 164)
-	_chapter_s.size = Vector2(224, 34)
-	card.add_child(_chapter_s)
-	prev.pressed.connect(func(): _pick_chapter(-1))
-	next.pressed.connect(func(): _pick_chapter(1))
-	var go := Button.new()
-	go.focus_mode = Control.FOCUS_NONE
-	go.text = "출발 ▶"
-	go.add_theme_font_override("font", font)
-	go.add_theme_font_size_override("font_size", 36)
-	_skin_yellow(go)
-	go.position = Vector2(424, 118)
-	go.size = Vector2(190, 86)
-	card.add_child(go)
-	go.pressed.connect(func():
-		Sfx.play("click", -6.0)
-		_go("march", true))
-	_pick_chapter(0)
-	_pop(card, 0.15)
-
-func _small_button(text: String, r: Rect2) -> Button:
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	b.text = text
-	b.position = r.position
-	b.size = r.size
-	b.add_theme_font_override("font", font)
-	b.add_theme_font_size_override("font_size", 30)
-	_skin_button(b, UiTheme.NAVY, Color("6f6cf0"), 18, 20)
-	_text_color(b, Color.WHITE)
-	return b
-
-func _pick_chapter(step: int) -> void:
-	var c := clampi(Meta.chapter + step, 0, Meta.cleared)
-	if step != 0 and c != Meta.chapter:
-		Sfx.play("click", -6.0, 1.2)
-	Meta.chapter = c
-	if step != 0:
-		Meta.save()
-	_chapter_l.text = Meta.chapter_name(c)
-	_chapter_s.text = "클리어 ✓" if c < Meta.cleared else "도전 중 · 무리 10"
-
-## [장비]: permanent gear, storage merges and slot upgrades (GearScreen).
-func _gear_button() -> void:
-	var sz := Vector2(290, 86)
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	b.text = "장비"
-	b.add_theme_font_override("font", font)
-	b.add_theme_font_size_override("font_size", 40)
-	_skin_button(b, UiTheme.GREEN, Color("27c6b0"), 22, 26)
-	_text_color(b, Color.WHITE)
-	b.add_theme_color_override("font_outline_color", INK)
-	b.add_theme_constant_override("outline_size", 9)
-	root.add_child(_place(b, Vector2(0.5, 1), Vector2(-sz.x - 10, -630), sz))
-	if Meta.merge_ready() > 0:
-		var badge := _panel(UiTheme.RED, Vector2(150, 40), 20, 3)
-		badge.position = Vector2(sz.x - 110, -16)
-		badge.rotation = 0.08
-		b.add_child(badge)
-		var bl := _label("합성 가능!", 22, Color.WHITE, 6)
-		bl.size = Vector2(150, 40)
-		badge.add_child(bl)
-	b.pressed.connect(_open_gear)
-	_pop(b, 0.1)
-
-## [유물]: the relic collection, worn slots and ★ merges (RelicScreen).
-func _relic_button() -> void:
-	var sz := Vector2(290, 86)
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	b.text = "유물"
-	b.add_theme_font_override("font", font)
-	b.add_theme_font_size_override("font_size", 40)
-	_skin_button(b, UiTheme.ORANGE, Color("ff9f1c"), 22, 26)
-	_text_color(b, Color.WHITE)
-	b.add_theme_color_override("font_outline_color", INK)
-	b.add_theme_constant_override("outline_size", 9)
-	root.add_child(_place(b, Vector2(0.5, 1), Vector2(10, -630), sz))
-	var badge_t := ""
-	if Meta.relic_merge_ready() > 0:
-		badge_t = "합성 가능!"
-	elif Meta.worn_relics().size() < Defs.RELIC_SLOTS and not Meta.relic_bag.is_empty():
-		badge_t = "장착 가능!"
-	if badge_t != "":
-		var badge := _panel(UiTheme.RED, Vector2(150, 40), 20, 3)
-		badge.position = Vector2(sz.x - 110, -16)
-		badge.rotation = 0.08
-		b.add_child(badge)
-		var bl := _label(badge_t, 22, Color.WHITE, 6)
-		bl.size = Vector2(150, 40)
-		badge.add_child(bl)
-	b.pressed.connect(_open_relic)
-	_pop(b, 0.14)
-
+# ---------------------------------------------------------------- existing screens
 func _open_relic() -> void:
 	if _leaving or _gear or _relic or _daily or _settings:
 		return
@@ -788,80 +556,8 @@ func _open_gear() -> void:
 		layer.queue_free()
 		_reload_quiet())   # currencies / badges refresh
 
-## [모닥불] / [출석]: square buttons on the left / right edge under the currency pills, each with a red badge
-## when something is waiting (a pile worth an hour or more / a full fire; an unclaimed attendance day).
-func _camp_button() -> void:
-	var m := Meta.camp_minutes()
-	_side_button("모닥불", UiTheme.ORANGE, Color("ff9f1c"), 0.0, "가득!" if Meta.camp_full() else ("받기!" if m >= 60 else ""), _open_camp, CampScreen.FireIcon.new(), SIDE_Y[0])
-
-func _attend_button() -> void:
-	var cal := CalendarIcon.new()
-	cal.day = Meta.att_day + 1 if Meta.can_attend() else (Meta.att_day if Meta.att_day > 0 else 7)
-	_side_button("출석", UiTheme.GREEN, Color("27c6b0"), 1.0, "받기!" if Meta.can_attend() else "", _open_attend, cal, SIDE_Y[0])
-
-## [탤런트]: under [모닥불]; badged while the next level is affordable.
-func _talent_button() -> void:
-	_side_button("탤런트", UiTheme.NAVY, Color("6f6cf0"), 0.0, "강화!" if Meta.can_gold_talent() == "" else "", _open_talent, Hud.CoinIcon.new(), SIDE_Y[1])
-
-## Side buttons: three per side between the currency pills and the 장비 / 유물 row.
-const SIDE_SZ := Vector2(116, 98)
-const SIDE_Y := [318.0, 424.0, 530.0]
-
-func _side_button(text: String, tt_col: Color, classic_col: Color, side: float, badge_t: String, on_press: Callable, icon: Control, y: float) -> void:
-	var sz := SIDE_SZ
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	_skin_button(b, tt_col, classic_col, 22, 26)
-	var x := 16.0 if side == 0.0 else -16.0 - sz.x
-	root.add_child(_place(b, Vector2(side, 0), Vector2(x, y), sz))
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.position = Vector2((sz.x - 60) * 0.5, 3)
-	icon.size = Vector2(60, 60)
-	b.add_child(icon)
-	var l := _label(text, 24, Color.WHITE, 7)
-	l.position = Vector2(0, 62)
-	l.size = Vector2(sz.x, 34)
-	b.add_child(l)
-	if badge_t != "":
-		var badge := _panel(UiTheme.RED, Vector2(96, 38), 19, 3)
-		badge.position = Vector2(sz.x - 70 if side == 0.0 else -26, -14)   # the right button's badge leans inward (screen edge)
-		badge.rotation = 0.1 if side == 0.0 else -0.1
-		b.add_child(badge)
-		var bl := _label(badge_t, 20, Color.WHITE, 6)
-		bl.size = Vector2(96, 38)
-		badge.add_child(bl)
-		var tw := badge.create_tween().set_loops()
-		badge.pivot_offset = Vector2(48, 19)
-		tw.tween_property(badge, "scale", Vector2(1.1, 1.1), 0.45).set_trans(Tween.TRANS_SINE)
-		tw.tween_property(badge, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_SINE)
-	b.button_down.connect(func():
-		_press_tween(b).tween_property(b, "scale", Vector2(0.92, 0.92), 0.06))
-	b.button_up.connect(func():
-		_press_tween(b).tween_property(b, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT))
-	b.pressed.connect(on_press)
-	_pop(b, 0.12)
-
-## Little calendar page: red binding on top, the cycle's day number in the middle.
-class CalendarIcon extends Control:
-	var day := 1
-	func _draw() -> void:
-		var r := Rect2(size * 0.12, size * 0.76)
-		draw_rect(r.grow(3), Color("2a1b3d"), true)
-		draw_rect(r, Color.WHITE, true)
-		draw_rect(Rect2(r.position, Vector2(r.size.x, r.size.y * 0.28)), Color("ff5f6a"), true)
-		var f := ThemeDB.fallback_font
-		var t := str(day)
-		var fs := int(r.size.y * 0.52)
-		var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(f, Vector2(r.get_center().x - w * 0.5, r.end.y - r.size.y * 0.16), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2a1b3d"))
-
 func _open_camp() -> void:
 	_open_daily(CampScreen.new())
-
-## [토벌]: right side under [출석]; badged while today's tries remain.
-func _raid_button() -> void:
-	var ic := ItemIcon.new(Inventory.make("equip", "axe4"))
-	_side_button("토벌", UiTheme.RED, Color("ff5f6a"), 1.0, "도전!" if Meta.raid_left() > 0 else "", _open_raid, ic, SIDE_Y[1])
 
 func _open_raid() -> void:
 	if _leaving or _gear or _relic or _daily or _settings:
@@ -876,25 +572,8 @@ func _open_raid() -> void:
 		_go("march", false, key))
 	_open_daily(scr)
 
-## [미션]: right side, third row; badged while something can be collected.
-func _mission_button() -> void:
-	_side_button("미션", Color("4aa8ff"), Color("4aa8ff"), 1.0, "받기!" if Meta.missions_ready() > 0 else "", _open_mission, ClipboardIcon.new(), SIDE_Y[2])
-
 func _open_mission() -> void:
 	_open_daily(MissionScreen.new())
-
-## Clipboard with ticked lines (the mission list).
-class ClipboardIcon extends Control:
-	func _draw() -> void:
-		var ink := UiTheme.ink()
-		var r := Rect2(size.x * 0.18, size.y * 0.14, size.x * 0.64, size.y * 0.8)
-		draw_rect(r.grow(3), ink)
-		draw_rect(r, Color("f4ead2"))
-		draw_rect(Rect2(r.position.x + r.size.x * 0.28, r.position.y - 6, r.size.x * 0.44, 10), Color("8a5a34"))   # clip
-		for i in 3:
-			var y := r.position.y + r.size.y * (0.28 + i * 0.24)
-			draw_polyline(PackedVector2Array([Vector2(r.position.x + 7, y), Vector2(r.position.x + 11, y + 4), Vector2(r.position.x + 18, y - 4)]), Color("3aa84a"), 3.0)
-			draw_line(Vector2(r.position.x + 23, y), Vector2(r.end.x - 6, y), Color("8a86a8"), 3.0)
 
 func _open_talent() -> void:
 	_open_daily(TalentScreen.new())
@@ -917,19 +596,6 @@ func _open_daily(scr: GearScreen) -> void:
 		_daily = null
 		layer.queue_free()
 		_reload_quiet())   # currencies / badges refresh
-
-## 뚜까펫 스테이지 카드: 검정 턱 → 모드 색 테두리 → 청록 선 → 남보라 본문.
-func _ttukka_card(c: Color) -> StyleBox:
-	var lb := UiTheme.Layered.new()
-	lb.add(UiTheme.flat(UiTheme.INK, 32, 0), Vector4(3, 3, 3, 10))
-	lb.add(UiTheme.flat(c, 30, 5), Vector4.ZERO)
-	var hl := UiTheme.flat(Color(0, 0, 0, 0), 26, 0)
-	hl.border_width_top = 4
-	hl.border_color = c.lightened(0.35)
-	lb.add(hl, Vector4(-5, -5, -5, -5))
-	lb.add(UiTheme.flat(UiTheme.FRAME_LINE, 22, 3), Vector4(-11, -11, -11, -11))
-	lb.add(UiTheme.flat(UiTheme.BODY, 18, 0), Vector4(-16, -16, -16, -16))
-	return lb
 
 # ---------------------------------------------------------------- style helpers (Hud look)
 ## Button look in both presets: 뚜까펫 3D button in tt_col (radius r_tt) / classic flat box in classic_col.

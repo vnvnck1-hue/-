@@ -1,0 +1,6 @@
+{
+  "mode": "built-in image_gen",
+  "concept": "a-toy-camp",
+  "reason": "Initial image included four red notification dots; refined to exactly two.",
+  "prompt": "Use case: precise-object-edit. Edit the provided completed mobile game lobby image with ONLY the following tiny notification cleanup. Remove the small red notification dot at the upper-right corner of the \"미션\" clipboard button on the right side, restoring the clean background there. Remove the small red notification dot above the far-right bottom navigation \"성장\" tree icon, restoring the plain cream navigation surface. Keep EXACTLY TWO red dots: the one on the \"보상 받기\" camp chest label, and the one on the bottom-left \"장비\" icon. Preserve every other pixel/composition as faithfully as possible: all three characters, background, typography and Korean spelling, resource numbers, chapter row, giant yellow 출발 button, labels, proportions and full portrait canvas. Do not restyle or add anything. No other changes."
+}

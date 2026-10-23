@@ -372,6 +372,170 @@ static func lightning(a: Vector3, b: Vector3, width := 0.09) -> void:
 		tw.tween_property(m, "albedo_color:a", 0.0, 0.22).set_delay(0.06)
 	tw.chain().tween_callback(n.queue_free)
 
+const BOLT_SHADER := preload("res://scripts/lightning_bolt.gdshader")
+const STRIKE_HIT := 0.05   # s the stroke takes to race from the sky to the ground (the hit)
+
+static func _shader_mat(sh: Shader, params: Dictionary) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("seed", randf() * 100.0)
+	for k in params:
+		m.set_shader_parameter(k, params[k])
+	return m
+
+## Bolt from the sky onto `pos`: one clean shader stroke (lightning_bolt.gdshader) that races down in
+## STRIKE_HIT, holds a beat, then thins and fades. At its foot a soft deep-blue glow on the ground.
+static func sky_strike(pos: Vector3) -> void:
+	var n := Node3D.new()
+	_add(n, Vector3.ZERO)
+	if not n.is_inside_tree():
+		return
+	var foot := pos + Vector3(0, 0.3, 0)
+	var top := foot + Vector3(randf_range(-0.6, 0.6), 12.0, randf_range(-1.4, -0.8))
+	var view := cam.global_position if is_instance_valid(cam) else foot + Vector3(0, 10, 10)
+	var bolt := _brush_bolt(_zigzag(top, foot, 7, 0.75))
+	var m := _stroke(n, bolt["pts"], 0.8, 0.14, view, 1.2, bolt["thick"])
+	m.set_shader_parameter("reveal", 0.0)
+	var glow := MeshInstance3D.new()
+	glow.mesh = _unit_plane()
+	var gmat := Mats.ground("soft", Color(0.06, 0.22, 0.7, 0.0), true)
+	glow.material_override = gmat
+	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	n.add_child(glow)
+	glow.scale = Vector3(2.2, 1, 2.2)
+	glow.global_position = pos + Vector3(0, 0.03, 0)
+	var tw := n.create_tween()
+	tw.tween_method(func(v: float): m.set_shader_parameter("reveal", v), 0.0, 1.0, STRIKE_HIT)
+	tw.tween_callback(func():
+		gmat.albedo_color.a = 1.0
+		_shake(0.35))
+	tw.tween_interval(0.08)
+	tw.set_parallel(true)
+	tw.tween_method(func(v: float): m.set_shader_parameter("burn", v), 0.0, 1.0, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(gmat, "albedo_color:a", 0.0, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_callback(n.queue_free)
+
+## One shader ribbon along `pts` (world space) under `parent`; returns its material.
+static func _stroke(parent: Node3D, pts: Array[Vector3], width: float, core: float, view: Vector3, power: float, thick := PackedFloat32Array()) -> ShaderMaterial:
+	var mi := MeshInstance3D.new()
+	mi.mesh = _ribbon(pts, width, view, thick)
+	var length := 0.0
+	for i in pts.size() - 1:
+		length += pts[i].distance_to(pts[i + 1])
+	var m := _shader_mat(BOLT_SHADER, {"intensity": power, "core_width": core, "length_m": length, "reveal": 1.0, "burn": 0.0})
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	mi.global_transform = Transform3D.IDENTITY
+	return m
+
+## Stylised bolt path a -> b: a zig-zag whose joints swing to alternate sides by random amounts.
+static func _zigzag(a: Vector3, b: Vector3, segs: int, jag: float) -> Array[Vector3]:
+	var pts: Array[Vector3] = [a]
+	var side := (b - a).cross(Vector3.FORWARD).normalized()
+	var sgn := 1.0 if randf() < 0.5 else -1.0
+	for i in range(1, segs):
+		var k := (float(i) + randf_range(-0.25, 0.25)) / segs
+		pts.append(a.lerp(b, k) + side * sgn * jag * randf_range(0.4, 1.0) + Vector3(0, 0, randf_range(-0.15, 0.15)))
+		sgn = -sgn
+	pts.append(b)
+	return pts
+
+## Brush-stroke thickness along a bolt: every segment leaves its kink fat and tapers to a needle just
+## before the next kink (a wedge, like an inked stroke), thin up in the sky and swelling toward the strike.
+## Returns {"pts": Array[Vector3], "thick": PackedFloat32Array} (thickness 1 = the stroke's core width).
+static func _brush_bolt(joints: Array[Vector3]) -> Dictionary:
+	var pts: Array[Vector3] = []
+	var thick := PackedFloat32Array()
+	var last := joints.size() - 1
+	for i in last:
+		var env := lerpf(0.35, 1.0, smoothstep(0.0, 0.6, float(i) / last))
+		pts.append(joints[i])
+		thick.append((0.5 if i == 0 else randf_range(1.4, 2.2)) * env)
+		pts.append(joints[i].lerp(joints[i + 1], randf_range(0.8, 0.9)))
+		thick.append(randf_range(0.1, 0.2) * env)
+	pts.append(joints[last])
+	thick.append(0.7)
+	return {"pts": pts, "thick": thick}
+
+## Jagged polyline a -> b: `segs` steps, each joint knocked sideways up to `jag`.
+static func _bolt_points(a: Vector3, b: Vector3, segs: int, jag: float) -> Array[Vector3]:
+	var pts: Array[Vector3] = [a]
+	for i in range(1, segs):
+		var k := float(i) / segs
+		pts.append(a.lerp(b, k) + Vector3(randf_range(-jag, jag), randf_range(-0.15, 0.15), randf_range(-jag, jag) * 0.5))
+	pts.append(b)
+	return pts
+
+const THICK_MAX := 3.0   # must match the shader's decode (lightning_bolt.gdshader)
+
+## Flat ribbon along `pts` turned to face `view`, UV.x across (centre 0.5), UV.y along by arc length,
+## COLOR.r = thickness from `thick` (1 when missing) / THICK_MAX, since vertex colours are 8-bit 0..1.
+## Each segment is its own quad facing the camera, so a sharp kink stays a crisp corner instead of a
+## twisted fan; at a real bend the quads overrun a little to close the gap on the outside of the corner.
+static func _ribbon(pts: Array[Vector3], width: float, view: Vector3, thick := PackedFloat32Array()) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var cols := PackedColorArray()
+	var last := pts.size() - 1
+	var total := 0.0
+	var along: Array[float] = [0.0]
+	for i in last:
+		total += pts[i].distance_to(pts[i + 1])
+		along.append(total)
+	var dirs: Array[Vector3] = []
+	for i in last:
+		dirs.append((pts[i + 1] - pts[i]).normalized())
+	for i in last:
+		var d := dirs[i]
+		var side := d.cross(view - (pts[i] + pts[i + 1]) * 0.5).normalized() * width * 0.5
+		var ext := width * 0.12
+		var p0 := pts[i] - (d * ext if i > 0 and d.dot(dirs[i - 1]) < 0.995 else Vector3.ZERO)
+		var p1 := pts[i + 1] + (d * ext if i + 1 < last and d.dot(dirs[i + 1]) < 0.995 else Vector3.ZERO)
+		var v0 := along[i] / total
+		var v1 := along[i + 1] / total
+		verts.append_array([p0 - side, p0 + side, p1 + side, p0 - side, p1 + side, p1 - side])
+		uvs.append_array([Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v0), Vector2(1, v1), Vector2(0, v1)])
+		var c0 := Color((thick[i] if i < thick.size() else 1.0) / THICK_MAX, 0, 0)
+		var c1 := Color((thick[i + 1] if i + 1 < thick.size() else 1.0) / THICK_MAX, 0, 0)
+		cols.append_array([c0, c0, c1, c0, c1, c1])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_COLOR] = cols
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
+
+const ARC_STEP := 0.045   # s between re-rolls of the arcs crawling over an electrocuted body
+
+## Electric arcs crawling over `target` for `dur` s: short shader strokes between random points on a
+## shell around it, re-rolled every ARC_STEP so they snap and crackle.
+static func shock_arcs(target: Node3D, dur: float, radius := 0.45, height := 0.55) -> void:
+	if not is_instance_valid(target) or not target.is_inside_tree():
+		return
+	var n := Node3D.new()
+	target.add_child(n)
+	var t := 0.0
+	while t < dur:
+		if not is_instance_valid(n) or not is_instance_valid(target) or not n.is_inside_tree():
+			return
+		for c in n.get_children():
+			c.free()
+		var view := cam.global_position if is_instance_valid(cam) else target.global_position + Vector3(0, 10, 10)
+		var centre := target.global_position + Vector3(0, height, 0)
+		for i in 2:
+			var pts := _bolt_points(centre + _rand_dir() * radius, centre + _rand_dir() * radius, 4, 0.1)
+			_stroke(n, pts, 0.28, 0.16, view, randf_range(0.9, 1.3))
+		await n.get_tree().create_timer(ARC_STEP, false).timeout
+		t += ARC_STEP
+	if is_instance_valid(n):
+		n.queue_free()
+
+static func _rand_dir() -> Vector3:
+	return Vector3(randf_range(-1, 1), randf_range(-0.7, 1), randf_range(-1, 1)).normalized()
+
 ## Gold coin that pops out of a defeated enemy and waits on the board (collected at wave end).
 static func coin(pos: Vector3) -> Node3D:
 	var n := Node3D.new()
@@ -568,6 +732,39 @@ static func item_drop(pos: Vector3, col: Color) -> void:
 
 ## Fan-shaped ground decal for the ranger's cone ultimate (aim preview & channel). The fan mesh is shared
 ## per shape (the aim preview rebuilds on every pointer move); the material is the caller's to fade.
+## Fan ground decal shaded by distance: `near` colour at the apex blending to `far` toward the rim, with alpha
+## fading out over the outer part so the far edge dissolves instead of ending in a hard line. Alpha-blended
+## (not additive), so dark tones darken the ground. The caller fades it through the material's albedo alpha.
+static func cone_gradient_mesh(length: float, half_angle: float, near: Color, far: Color, fade_from := 0.55) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = Mats.shared("vfx/cone_grad%.3f/%.3f/%s/%s/%.2f" % [length, half_angle, near, far, fade_from], func() -> Mesh:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var segs := 20
+		var rings := 12
+		var pt := func(r: int, s: int) -> Vector3:
+			var a := -half_angle + 2.0 * half_angle * s / segs
+			return Vector3(sin(a), 0, -cos(a)) * length * r / rings
+		var col := func(r: int) -> Color:
+			var k := float(r) / rings
+			var c := near.lerp(far, pow(k, 2.2))   # eased: the dark tone holds well out from the apex
+			c.a *= 1.0 - smoothstep(fade_from, 1.0, k)
+			return c
+		for r in rings:
+			for s in segs:
+				var quad := [[pt.call(r, s), col.call(r)], [pt.call(r + 1, s), col.call(r + 1)],
+					[pt.call(r + 1, s + 1), col.call(r + 1)], [pt.call(r, s + 1), col.call(r)]]
+				for k in [0, 1, 2, 0, 2, 3]:
+					st.set_color(quad[k][1])
+					st.add_vertex(quad[k][0])
+		return st.commit())
+	var m := Mats.fx(Color.WHITE)
+	m.vertex_color_use_as_albedo = true
+	m.disable_fog = true   # the march's fog would lift the dark tone toward a pale grey
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
 static func cone_mesh(length: float, half_angle: float, col: Color) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = Mats.shared("vfx/cone%.3f/%.3f" % [length, half_angle], func() -> Mesh:
@@ -585,15 +782,29 @@ static func cone_mesh(length: float, half_angle: float, col: Color) -> MeshInsta
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return mi
 
-static func arrow_rain(pos: Vector3) -> void:
-	var from := pos + Vector3(randf_range(-0.3, 0.3), 2.6, randf_range(-0.3, 0.3) + 0.6)
-	var dummy := Node3D.new()
-	_add(dummy, pos + Vector3(0, -0.35, 0))
-	var done := func(_p: Vector3) -> void:
-		hit_spark(pos + Vector3(0, 0.3, 0), Color("ffe08a"))
-		if is_instance_valid(dummy):
-			dummy.queue_free()
-	projectile("arrow", from, dummy, done, 0.0, 0.18)
+const ULT_BLUE := Color(0.15, 0.55, 2.2)
+
+## Ranger ultimate arrow: a glowing blue tracer shot flat and fast from the bow. With a target it homes in and
+## on_hit fires on impact; without one it streaks into the ground at `to` (filler spray) and sparks there.
+static func ult_arrow(from: Vector3, target: Node3D, to: Vector3, dur: float, on_hit := Callable()) -> void:
+	var dummy: Node3D = null
+	if target == null:
+		dummy = Node3D.new()
+		_add(dummy, to + Vector3(0, -0.35, 0))   # projectiles aim 0.35 above their target
+		target = dummy
+	var done := func(p: Vector3) -> void:
+		if dummy == null:
+			pop_sprite(p, "star", Color(0.55, 0.95, 2.0, 0.95), 0.7, 0.14, randf_range(-0.8, 0.8))
+			pop_sprite(p, "soft", Color(0.08, 0.4, 1.5, 0.6), 0.85, 0.2)
+			sparks(p, ULT_BLUE, 6, 4.0, 0.3, "star", 0.14)
+		else:
+			pop_sprite(p, "soft", Color(ULT_BLUE.r, ULT_BLUE.g, ULT_BLUE.b, 0.45), 0.45, 0.16)
+			sparks(p, ULT_BLUE, 3, 2.5, 0.25, "star", 0.1)
+			if is_instance_valid(dummy):
+				dummy.queue_free()
+		if on_hit.is_valid():
+			on_hit.call()
+	projectile("ult_arrow", from, target, done, 0.0, dur)
 
 # ---------------------------------------------------------------- projectiles
 ## speed in units/sec; when dur > 0 the flight time is fixed instead.
@@ -684,6 +895,39 @@ class Projectile extends Node3D:
 			qt.position.z = -0.2
 			var qf := _part(Vfx._box_mesh(Vector3(0.11, 0.01, 0.08)), Mats.prop(Defs.COL_ENEMY))
 			qf.position.z = 0.13
+		elif kind == "ult_arrow":
+			# ranger ultimate: white-hot shaft in a blue glow, bright head, fletching and a long tracer streak
+			arc = 0.1 + dist * 0.02
+			var core := _part(Mats.shared("vfx/ult_arrow_core", func() -> Mesh:
+				var c := CylinderMesh.new()
+				c.top_radius = 0.035
+				c.bottom_radius = 0.035
+				c.height = 0.8
+				return c), Mats.shared("vfx/ult_arrow_core_mat", func() -> Material: return Mats.glow(Color(0.45, 0.8, 1.0), 1.8)))
+			core.rotation.x = PI * 0.5
+			var shell := _part(Mats.shared("vfx/ult_arrow_shell", func() -> Mesh:
+				var c := CylinderMesh.new()
+				c.top_radius = 0.11
+				c.bottom_radius = 0.11
+				c.height = 0.9
+				return c), Mats.shared("vfx/ult_arrow_shell_mat", func() -> Material: return Mats.fx(Color(0.05, 0.35, 1.6, 0.75), true)))
+			shell.rotation.x = PI * 0.5
+			var head := _part(Mats.shared("vfx/ult_arrow_head", func() -> Mesh:
+				var c2 := CylinderMesh.new()
+				c2.top_radius = 0.0
+				c2.bottom_radius = 0.11
+				c2.height = 0.26
+				return c2), Mats.shared("vfx/ult_arrow_head_mat", func() -> Material: return Mats.glow(Color(0.35, 0.7, 1.0), 1.8)))
+			head.rotation.x = -PI * 0.5
+			head.position.z = -0.53
+			var halo := _part(Vfx._sphere_mesh(0.2), Mats.shared("vfx/ult_arrow_halo", func() -> Material: return Mats.fx(Color(0.05, 0.4, 1.8, 0.6), true)))
+			halo.position.z = -0.5
+			var fl := _part(Vfx._box_mesh(Vector3(0.26, 0.015, 0.18)), Mats.shared("vfx/ult_arrow_fl", func() -> Material: return Mats.glow(Color(0.2, 0.55, 1.0), 1.6)))
+			fl.position.z = 0.38
+			var streak := _part(Vfx._box_mesh(Vector3(0.08, 0.08, 1.4)), Mats.shared("vfx/ult_arrow_streak", func() -> Material: return Mats.fx(Color(0.02, 0.3, 1.4, 0.4), true)))
+			streak.position.z = 1.1
+			if body.is_inside_tree() and dist > 0.01:
+				body.look_at(end, Vector3.UP)   # aimed from the first frame, so the streak never flashes sideways
 		else:
 			arc = 0.35 + dist * 0.08
 			var shaft := _part(Mats.shared("vfx/arrow_shaft", func() -> Mesh:
@@ -746,6 +990,8 @@ class Projectile extends Node3D:
 				Vfx.puff(p, Color(0.75, 1.0, 0.55), 0.09, Vector3.ZERO, 0.35)
 			elif kind == "web" or kind == "hook":
 				Vfx.puff(p, Color(0.95, 0.97, 1.0), 0.04, Vector3.ZERO, 0.5)
+			elif kind == "ult_arrow":
+				pass   # the tracer streak is its trail (dozens fly at once: no puffs)
 			else:
 				Vfx.puff(p, Color(1, 1, 1), 0.06, Vector3.ZERO, 0.22)
 		if t >= 1.0:

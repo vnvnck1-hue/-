@@ -52,6 +52,14 @@ if (fs.existsSync(specialManifestPath)) {
     if (fs.existsSync(path.join(specialDir, asset.filename))) assets[asset.id] = { image: '../special-icons/v1-complete/' + asset.filename };
   }
 }
+const bookDir = path.join(root, 'art/skillbook-icons/v1');
+const bookManifestPath = path.join(bookDir, 'generation-manifest.json');
+if (fs.existsSync(bookManifestPath)) {
+  const manifest = JSON.parse(fs.readFileSync(bookManifestPath, 'utf8'));
+  for (const asset of manifest.assets) {
+    if (fs.existsSync(path.join(bookDir, asset.filename))) assets[asset.id] = { image: '../skillbook-icons/v1/' + asset.filename };
+  }
+}
 const items = [];
 function add(id, data, group, extra = {}) {
   const asset = assets[id] || {};
@@ -75,7 +83,9 @@ for (const [id, data] of Object.entries(ascended)) add(id, data, 'ascended', { g
 for (const [id, data] of Object.entries(relics)) add(id, data, 'relic', { grade: data.rarity === 'legendary' ? '전설' : '희귀' });
 for (const [id, data] of Object.entries(special)) if (!data.equip) add(id, data, 'consumable', { grade: '소모품' });
 add('skillbook', { name: '봉인된 스킬북', desc: '공통 책 아이콘 1종. 감정 후 9가지 스킬 표시를 오버레이로 구분하는 제작 계획입니다.' }, 'book', { grade: '공통 템플릿' });
-if (items.length !== 99 || items.filter(x => x.group === 'family').length !== 64 || new Set(items.map(x => x.id)).size !== 99) throw new Error('Catalog totals changed; review data.');
+const bookGrades = { 1: '일반', 2: '희귀', 3: '영웅', 4: '전설' };   // defs.gd BOOK_GRADES
+for (const [g, gradeName] of Object.entries(bookGrades)) add('skillbook' + g, { name: gradeName + ' 스킬북', desc: '등급별 스킬북. 열면 해당 등급 이하의 스킬 중에서 고릅니다.' }, 'book', { grade: gradeName });
+if (items.length !== 102 || items.filter(x => x.group === 'family').length !== 64 || new Set(items.map(x => x.id)).size !== 102) throw new Error('Catalog totals changed; review data.');
 const catalog = { title: '세명이 오리라 · 장비 리소스 도감', updated: '2026-10-11', familyNames, grades, items };
 fs.writeFileSync(path.join(here, 'catalog-data.json'), JSON.stringify(catalog, null, 2) + '\n');
 const template = fs.readFileSync(path.join(here, 'template.html'), 'utf8');

@@ -1337,6 +1337,8 @@ func _process(delta: float) -> void:
 	var jit := sin(_t * 90.0) * 0.035 * hk
 	squash.position.x = _hit_dir.x * hk * 0.07 + jit
 	squash.position.z = _hit_dir.y * hk * 0.07
+	if _shock_left > 0.0:
+		_shock_tick(delta)
 	if leg_l:
 		leg_l.rotation.x = sin(_t * 12.0 + _phase) * 0.7 * walk
 		leg_r.rotation.x = -sin(_t * 12.0 + _phase) * 0.7 * walk
@@ -1483,6 +1485,79 @@ func _set_flash(v: float) -> void:
 		m.emission = tint + _flash_col * v
 
 var _ghost := false
+
+# ------------------------------------------------------------------ electrocution
+const SHOCK_BLUE := Color(0.3, 0.6, 1.0)        # albedo the body is pulled toward on a blue beat
+const SHOCK_GLOW := Color(0.12, 0.4, 1.15)      # emission on a blue beat
+const SHOCK_BLINKS := 5                         # blue <-> own colour swaps over the shock
+const SHOCK_STEP := 1.0 / 30.0                  # jitter snaps at this rate (stuttery, like a lagging frame)
+var _shock_left := 0.0
+var _shock_dur := 0.0
+var _shock_step_t := 0.0
+var _shock_side := 1.0
+var _shock_off := Vector2.ZERO                  # (x offset, z roll) held between snaps
+var _shock_albedo: Array[Color] = []
+var _shock_blue := false
+
+## Electrocuted for `dur` s: body blinks blue / own colour SHOCK_BLINKS times, shudders left-right in
+## stuttering snaps and buzzes in scale.
+func electrocute(dur := 1.0) -> void:
+	if _ghost:
+		return
+	if _shock_left <= 0.0:
+		_shock_albedo.clear()
+		for m in mats:
+			_shock_albedo.append(m.albedo_color)
+	_shock_dur = dur
+	_shock_left = dur
+	_shock_step_t = 0.0
+
+func is_shocked() -> bool:
+	return _shock_left > 0.0
+
+func _shock_tick(delta: float) -> void:
+	if _ghost:
+		_shock_end()
+		return
+	_shock_left -= delta
+	if _shock_left <= 0.0:
+		_shock_end()
+		return
+	var k := 1.0 - _shock_left / _shock_dur   # 0 .. 1 through the shock
+	_shock_set_blue(int(k * SHOCK_BLINKS * 2.0) % 2 == 0)
+	# stuttering left / right shudder: hold a pose, snap to the other side
+	_shock_step_t -= delta
+	if _shock_step_t <= 0.0:
+		_shock_step_t = SHOCK_STEP
+		_shock_side = -_shock_side
+		_shock_off = Vector2(_shock_side * randf_range(0.1, 0.18), _shock_side * randf_range(0.06, 0.14))
+	var fade := clampf(_shock_left / 0.15, 0.0, 1.0)   # settle over the last instant
+	squash.position.x += _shock_off.x * fade
+	squash.rotation.z += _shock_off.y * fade
+	# fast squash-stretch buzz
+	var b := sin(_shock_left * 85.0) * 0.11 * fade
+	squash.scale *= Vector3(1.0 + b, 1.0 - b, 1.0 + b)
+
+func _shock_set_blue(on: bool) -> void:
+	if on == _shock_blue and not on:
+		return
+	_shock_blue = on
+	for i in mats.size():
+		var m := mats[i]
+		var base: Color = _shock_albedo[i] if i < _shock_albedo.size() else m.albedo_color
+		var c := base.lerp(SHOCK_BLUE, 0.7) if on else base
+		m.albedo_color = Color(c.r, c.g, c.b, m.albedo_color.a)
+		m.emission = (SHOCK_GLOW if on else tint) + _flash_col * _flash_v
+
+func _shock_end() -> void:
+	_shock_left = 0.0
+	if not _ghost:
+		_shock_set_blue(false)
+	else:
+		for i in mini(mats.size(), _shock_albedo.size()):
+			var c := _shock_albedo[i]
+			mats[i].albedo_color = Color(c.r, c.g, c.b, mats[i].albedo_color.a)
+	_shock_blue = false
 
 # ------------------------------------------------------------------ hover / drag emphasis
 const OUTLINE_SHADER := preload("res://scripts/outline.gdshader")

@@ -259,7 +259,7 @@ func _build_top() -> void:
 	sub_label = label("", 20, Color("ffd27a"), 8)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(place(sub_label, Vector2(1, 0), Vector2(-236, TRACK_Y + TRACK_H + 2), Vector2(212, 28)))
-	# centre message band: screen-centred, right below the hero status column (NOTICE_Y)
+	# centre message band: screen-centred, right below the chapter track (NOTICE_Y)
 	gimmick_title = label("", 36, Color("ffd27a"), 12)
 	root.add_child(place(gimmick_title, Vector2(0.5, 0), Vector2(-340, NOTICE_Y), Vector2(680, 46)))
 	gimmick_hint = label("", 22, Color("fff4e0"), 8)
@@ -284,7 +284,7 @@ const STATUS_W := 214.0
 const STATUS_H := 46.0
 const STATUS_GAP := 9.0
 var status_strip: Control         # the strip (MarchMain keeps units above it)
-const NOTICE_Y := STATUS_Y + 3 * STATUS_STEP + 22.0
+const NOTICE_Y := TRACK_Y + TRACK_H + 56.0   # centre message band: just under the chapter track / "보스까지" line
 
 func _build_hero_status() -> void:
 	var sw := 3.0 * STATUS_W + 2.0 * STATUS_GAP

@@ -1,0 +1,72 @@
+{
+  "created": "2026-10-22",
+  "mode": "built-in image_gen",
+  "transparentBackground": true,
+  "sharedPrompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE closed hardcover spell book, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view showing the front cover, the spine and a cream page edge.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only.",
+  "styleReferences": [
+    "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+    "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/shield2-iron-shield.png",
+    "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/godot/art/items/skillbook.png"
+  ],
+  "assets": [
+    {
+      "id": "skillbook1",
+      "name": "일반 스킬북",
+      "subject": "Plain grey-silver leather cover, simple dark corner caps, a small round silver emblem in the centre of the cover. Modest, no gems.",
+      "filename": "skillbook1.png",
+      "generated": true,
+      "source": "C:\\Users\\Loadcomplete\\.codex\\generated_images\\01a1622f-052f-7623-8d66-133727a61109\\exec-f1954f87-0a93-420b-8eec-a394d37c700c.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE closed hardcover spell book, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view showing the front cover, the spine and a cream page edge.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only.\nSubject: Plain grey-silver leather cover, simple dark corner caps, a small round silver emblem in the centre of the cover. Modest, no gems.\nSet consistency: this is grade 1 of four matched books. Establish a compact rounded rectangular hardcover, spine on the left, cream page block visible along the bottom and right, tilted clockwise slightly as in the supplied sealed skill book. Match the sword and shield outline weight and simple broad shading. Use the sealed book for book presentation style only; replace its lock and straps with the requested modest round emblem. No lock, chains or seal straps. One item only. Square 1024x1024 canvas.",
+      "references": [
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/shield2-iron-shield.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/godot/art/items/skillbook.png"
+      ]
+    },
+    {
+      "id": "skillbook2",
+      "name": "희귀 스킬북",
+      "subject": "Bright sky-blue cover, silver corner caps and a silver clasp, a round emblem with one small blue gem.",
+      "filename": "skillbook2.png",
+      "generated": true,
+      "source": "C:\\Users\\Loadcomplete\\.codex\\generated_images\\01a1622f-052f-7623-8d66-133727a61109\\exec-97cad01c-70ff-497d-bbd6-4cdd7d4c6a50.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE closed hardcover spell book, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view showing the front cover, the spine and a cream page edge.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only.\nSubject: Bright sky-blue cover, silver corner caps and a silver clasp, a round emblem with one small blue gem.\nSet consistency: input image 1 is the matching grade-1 book, used only as a visual design reference for the same book silhouette, spine shape, angle, proportions, outline thickness and scale. Generate its grade-2 companion with the specified sky-blue cover, silver corner caps, one silver clasp on the right fore-edge, and a round silver emblem holding one small blue gem. Keep the same book body and camera pose. Other inputs are original style references. Keep generous transparent padding; book height about 78% of square canvas, all extremities fully inside. Exactly one closed book; no lock, sealing straps or chains. Square canvas.",
+      "references": [
+        "C:\\Users\\Loadcomplete\\.codex\\generated_images\\01a1622f-052f-7623-8d66-133727a61109\\exec-f1954f87-0a93-420b-8eec-a394d37c700c.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/shield2-iron-shield.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/godot/art/items/skillbook.png"
+      ]
+    },
+    {
+      "id": "skillbook3",
+      "name": "영웅 스킬북",
+      "subject": "Rich violet-purple cover, gold corner caps and gold clasp, a gold emblem with a glowing purple gem, a ribbon bookmark hanging out. Gem luminosity contained inside its crisp outline; no external glow.",
+      "filename": "skillbook3.png",
+      "generated": true,
+      "source": "C:\\Users\\Loadcomplete\\.codex\\generated_images\\01a1622f-052f-7623-8d66-133727a61109\\exec-cc09e38b-242c-4cf4-a0a6-fede77bc104b.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE closed hardcover spell book, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view showing the front cover, the spine and a cream page edge.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only.\nSubject: Rich violet-purple cover, gold corner caps and gold clasp, a gold emblem with a glowing purple gem, a ribbon bookmark hanging out. Gem luminosity contained inside its crisp outline; no external glow.\nSet consistency: input image 1 is the matching grade-2 book design reference. Keep precisely the same underlying book silhouette, spine shape, angle, proportions, outline thickness, scale and placement. Generate the grade-3 companion: change cover and spine to rich violet-purple, corner caps and right fore-edge clasp to gold, and round medallion to gold holding one luminous purple gem. Add one short simple gold ribbon bookmark hanging from the bottom page edge. Keep gem glow inside its crisp outlined shape. Other images are original style references. Generous transparent padding, book height about 78% of square canvas, all parts fully inside. Exactly one closed book; no padlock, chains or sealing straps. Square canvas.",
+      "references": [
+        "C:\\Users\\Loadcomplete\\.codex\\generated_images\\01a1622f-052f-7623-8d66-133727a61109\\exec-97cad01c-70ff-497d-bbd6-4cdd7d4c6a50.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/shield2-iron-shield.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/godot/art/items/skillbook.png"
+      ]
+    },
+    {
+      "id": "skillbook4",
+      "name": "전설 스킬북",
+      "subject": "Warm orange-gold cover, ornate gold corner caps, gold clasp, a large star-shaped gold emblem with a fiery orange gem, ribbon bookmark, and two or three small solid outlined sparkle shapes attached close to the book.",
+      "filename": "skillbook4.png",
+      "generated": true,
+      "source": "C:\\Users\\Loadcomplete\\.codex\\generated_images\\01a1622f-052f-7623-8d66-133727a61109\\exec-4763d49a-d5c2-4950-88e6-6cff3035cab4.png",
+      "prompt": "Use case: stylized-concept\nAsset type: individual transparent PNG inventory icon for a cute fantasy RPG, matching the supplied existing sword and shield style.\nStyle: very thick clean near-black rounded outlines, chunky simplified silhouette, saturated flat color regions, one simple shaded facet and a small cream highlight. Smooth cartoon illustration, easy to recognize at 32 and 48 pixels. Avoid delicate engraving or tiny details.\nComposition: exactly ONE closed hardcover spell book, centered in a square canvas, filling roughly 75-80% of the canvas with generous transparent padding on all sides. All parts fully inside the canvas. Slight three-quarter view showing the front cover, the spine and a cream page edge.\nBackdrop: genuinely transparent alpha. No ground, no scene, no card, no frame around the canvas, no label, no letters or numbers, no watermark. No diffuse glow outside the item, no blurred effects, no particle field. Magical accents must be a few solid, clearly outlined shapes attached close to the item.\nInput images are style references only.\nSubject: Warm orange-gold cover, ornate gold corner caps, gold clasp, a large star-shaped gold emblem with a fiery orange gem, ribbon bookmark, and two or three small solid outlined sparkle shapes attached close to the book.\nSet consistency: input image 1 is the matching grade-3 book design reference. Keep precisely the same underlying book silhouette, spine shape, angle, proportions, outline thickness, scale and placement. Generate the grade-4 companion: orange-gold cover and spine distinct from the bright yellow-gold trim, slightly more ornate but chunky gold corner caps, same gold right fore-edge clasp, large star-shaped gold medallion with one fiery orange gem, and same short ribbon bookmark. Add exactly two or three small solid four-point gold sparkle shapes with very thick near-black outlines touching or immediately beside the book; no glow or particle field. Keep decoration bold and minimal at inventory size, no thin filigree. Other inputs are original style references. Generous transparent padding, book height about 78% of square canvas, all parts fully inside. Exactly one closed book; no padlock, chains or sealing straps. Square canvas.",
+      "references": [
+        "C:\\Users\\Loadcomplete\\.codex\\generated_images\\01a1622f-052f-7623-8d66-133727a61109\\exec-cc09e38b-242c-4cf4-a0a6-fede77bc104b.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/sword2-steel-sword.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/art/equipment-icons/v2-casual/shield2-iron-shield.png",
+        "C:/Users/Loadcomplete/Documents/ChatGPT/트리오트러블/godot/art/items/skillbook.png"
+      ]
+    }
+  ]
+}

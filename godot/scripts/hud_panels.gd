@@ -929,7 +929,7 @@ static func stat_note(k: String, v: float) -> String:
 	if t == "":
 		return ""
 	var vs := str(int(v)) if k == "range" else _pct(v)
-	return t.replace("{v}", vs).replace("{h}", _pct(v * 0.5))
+	return t.replace("{v}", vs).replace("{h}", _pct(v * 0.1))   # half of dropBonus, x0.2 book drop scale (main.gd)
 
 ## Full equipment text: [stat summary line, [note lines], [[effect name, effect body]]]. Used by the lobby gear screen.
 static func equip_detail(e: Dictionary) -> Dictionary:
